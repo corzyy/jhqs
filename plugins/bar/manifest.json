@@ -1,0 +1,1 @@
+{"author": "jhqs", "description": "Status bar shell (delegates to bar atoms). Maps to Omarchy omarchy.bar.", "entryPoints": {"bar": "../../modules/TopBar.qml"}, "id": "jhqs.bar", "jhqs": {"ipc": "n/a (TopBar signals -> shell.qml activePanel)", "module": "modules/TopBar.qml + modules/bar/*"}, "kinds": ["bar"], "name": "Bar", "schemaVersion": 1, "version": "1.0.0"}

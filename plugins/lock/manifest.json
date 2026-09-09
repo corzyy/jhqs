@@ -1,0 +1,1 @@
+{"author": "jhqs", "description": "Session lock surface (grim per-monitor + PIN). Maps to Omarchy omarchy.lock.", "entryPoints": {"service": "../../modules/Lockscreen.qml"}, "id": "jhqs.lock", "jhqs": {"ipc": "lockscreen lock()/unlock()/toggle()/isLocked()", "module": "modules/Lockscreen.qml"}, "kinds": ["service"], "name": "Lock screen", "schemaVersion": 1, "version": "1.0.0"}

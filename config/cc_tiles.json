@@ -1,0 +1,20 @@
+{
+    "blocks": [
+        "tiles",
+        "volume",
+        "media"
+    ],
+    "bluetooth": "compact",
+    "dnd": "compact",
+    "hidden": [
+        "dnd"
+    ],
+    "power": "compact",
+    "tileOrder": [
+        "wired",
+        "bluetooth",
+        "dnd",
+        "power"
+    ],
+    "wired": "compact"
+}

@@ -1,0 +1,1 @@
+{"author": "jhqs", "description": "Theme-aware auth dialog (native PolkitAgent backend). Maps to Omarchy omarchy.polkit.", "entryPoints": {"service": "../../modules/Polkit.qml"}, "id": "jhqs.polkit", "jhqs": {"module": "modules/Polkit.qml"}, "kinds": ["service"], "name": "Polkit agent", "schemaVersion": 1, "version": "1.0.0"}

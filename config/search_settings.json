@@ -1,0 +1,10 @@
+{
+    "about": true,
+    "apps": true,
+    "install": true,
+    "remove": true,
+    "setup": true,
+    "style": true,
+    "system": true,
+    "update": true
+}

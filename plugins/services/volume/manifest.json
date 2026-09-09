@@ -1,0 +1,1 @@
+{"author": "jhqs", "description": "Audio channel singleton (PipeWire-first + volume.sh fallback). Backs jhqs.audio panel.", "entryPoints": {"service": "../../../services/VolumeService.qml"}, "id": "jhqs.volume-service", "jhqs": {"module": "services/VolumeService.qml"}, "kinds": ["service"], "name": "Volume", "schemaVersion": 1, "version": "1.0.0"}

@@ -1,0 +1,1 @@
+{"author": "jhqs", "description": "Bluetooth state singleton. Backs jhqs.bluetooth panel.", "entryPoints": {"service": "../../../services/BluetoothService.qml"}, "id": "jhqs.bluetooth-service", "jhqs": {"module": "services/BluetoothService.qml"}, "kinds": ["service"], "name": "Bluetooth state", "schemaVersion": 1, "version": "1.0.0"}

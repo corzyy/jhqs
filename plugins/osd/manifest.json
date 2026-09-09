@@ -1,0 +1,1 @@
+{"author": "jhqs", "description": "Volume on-screen pill. Maps to Omarchy omarchy.osd.", "entryPoints": {"panel": "../../modules/VolumeOSD.qml"}, "id": "jhqs.osd", "jhqs": {"ipc": "volumeOsd/osd show()/status()", "module": "modules/VolumeOSD.qml + modules/LaunchOSD.qml"}, "kinds": ["panel"], "name": "OSD", "schemaVersion": 1, "version": "1.0.0"}

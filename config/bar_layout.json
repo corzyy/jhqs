@@ -1,0 +1,33 @@
+{
+    "center": [
+        "updates",
+        "activewindow",
+        "clock",
+        "weather"
+    ],
+    "fourfifths": [
+    ],
+    "hidden": [
+        "activewindow",
+        "controlcenter",
+        "launcher",
+        "media",
+        "vitals"
+    ],
+    "left": [
+        "launcher",
+        "workspaces"
+    ],
+    "right": [
+        "systemtray",
+        "controlcenter",
+        "network",
+        "bluetooth",
+        "volume",
+        "notif"
+    ],
+    "twofifths": [
+        "media"
+    ],
+    "version": 1
+}

@@ -1,0 +1,252 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import QtQuick.Layouts
+import "../../../themes"
+
+Item {
+    id: root
+    required property var scope
+    required property var bodyRoot
+    readonly property bool isMinimal: Theme.shellTheme === "minimal"
+    anchors.fill: parent
+    anchors.margins: isMinimal ? 0 : 4
+    clip: true
+    opacity: bodyRoot.scope.showModules ? 1 : 0
+    visible: opacity > 0.01
+    enabled: bodyRoot.scope.showModules
+    Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+
+    property string subview: "root"
+    property int selectedIndex: 0
+    property string status: ""
+    property var meta: Theme.barModuleMetaList
+    property var layoutRev: [Theme.barLayoutLeft, Theme.barLayoutTwoFifths, Theme.barLayoutCenter, Theme.barLayoutFourFifths, Theme.barLayoutRight, Theme.barHiddenIds()]
+    property var addList: {
+        layoutRev
+        let out = []
+        for (let i = 0; i < meta.length; i++) if (Theme.isBarModuleHidden(meta[i].id)) out.push(meta[i])
+        return out
+    }
+    property var removeList: {
+        layoutRev
+        let vis = Theme.barVisibleIds()
+        let out = []
+        for (let i = 0; i < vis.length; i++) {
+            for (let j = 0; j < meta.length; j++) if (meta[j].id === vis[i]) { out.push(meta[j]); break }
+        }
+        return out
+    }
+    property string query: {
+        try { return ("" + bodyRoot.scope.filterText).toLowerCase().trim() } catch (e) { return "" }
+    }
+    function matchesModule(e, q) {
+        if (q === "") return true
+        let t = ("" + (e.title || "")).toLowerCase()
+        let mid = ("" + (e.id || "")).toLowerCase()
+        return t.includes(q) || mid.includes(q)
+    }
+    property var filteredAddList: {
+        let q = query
+        if (q === "") return addList
+        return addList.filter(e => matchesModule(e, q))
+    }
+    property var filteredRemoveList: {
+        let q = query
+        if (q === "") return removeList
+        return removeList.filter(e => matchesModule(e, q))
+    }
+    function detailFor(e, withSection) {
+        let mid = "" + (e.id || "")
+        if (!withSection) return mid
+        let s = sectionLabel(e.id)
+        return s !== "" ? mid + " • " + s : mid
+    }
+    property var rootModel: {
+        let a = addList.length, r = removeList.length
+        return [
+            {title: "Modul hinzufügen", icon: "󰐕", sub: a === 0 ? "alle aktiv" : a + " verfügbar"},
+            {title: "Modul entfernen", icon: "󰐖", sub: r === 0 ? "keine aktiv" : r + " aktiv"}
+        ]
+    }
+    property int navCount: subview === "add" ? filteredAddList.length : subview === "remove" ? filteredRemoveList.length : 2
+    onNavCountChanged: { if (selectedIndex >= navCount) selectedIndex = Math.max(0, navCount - 1) }
+    function sectionLabel(id: string): string {
+        let s = Theme.barSectionOf(id)
+        if (s === "left") return "Links"
+        if (s === "twofifths") return "2/5"
+        if (s === "center") return "Mitte"
+        if (s === "fourfifths") return "4/5"
+        if (s === "right") return "Rechts"
+        return ""
+    }
+    function openSubview(v: string) { subview = v; selectedIndex = 0; status = ""; Qt.callLater(() => listFlick.ensureVisible(0)) }
+    function goBack() {
+        if (subview !== "root") openSubview("root")
+        else { bodyRoot.scope.showModules = false; bodyRoot.scope.showStyle = true; bodyRoot.scope.clearSearch() }
+    }
+    function moveSelection(delta: int) {
+        if (navCount <= 0) return
+        selectedIndex = (selectedIndex + delta + navCount) % navCount
+        listFlick.ensureVisible(selectedIndex)
+    }
+    function activateSelected() {
+        if (subview === "root") {
+            openSubview(selectedIndex === 1 ? "remove" : "add")
+            return
+        }
+        if (subview === "add") {
+            let e = filteredAddList[selectedIndex]
+            if (e) status = Theme.showBarModule(e.id)
+            return
+        }
+        if (subview === "remove") {
+            let e = filteredRemoveList[selectedIndex]
+            if (e) status = Theme.hideBarModule(e.id)
+            return
+        }
+    }
+    function handleKey(event): bool {
+        if (event.key === Qt.Key_Down) { moveSelection(1); return true }
+        if (event.key === Qt.Key_Up) { moveSelection(-1); return true }
+        if (event.key === Qt.Key_Home) { selectedIndex = 0; listFlick.ensureVisible(0); return true }
+        if (event.key === Qt.Key_End) { selectedIndex = Math.max(0, navCount - 1); listFlick.ensureVisible(selectedIndex); return true }
+        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { activateSelected(); return true }
+        if (event.key === Qt.Key_Escape) {
+            if (subview !== "root") { goBack(); return true }
+            return false
+        }
+        return false
+    }
+    Connections {
+        target: bodyRoot.scope
+        function onShowModulesChanged() {
+            if (bodyRoot.scope.showModules) { root.subview = "root"; root.selectedIndex = 0; root.status = "" }
+        }
+        function onFilterTextChanged() {
+            root.selectedIndex = 0
+            if (listFlick) { listFlick.contentY = 0; Qt.callLater(() => listFlick.ensureVisible(0)) }
+        }
+    }
+
+    Flickable {
+        id: listFlick
+        anchors.fill: parent
+        clip: true
+        contentHeight: resultsCol.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        interactive: true
+        function rowH(): int { return 61 }
+        function ensureVisible(idx) {
+            if (!root.visible || root.navCount === 0) return
+            if (idx < 0 || idx >= root.navCount) return
+            let y = idx * rowH()
+            let vh = listFlick.height
+            let maxY = Math.max(0, listFlick.contentHeight - vh)
+            if (maxY <= 0) { listFlick.contentY = 0; return }
+            let cy = listFlick.contentY
+            if (y < cy) listFlick.contentY = Math.max(0, y - 4)
+            else if (y + rowH() > cy + vh) listFlick.contentY = Math.min(maxY, y + rowH() - vh + 4)
+        }
+
+        ColumnLayout {
+            id: resultsCol
+            x: root.isMinimal ? 0 : 6
+            width: root.isMinimal ? parent.width : parent.width - 12
+            spacing: 3
+            Repeater {
+                id: rootRepeater
+                model: root.subview === "root" ? root.rootModel : []
+                delegate: ModuleRow {
+                    selected: root.selectedIndex === index
+                    glyph: "›"
+                    sub: modelData.sub
+                    onActivated: idx => { root.selectedIndex = idx; listFlick.ensureVisible(idx); root.activateSelected() }
+                }
+            }
+            ColumnLayout {
+                visible: root.subview === "add" && root.filteredAddList.length === 0
+                Layout.fillWidth: true
+                spacing: 8
+                Layout.topMargin: 24
+                Text {
+                    text: "󰐱"
+                    font.family: Theme.iconFontFamily
+                    font.pixelSize: Theme.fs(28)
+                    color: Theme.textMuted
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    text: root.query !== "" ? "Keine Treffer für “" + bodyRoot.scope.filterText.trim() + "”" : "Alle Module aktiv"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(13)
+                    color: Theme.textMuted
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+            Repeater {
+                id: addRepeater
+                model: root.subview === "add" ? root.filteredAddList : []
+                delegate: ModuleRow {
+                    selected: root.selectedIndex === index
+                    glyph: ""
+                    sub: root.detailFor(modelData, false)
+                    onActivated: idx => { root.selectedIndex = idx; root.activateSelected() }
+                }
+            }
+            ColumnLayout {
+                visible: root.subview === "remove" && root.filteredRemoveList.length === 0
+                Layout.fillWidth: true
+                spacing: 8
+                Layout.topMargin: 24
+                Text {
+                    text: "󰐱"
+                    font.family: Theme.iconFontFamily
+                    font.pixelSize: Theme.fs(28)
+                    color: Theme.textMuted
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    text: root.query !== "" ? "Keine Treffer für “" + bodyRoot.scope.filterText.trim() + "”" : "Keine Module aktiv"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(13)
+                    color: Theme.textMuted
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+            Repeater {
+                id: removeRepeater
+                model: root.subview === "remove" ? root.filteredRemoveList : []
+                delegate: ModuleRow {
+                    selected: root.selectedIndex === index
+                    glyph: ""
+                    sub: root.detailFor(modelData, true)
+                    onActivated: idx => { root.selectedIndex = idx; root.activateSelected() }
+                }
+            }
+            Text {
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+                visible: root.status.length > 0
+                text: root.status
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fs(11)
+                color: Theme.textMuted
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+        }
+    }
+}
