@@ -1,1 +1,0 @@
-{"author": "jhqs", "description": "Network state singleton (nmcli poll). Backs jhqs.network panel.", "entryPoints": {"service": "../../../services/NetworkService.qml"}, "id": "jhqs.network-service", "jhqs": {"module": "services/NetworkService.qml"}, "kinds": ["service"], "name": "Network state", "schemaVersion": 1, "version": "1.0.0"}

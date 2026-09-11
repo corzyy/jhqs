@@ -1,1 +1,0 @@
-{"author": "jhqs", "description": "Media state singleton (active MPRIS player). Maps to Omarchy omarchy.media service.", "entryPoints": {"service": "../../../services/MediaService.qml"}, "id": "jhqs.media", "jhqs": {"module": "services/MediaService.qml"}, "kinds": ["service"], "name": "Media", "schemaVersion": 1, "version": "1.0.0"}

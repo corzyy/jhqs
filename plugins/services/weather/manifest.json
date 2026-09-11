@@ -1,1 +1,0 @@
-{"author": "jhqs", "description": "Weather data singleton (wttr.in + Open-Meteo). Backs jhqs.weather panel.", "entryPoints": {"service": "../../../services/WeatherService.qml"}, "id": "jhqs.weather-service", "jhqs": {"module": "services/WeatherService.qml"}, "kinds": ["service"], "name": "Weather state", "schemaVersion": 1, "version": "1.0.0"}

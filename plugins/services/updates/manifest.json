@@ -1,1 +1,0 @@
-{"author": "jhqs", "description": "Update store singleton (system/AUR/Flatpak polling). Backs jhqs.updates panel.", "entryPoints": {"service": "../../../services/UpdateService.qml"}, "id": "jhqs.updates-service", "jhqs": {"module": "services/UpdateService.qml"}, "kinds": ["service"], "name": "Update state", "schemaVersion": 1, "version": "1.0.0"}
