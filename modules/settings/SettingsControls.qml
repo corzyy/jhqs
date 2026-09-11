@@ -1,4 +1,4 @@
-pragma ComponentBehavior: Bound
+pragma ComponentBehavior: Unbound
 import QtQuick
 import "../../themes"
 

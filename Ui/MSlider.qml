@@ -153,8 +153,6 @@ Item {
             height: root.trackHeight
             radius: Math.min(root.trackRadius, height/2)
             color: root.enabled ? root.activeTrackColor : Theme.withAlpha(root.disabledActiveColor, 0.38)
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            Behavior on width { enabled: !root.dragging; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
         }
         Rectangle {
             antialiasing: Theme.shapesAa
@@ -166,9 +164,6 @@ Item {
             height: root.trackHeight
             radius: Math.min(root.trackRadius, height/2)
             color: root.enabled ? root.inactiveTrackColor : Theme.withAlpha(root.disabledInactiveColor, 0.12)
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            Behavior on x { enabled: !root.dragging; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-            Behavior on width { enabled: !root.dragging; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
 
             Rectangle {
                 antialiasing: Theme.shapesAa
@@ -210,9 +205,6 @@ Item {
             width: root.trackHeight
             radius: Math.min(root.trackRadius, width/2)
             color: root.enabled ? root.activeTrackColor : Theme.withAlpha(root.disabledActiveColor, 0.38)
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            Behavior on y { enabled: !root.dragging; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-            Behavior on height { enabled: !root.dragging; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
         }
         Rectangle {
             antialiasing: Theme.shapesAa
@@ -224,8 +216,6 @@ Item {
             width: root.trackHeight
             radius: Math.min(root.trackRadius, width/2)
             color: root.enabled ? root.inactiveTrackColor : Theme.withAlpha(root.disabledInactiveColor, 0.12)
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            Behavior on height { enabled: !root.dragging; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
             Rectangle {
                 antialiasing: Theme.shapesAa
                 visible: root.showStopDot && root.enabled && sliderArea.inactiveH > 12
@@ -289,7 +279,6 @@ Item {
                 if (root.handleHovered) return Theme.withAlpha(root.stateLayerColor, 0.08)
                 return "transparent"
             }
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
             opacity: root.enabled ? 1 : 0
         }
 
@@ -300,8 +289,6 @@ Item {
             anchors.horizontalCenter: root._vertical ? parent.horizontalCenter : undefined
             x: root._vertical ? (sliderArea.width/2 - width/2) : (sliderArea.handleCenterX - width/2)
             y: root._vertical ? (sliderArea.handleCenterY - height/2) : (parent.height/2 - height/2)
-            Behavior on x { enabled: !root.dragging && !root._vertical; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-            Behavior on y { enabled: !root.dragging && root._vertical; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
 
             Rectangle {
                 antialiasing: Theme.shapesAa
@@ -317,9 +304,6 @@ Item {
                 anchors.fill: parent
                 radius: 2
                 color: root.enabled ? root.handleColor : Theme.withAlpha(Theme.on_surface, 0.38)
-                scale: Theme.animationsEnabled && root.handlePressed ? 1.08 : 1.0
-                Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
             }
 
             Loader {

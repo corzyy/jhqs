@@ -1,8 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import Quickshell
 import Quickshell.Io
-import Quickshell.Services.Pipewire
 import "../../../themes"
 import "../../../services"
 import ".."
@@ -15,7 +13,7 @@ Column {
 
     property var sinks: []
     property string defaultSink: ""
-    property int brightVal: SettingsService.brightness
+    // NOTE: brightVal removed — dead (slider binds SettingsService.brightness directly).
 
     Process {
         id: sinkListProc
@@ -47,7 +45,7 @@ Column {
     }
     Component.onCompleted: refreshSinks()
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Output"
         Row {
             width: parent.width; spacing: 10
@@ -74,11 +72,11 @@ Column {
                 renderType: Theme.textRenderType
             }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: VolumeService.isMuted ? "Unmute" : "Mute"
-            SettingsToggle { on: !VolumeService.isMuted; onToggled: n => volSet.setMute(!n) }
+            SettingsControls.SettingsToggle { on: !VolumeService.isMuted; onToggled: n => volSet.setMute(!n) }
         }
-        SettingsDropdown {
+        SettingsControls.SettingsDropdown {
             label: "Sink"
             options: root.sinks.map(s => s.desc.length > 0 ? s.desc : s.name)
             current: { let m = root.sinks.find(s => s.name === root.defaultSink); return m ? (m.desc.length > 0 ? m.desc : m.name) : root.defaultSink }
@@ -100,16 +98,8 @@ Column {
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Display"
-        SettingsSliderRow { label: "Brightness"; from: 5; to: 100; stepSize: 1; unit: "%"; value: SettingsService.brightness; onMoved: v => SettingsService.applyBrightness(v); onApplied: v => SettingsService.applyBrightness(v) }
-    }
-
-    SettingsSection {
-        title: "Radio"
-        SettingsRow {
-            title: "Wi-Fi"
-            SettingsToggle { on: NetworkService.netActive; enabled: false }
-        }
+        SettingsControls.SettingsSliderRow { label: "Brightness"; from: 5; to: 100; stepSize: 1; unit: "%"; value: SettingsService.brightness; onMoved: v => SettingsService.applyBrightness(v); onApplied: v => SettingsService.applyBrightness(v) }
     }
 }

@@ -7,17 +7,14 @@ Item {
     id: root
     required property var scope
     required property var bodyRoot
-    readonly property bool isMinimal: Theme.shellTheme === "minimal"
     anchors.fill: parent
-    anchors.margins: isMinimal ? 0 : 4
+    anchors.margins: 0
     clip: true
     opacity: bodyRoot.scope.showPackages && !bodyRoot.scope.packageOpActive ? 1 : 0
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showPackages && !bodyRoot.scope.packageOpActive
     scale: (bodyRoot.scope.showPackages && !bodyRoot.scope.packageOpActive) ? 1 : 0.97
     transformOrigin: Item.Center
-    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-    Behavior on scale { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
 
     readonly property bool isRemove: bodyRoot.scope.packageMode === "remove"
     readonly property bool isAur: bodyRoot.scope.packageMode === "aur"
@@ -77,11 +74,11 @@ Item {
         anchors.top: parent.top
         anchors.left: parent.left; anchors.right: parent.right
         anchors.bottom: footerBar.top
-        anchors.bottomMargin: isMinimal ? 0 : 6
-        anchors.leftMargin: isMinimal ? 0 : 6; anchors.rightMargin: isMinimal ? 0 : 6
+        anchors.bottomMargin: 0
+        anchors.leftMargin: 0; anchors.rightMargin: 0
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        spacing: isMinimal ? 3 : 4
+        spacing: 3
         model: bodyRoot.scope.filteredPackages
         currentIndex: bodyRoot.selectedIndex
         delegate: Rectangle {
@@ -89,31 +86,30 @@ Item {
             required property var modelData
             required property int index
             width: packageList.width
-            height: root.isMinimal ? 58 : 40
-            radius: root.isMinimal ? Theme.cornerRadius : Theme.cornerRadiusSmall
+            height: 58
+            radius: Theme.cornerRadius
             readonly property var entry: modelData
             readonly property bool isSelected: bodyRoot.selectedIndex === index
             readonly property bool isChecked: entry && entry.name ? bodyRoot.scope.isPackageSelected(entry.name) : false
-            color: root.isMinimal ? (isChecked ? Theme.withAlpha(Theme.accent, 0.16) : isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent") : (isChecked ? Theme.withAlpha(Theme.accent, 0.14) : isSelected ? Theme.bgSelected : rowMouse.containsMouse ? Theme.panelSurface : "transparent")
-            border.color: root.isMinimal ? "transparent" : (isChecked ? Theme.accent : isSelected ? Theme.accent : "transparent"); border.width: root.isMinimal ? 0 : ((isChecked || isSelected) ? 1 : 0)
+            color: (isChecked ? Theme.withAlpha(Theme.accent, 0.16) : isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
+            border.color: "transparent"; border.width: 0
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: root.isMinimal ? 8 : 10; anchors.rightMargin: root.isMinimal ? 8 : 10; spacing: root.isMinimal ? 6 : 10
+                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                 Rectangle {
                     antialiasing: Theme.shapesAa
-                    Layout.preferredWidth: 18; Layout.preferredHeight: 18; radius: root.isMinimal ? 0 : 5
+                    Layout.preferredWidth: 18; Layout.preferredHeight: 18; radius: 0
                     color: rowBg.isChecked ? Theme.accent : "transparent"
-                    border.color: rowBg.isChecked ? Theme.accent : (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.4) : Theme.divider); border.width: 1
+                    border.color: rowBg.isChecked ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.4)); border.width: 1
                     Text { anchors.centerIn: parent; visible: rowBg.isChecked; text: "✓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold; color: Theme.onAccent
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
                 }
-                Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣇"); font.family: Theme.iconFontFamily; font.pixelSize: root.isMinimal ? Theme.fs(18) : Theme.fs(14); color: isSelected ? Theme.accent : (root.isMinimal ? Theme.textPrimary : Theme.textMuted); Layout.preferredWidth: root.isMinimal ? 36 : 18; horizontalAlignment: Text.AlignHCenter;
+                Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣇"); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : (Theme.textPrimary); Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter;
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
                 ColumnLayout {
-                    visible: root.isMinimal
                     Layout.fillWidth: true; spacing: 3
                     Text { text: root.isCurated ? (entry.displayName || entry.name || "—") : ((entry.displayName && entry.displayName.length > 0) ? entry.displayName : (entry.name || "—")); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
                         antialiasing: Theme.textAa
@@ -127,18 +123,6 @@ Item {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                }
-                Text { visible: !root.isMinimal; text: root.isCurated ? (entry.displayName || entry.name || "—") : ((entry.displayName && entry.displayName.length > 0) ? entry.displayName + " (" + (entry.name || "—") + ")" : (entry.name || "—")); font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: isSelected ? Font.Medium : Font.Normal; color: isSelected ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                }
-                Text { visible: !root.isMinimal && !root.isCurated; text: entry.repo || ""; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); color: Theme.textMuted; Layout.preferredWidth: 72; elide: Text.ElideRight; horizontalAlignment: Text.AlignRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                }
-                Text { visible: !root.isMinimal && !root.isCurated; text: entry.version || ""; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); color: Theme.textMuted; Layout.preferredWidth: 96; elide: Text.ElideRight; horizontalAlignment: Text.AlignRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
                 }
                 Text { text: "✓"; visible: entry.installed === true; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.accent; Layout.preferredWidth: 16; horizontalAlignment: Text.AlignHCenter
                     antialiasing: Theme.textAa
@@ -162,7 +146,7 @@ Item {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
-            Text { text: root.emptyText(); color: Theme.textMuted; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
+            Text { text: root.emptyText(); color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
@@ -184,21 +168,20 @@ Item {
         antialiasing: Theme.shapesAa
         id: footerBar
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: 52; radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-        color: root.isMinimal ? "transparent" : Theme.panelSurface
-        border.color: root.isMinimal ? "transparent" : Theme.divider; border.width: root.isMinimal ? 0 : 1
+        height: 52; radius: 0
+        color: "transparent"
+        border.color: "transparent"; border.width: 0
         Rectangle {
-            visible: root.isMinimal
             anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
             height: 1; color: Theme.withAlpha(Theme.textPrimary, 0.12)
         }
         RowLayout {
-            anchors.fill: parent; anchors.leftMargin: root.isMinimal ? 0 : 12; anchors.rightMargin: root.isMinimal ? 0 : 10; spacing: 8
+            anchors.fill: parent; anchors.leftMargin: 0; anchors.rightMargin: 0; spacing: 8
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
                 text: root.selCount > 0 ? root.selCount + " ausgewählt" : (root.isCurated ? (bodyRoot.scope.filteredPackages.length + (root.isBrowser ? " Browser – Space: auswählen" : " Gaming-Apps – Space: auswählen")) : (root.isAur && bodyRoot.scope.aurSearching ? "Suche AUR…" : (root.isAur && bodyRoot.scope.filterText.length === 0 ? (bodyRoot.scope.aurFeaturedLoading ? "Lade AUR-Programme…" : bodyRoot.scope.aurFeaturedPackages.length + " Programme – Space: auswählen") : root.isFlatpak ? (bodyRoot.scope.flatpakLoading ? "Lade Flatpaks…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.flatpakList.length + " Flatpaks – Space: auswählen" : "Space: auswählen")) : root.isFlatpakRemove ? (bodyRoot.scope.flatpakInstalledLoading ? "Lade installierte Flatpaks…" : bodyRoot.scope.flatpakInstalledPackages.length + " installiert – Space: auswählen") : (root.isAurRemove ? bodyRoot.scope.aurInstalledPackages.length + " installiert – Space: auswählen" : (root.isRemove ? bodyRoot.scope.installedPackageCount + " installiert – Space: auswählen" : "Space: auswählen")))))
-                font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11)
+                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
                 color: root.selCount > 0 ? Theme.textPrimary : Theme.textMuted
                 font.weight: root.selCount > 0 ? Font.Medium : Font.Normal
                 Layout.fillWidth: true; elide: Text.ElideRight
@@ -206,11 +189,10 @@ Item {
             Rectangle {
                 antialiasing: Theme.shapesAa
                 visible: root.selCount > 0
-                Layout.preferredWidth: clearLabel.implicitWidth + 20; Layout.preferredHeight: 30; radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-                color: clearMouse.containsMouse ? (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.bgHover) : "transparent"
-                border.color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider; border.width: 1
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
-                Text { id: clearLabel; anchors.centerIn: parent; text: "Zurücksetzen"; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); color: Theme.textSecondary
+                Layout.preferredWidth: clearLabel.implicitWidth + 20; Layout.preferredHeight: 30; radius: 0
+                color: clearMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
+                border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1
+                Text { id: clearLabel; anchors.centerIn: parent; text: "Zurücksetzen"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textSecondary
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
@@ -218,12 +200,11 @@ Item {
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
-                Layout.preferredWidth: primaryLabel.implicitWidth + 24; Layout.preferredHeight: 32; radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
+                Layout.preferredWidth: primaryLabel.implicitWidth + 24; Layout.preferredHeight: 32; radius: 0
                 color: primaryMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.92) : Theme.accent
                 border.color: Theme.accent; border.width: 1
                 opacity: bodyRoot.scope.filteredPackages.length > 0 ? 1 : 0.5
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
-                Text { id: primaryLabel; anchors.centerIn: parent; text: root.primaryLabel; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium; color: Theme.onAccent
+                Text { id: primaryLabel; anchors.centerIn: parent; text: root.primaryLabel; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium; color: Theme.onAccent
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }

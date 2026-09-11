@@ -26,15 +26,15 @@ Column {
     }
     Component.onCompleted: if (!idleFetchProc.running) idleFetchProc.running = true
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Performance"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "GameMode"
-            SettingsToggle { on: SettingsService.gamemode; onToggled: n => SettingsService.applyGamemode(n) }
+            SettingsControls.SettingsToggle { on: SettingsService.gamemode; onToggled: n => SettingsService.applyGamemode(n) }
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Workflow Presets"
         Grid {
             width: parent.width; columns: 2; spacing: 8
@@ -52,7 +52,6 @@ Column {
                     radius: Theme.cornerRadiusSmall
                     color: presetMouse.containsMouse ? Theme.bgHover : Theme.panelSurface
                     border.color: Theme.divider; border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                     Column {
                         anchors.fill: parent; anchors.margins: 8; spacing: 1
                         Text { text: modelData.icon + "  " + modelData.title; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.Medium; color: Theme.textPrimary
@@ -66,14 +65,14 @@ Column {
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Idle & Lock"
-        SettingsSliderRow {
+        SettingsControls.SettingsSliderRow {
             label: "Lock After"; from: 30; to: 1800; stepSize: 30; unit: "s"; value: root.idleLock
             onMoved: v => root.idleLock = Math.round(v)
             onApplied: v => { root.idleLock = Math.round(v); SettingsService.runBackend(["hypridle", "lock=" + Math.round(v)]) }
         }
-        SettingsSliderRow {
+        SettingsControls.SettingsSliderRow {
             label: "Suspend After"; from: 60; to: 7200; stepSize: 60; unit: "s"; value: root.idleSuspend
             onMoved: v => root.idleSuspend = Math.round(v)
             onApplied: v => { root.idleSuspend = Math.round(v); SettingsService.runBackend(["hypridle", "suspend=" + Math.round(v)]) }

@@ -14,7 +14,7 @@ Scope {
     property bool showVolume: false
     signal dismissed()
     property bool _winVisible: showVolume
-    Timer { id: hideTimer; interval: Theme.panelAnimExit + 20; repeat: false; onTriggered: if (!scope.showVolume) scope._winVisible = false }
+    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showVolume) scope._winVisible = false }
     onShowVolumeChanged: {
         if (showVolume) {
             _winVisible = true
@@ -25,7 +25,6 @@ Scope {
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
 
     readonly property real outVol: VolumeService.pct / 100
     readonly property bool outMuted: VolumeService.isMuted
@@ -175,15 +174,12 @@ Scope {
             color: swRoot.checked ? Theme.withAlpha(Theme.textPrimary, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.04)
             border.color: swRoot.checked ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
             border.width: swRoot.checked ? 0 : 1
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             Rectangle {
                 width: 16; height: 16
                 radius: 0
                 x: swRoot.checked ? parent.width - width - 3 : 3
                 anchors.verticalCenter: parent.verticalCenter
                 color: swRoot.checked ? Theme.textPrimary : Theme.textSecondary
-                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 120 } }
             }
         }
         MouseArea {
@@ -225,7 +221,6 @@ Scope {
             radius: 2
             width: slTrack.width * slRoot.progress
             color: Theme.textPrimary
-            Behavior on width { enabled: !slRoot.dragging; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
         }
         Rectangle {
             width: 14; height: 14
@@ -235,9 +230,6 @@ Scope {
             border.width: 2
             anchors.verticalCenter: slTrack.verticalCenter
             x: Math.max(0, Math.min(slTrack.width - width, slTrack.width * slRoot.progress - width / 2))
-            scale: slMouse.containsMouse || slRoot.dragging ? 1.15 : 1.0
-            Behavior on x { enabled: !slRoot.dragging; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-            Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
         }
         MouseArea {
             id: slMouse
@@ -290,7 +282,6 @@ Scope {
         signal picked()
         antialiasing: Theme.shapesAa
         color: nodeMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : (isActive ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent")
-        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         Row {
             anchors.fill: parent
             anchors.leftMargin: 6; anchors.rightMargin: 6
@@ -372,14 +363,11 @@ Scope {
                 }
                 x: volAnchor.panelX
                 y: volAnchor.panelY
-                Behavior on x { enabled: volAnchor.valid && volBox.width > 0 && volBox.implicitHeight > 0 && volSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                Behavior on y { enabled: volAnchor.valid && volBox.width > 0 && volBox.implicitHeight > 0 && volSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                color: scope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: scope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: scope.isMinimal ? 2 : 1
-                radius: scope.isMinimal ? 0 : Theme.cornerRadius
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
+                radius: 0
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                 PanelSpring {
                     id: volSpring
                     slideFade: true

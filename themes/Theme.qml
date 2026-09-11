@@ -239,9 +239,10 @@ Singleton {
             property bool moduleBackground: false
         }
     }
-    readonly property bool minimalTheme: shellTheme === "minimal"
-    readonly property bool omarchyTheme: minimalTheme
-    readonly property int cornerRadius: minimalTheme ? 0 : Math.max(0, Math.min(24, shellFile.adapter.radius))
+    // Minimal is the only shell theme: former Modern branches deleted.
+    // minimalTheme stays as a constant for SettingsService/ThemingPage.
+    readonly property bool minimalTheme: true
+    readonly property int cornerRadius: 0
     readonly property int cornerRadiusSmall: Math.max(0, Math.min(12, Math.round(cornerRadius * 0.6)))
     readonly property int barThickness: Math.max(20, Math.min(48, Math.round(shellFile.adapter.thickness !== undefined ? shellFile.adapter.thickness : 30)))
     readonly property string barPosition: {
@@ -271,13 +272,6 @@ Singleton {
         if (pos !== "top" && pos !== "bottom" && pos !== "left" && pos !== "right") return
         if (shellFile.adapter.position === pos) return
         shellFile.adapter.position = pos
-        shellFile.writeAdapter()
-    }
-    function setShellRadius(v: int): void {
-        if (minimalTheme) return
-        let c = Math.max(0, Math.min(24, Math.round(v)))
-        if (Math.round(shellFile.adapter.radius) === c) return
-        shellFile.adapter.radius = c
         shellFile.writeAdapter()
     }
     readonly property bool animationsEnabled: shellFile.adapter.animationsEnabled
@@ -495,44 +489,10 @@ Singleton {
         shellFile.adapter.moduleBackground = nv
         shellFile.writeAdapter()
     }
-    FileView {
-        id: shellThemeFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/themes/shell_theme.json"
-        watchChanges: true; onFileChanged: debouncedReload(shellThemeFile); blockLoading: true; printErrors: false
-        adapter: JsonAdapter { property string theme: "modern" }
-    }
-    Timer {
-        id: shellThemeInitTimer
-        interval: 650; running: true; repeat: false
-        onTriggered: {
-            if (!shellThemeInitProc.running) {
-                shellThemeInitProc.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/jhqs/themes; if [ ! -f ~/.config/quickshell/jhqs/themes/shell_theme.json ]; then echo '{\"theme\":\"modern\"}' > ~/.config/quickshell/jhqs/themes/shell_theme.json; fi; jq '.theme //= \"modern\" | .theme |= (if . == \"default\" then \"modern\" elif . == \"omarchy\" then \"minimal\" else . end)' ~/.config/quickshell/jhqs/themes/shell_theme.json > /tmp/jhqs_shell_theme.json 2>/dev/null && mv /tmp/jhqs_shell_theme.json ~/.config/quickshell/jhqs/themes/shell_theme.json; echo init_done"]
-                shellThemeInitProc.running = true
-            }
-        }
-    }
-    Process { id: shellThemeInitProc; command: ["bash", "-c", "echo"] }
-    readonly property string shellTheme: {
-        let t = ""
-        try { t = (shellThemeFile.adapter.theme || "").toLowerCase().trim() } catch (e) { t = "" }
-        if (t === "minimal" || t === "omarchy") return "minimal"
-        if (t === "modern" || t === "default") return "modern"
-        return "modern"
-    }
-    function setShellTheme(v: string): void {
-        let t = ""
-        try { t = (v || "").toLowerCase().trim() } catch (e) { t = "" }
-        if (t === "omarchy") t = "minimal"
-        else if (t === "default") t = "modern"
-        if (t !== "minimal") t = "modern"
-        try { let cur = (shellThemeFile.adapter.theme || "modern").toLowerCase(); if (cur === t || (cur === "omarchy" && t === "minimal") || (cur === "default" && t === "modern")) return } catch (e) {}
-        shellThemeFile.adapter.theme = t
-        shellThemeFile.writeAdapter()
-    }
     readonly property bool panelAccentBorder: !!shellFile.adapter.panelAccentBorder
     readonly property color panelBorderColor: panelAccentBorder ? accent : divider
     function setPanelAccentBorder(v: bool): void { let nv=!!v; if(!!shellFile.adapter.panelAccentBorder===nv) return; shellFile.adapter.panelAccentBorder=nv; shellFile.writeAdapter() }
-    readonly property real panelBlur: minimalTheme ? 0.0 : Math.max(0, Math.min(1, (shellFile.adapter.panelBlur !== undefined) ? shellFile.adapter.panelBlur : 0.6))
+    readonly property real panelBlur: 0.0
     readonly property real panelBgAlpha: 1.0 - panelBlur * 0.48
     readonly property color panelBg: frostFill(bg, 0.48, 0.52)
     readonly property color panelSurface: frostFill(surface, 0.22, 0.80)
@@ -544,17 +504,8 @@ Singleton {
     }
     Process { id: panelBlurRuleProc; command: ["bash", "-c", "echo"] }
     function applyPanelBlurLayerRule(): void {
-        panelBlurRuleProc.command = ["bash", "-c", "hyprctl eval 'hl.layer_rule({ name = \"jhqs-panel-blur\", match = { namespace = \"^(menu|launcher|controlcenter|calendar|mediapanel|weather|notifcenter|notifications|volumeosd|launchosd|polkit|bar|settings|systemtray)$\" }, blur = true, ignore_alpha = 0.3 })' >/dev/null 2>&1"]
+        panelBlurRuleProc.command = ["bash", "-c", "hyprctl eval 'hl.layer_rule({ name = \"jhqs-panel-blur\", match = { namespace = \"^(menu|launcher|calendar|weather|notifications|volumeosd|launchosd|polkit|bar|settings|systemtray)$\" }, blur = true, ignore_alpha = 0.3 })' >/dev/null 2>&1"]
         if (!panelBlurRuleProc.running) panelBlurRuleProc.running = true
-    }
-    function setPanelBlur(v: real): void {
-        if (minimalTheme) return
-        let c = Math.max(0, Math.min(1, v))
-        c = Math.round(c * 100) / 100
-        if (Math.abs((shellFile.adapter.panelBlur || 0) - c) < 0.001) return
-        shellFile.adapter.panelBlur = c
-        shellFile.writeAdapter()
-        applyPanelBlurLayerRule()
     }
     Component.onCompleted: applyPanelBlurLayerRule()
 
@@ -735,11 +686,6 @@ Singleton {
             } catch (e) {}
         }
     }
-    readonly property string osdPosition: {
-        let p = osdFile.adapter.position
-        if (p === "top" || p === "bottom" || p === "right") return p
-        return "bottom"
-    }
     function setOsdVolumeEnabled(v: bool): void {
         let nv = !!v
         if (!!osdFile.adapter.volumeEnabled === nv) return
@@ -752,11 +698,6 @@ Singleton {
         if (!!osdFile.adapter.launchEnabled === nv) return
         osdFile.adapter.launchEnabled = nv
         osdFile.adapter.enabled = (nv || osdVolumeEnabled)
-        osdFile.writeAdapter()
-    }
-    function setOsdPosition(pos: string): void {
-        if (pos !== "top" && pos !== "bottom" && pos !== "right") return
-        osdFile.adapter.position = pos
         osdFile.writeAdapter()
     }
 
@@ -824,7 +765,7 @@ Singleton {
         searchFile.writeAdapter()
     }
 
-    readonly property var barModuleIds: ["launcher", "workspaces", "activewindow", "clock", "weather", "updates", "notif", "controlcenter", "media", "systemtray", "network", "volume", "bluetooth", "vitals"]
+    readonly property var barModuleIds: ["launcher", "workspaces", "activewindow", "clock", "weather", "updates", "systemtray", "network", "volume", "bluetooth", "vitals"]
     readonly property var barSections: ["left", "twofifths", "center", "fourfifths", "right"]
     function barNormalizeSection(s: string): string {
         let v = (s || "").trim().toLowerCase()
@@ -848,7 +789,7 @@ Singleton {
             property var twofifths: []
             property var center: ["clock", "updates"]
             property var fourfifths: []
-            property var right: ["controlcenter", "media"]
+            property var right: []
             property var hidden: []
             property int version: 0
         }
@@ -867,7 +808,7 @@ Singleton {
         }
     }
     function barDefaultLayout(): var {
-        return { left: ["launcher", "workspaces", "activewindow"], twofifths: [], center: ["clock", "weather", "updates"], fourfifths: [], right: ["systemtray", "notif", "controlcenter", "media", "network", "volume", "bluetooth", "vitals"] }
+        return { left: ["launcher", "workspaces", "activewindow"], twofifths: [], center: ["clock", "weather", "updates"], fourfifths: [], right: ["systemtray", "network", "volume", "bluetooth", "vitals"] }
     }
     function toStrArray(v: var): var {
         let out = []
@@ -971,9 +912,6 @@ Singleton {
         {id: "clock", title: "Uhr", icon: ""},
         {id: "weather", title: "Wetter", icon: "\ue302"},
         {id: "updates", title: "Updates", icon: ""},
-        {id: "notif", title: "Mitteilungen", icon: ""},
-        {id: "controlcenter", title: "Kontrollzentrum", icon: ""},
-        {id: "media", title: "Media", icon: "󰎆"},
         {id: "network", title: "Network", icon: "󰤨"},
         {id: "volume", title: "Volume", icon: "󰕾"},
         {id: "bluetooth", title: "Bluetooth", icon: "󰂯"},
@@ -1077,8 +1015,6 @@ Singleton {
             else if (cp === "right") l.right.push("weather")
             else l.center.push("weather")
             if (l.right.indexOf("systemtray") < 0) l.right.unshift("systemtray")
-            if (l.right.indexOf("controlcenter") < 0) l.right.push("controlcenter")
-            if (l.right.indexOf("media") < 0) l.right.push("media")
             barLayoutFile.adapter.left = l.left
             barLayoutFile.adapter.twofifths = l.twofifths
             barLayoutFile.adapter.center = l.center

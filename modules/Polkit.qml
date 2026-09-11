@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
+import Quickshell.Io // required — provides IpcHandler
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Polkit
@@ -54,7 +54,7 @@ Scope {
     property bool hasRequest: agentActive && flow !== null
 
     property bool _winVisible: hasRequest
-    Timer { id: polkitHideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!polkitScope.hasRequest) polkitScope._winVisible = false }
+    Timer { id: polkitHideTimer; interval: 0; repeat: false; onTriggered: if (!polkitScope.hasRequest) polkitScope._winVisible = false }
     onHasRequestChanged: {
         if (hasRequest) {
             _winVisible = true
@@ -117,7 +117,6 @@ Scope {
 
     readonly property int barT: Theme.barThickness
     readonly property string barPos: Theme.barPosition
-    readonly property bool isMinimal: Theme.minimalTheme
 
     IpcHandler {
         target: "polkit"
@@ -163,14 +162,16 @@ Scope {
                 anchors.fill: parent
                 color: Theme.scrim
                 opacity: polkitScope.hasRequest ? 0.32 : 0
-                Behavior on opacity { NumberAnimation { duration: polkitScope.hasRequest ? Theme.panelAnimFade : Theme.panelAnimExit; easing.type: polkitScope.hasRequest ? Theme.panelEasingFade : Theme.panelEasingExit } }
             }
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
             }
         }
+    }
 
+    Variants {
+        model: Quickshell.screens
         PanelWindow {
             required property var modelData
             screen: modelData
@@ -212,26 +213,10 @@ Scope {
                     id: dialogSlide
                     x: dialogWrapper.shakeX
                     y: polkitScope.hasRequest ? 0 : -Theme.panelSlideOffset
-                    Behavior on y { NumberAnimation { duration: polkitScope.hasRequest ? Theme.panelAnimSlide : Theme.panelAnimExit; easing.type: polkitScope.hasRequest ? Theme.panelEasingSlide : Theme.panelEasingExit; easing.overshoot: Theme.panelOvershootSlide } }
                 }
-                Behavior on opacity { NumberAnimation { duration: polkitScope.hasRequest ? Theme.panelAnimFade : Theme.panelAnimExit; easing.type: polkitScope.hasRequest ? Theme.panelEasingFade : Theme.panelEasingExit } }
-                Behavior on scale { NumberAnimation { duration: polkitScope.hasRequest ? Theme.panelAnimScale : Theme.panelAnimExit; easing.type: polkitScope.hasRequest ? Theme.panelEasingScale : Theme.panelEasingExit; easing.overshoot: polkitScope.hasRequest ? Theme.panelOvershootScale : 0 } }
 
                 property real shakeX: 0
                 transformOrigin: Item.Center
-                Connections {
-                    target: polkitScope
-                    function onShakeCountChanged() { if (Theme.animationsEnabled) shakeAnim.restart() }
-                }
-                SequentialAnimation on shakeX {
-                    id: shakeAnim
-                    running: false
-                    NumberAnimation { to: -10; duration: 45; easing.type: Theme.easingStandard }
-                    NumberAnimation { to: 10; duration: 90; easing.type: Theme.easingSmooth }
-                    NumberAnimation { to: -7; duration: 70; easing.type: Theme.easingSmooth }
-                    NumberAnimation { to: 7; duration: 70; easing.type: Theme.easingSmooth }
-                    NumberAnimation { to: 0; duration: 45; easing.type: Theme.easingStandard }
-                }
 
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -241,7 +226,6 @@ Scope {
                     radius: Theme.cornerRadius
                     color: Theme.scrim
                     opacity: polkitScope.hasRequest ? 0.18 : 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
                 }
 
                 Rectangle {
@@ -249,12 +233,11 @@ Scope {
                     id: dialogBox
                     width: parent.width
                     implicitHeight: mainCol.implicitHeight + 24
-                    radius: polkitScope.isMinimal ? 0 : Theme.cornerRadius
-                    color: polkitScope.isMinimal ? Theme.bg : Theme.panelBg
-                    border.color: polkitScope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                    border.width: polkitScope.isMinimal ? 2 : 1
+                    radius: 0
+                    color: Theme.bg
+                    border.color: Theme.accent
+                    border.width: 2
                     clip: true
-                    Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     transform: Translate { x: dialogWrapper.shakeX }
 
                     MouseArea {
@@ -287,7 +270,6 @@ Scope {
                                 color: polkitScope.flow && polkitScope.flow.failed ? Theme.withAlpha(Theme.error, 0.16) : Theme.panelSurface
                                 border.color: polkitScope.flow && polkitScope.flow.failed ? Theme.withAlpha(Theme.errorColor, 0.28) : Theme.divider
                                 border.width: 1
-                                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
 
                                 IconImage {
                                     anchors.centerIn: parent
@@ -349,7 +331,6 @@ Scope {
                                 color: cancelHover.containsMouse ? Theme.bgHover : "transparent"
                                 border.color: cancelHover.containsMouse ? Theme.divider : "transparent"
                                 border.width: 1
-                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
                                 Text {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
@@ -358,7 +339,6 @@ Scope {
                                     font.family: Theme.iconFontFamily
                                     font.pixelSize: Theme.fs(12)
                                     color: cancelHover.containsMouse ? Theme.errorColor : Theme.textMuted
-                                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
                                 }
                                 HoverHandler { id: cancelHover; cursorShape: Qt.PointingHandCursor }
                                 MouseArea {
@@ -393,7 +373,6 @@ Scope {
                             color: polkitScope.flow && polkitScope.flow.supplementaryIsError ? Theme.withAlpha(Theme.error, 0.14) : Theme.withAlpha(Theme.panelSurface, 0.9)
                             border.color: polkitScope.flow && polkitScope.flow.supplementaryIsError ? Theme.withAlpha(Theme.errorColor, 0.28) : Theme.divider
                             border.width: 1
-                            Behavior on color { ColorAnimation { duration: Theme.animFast } }
                             Text {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
@@ -443,7 +422,6 @@ Scope {
                                         color: isSelected ? Theme.bgSelected : identMouse.containsMouse ? Theme.panelSurface : "transparent"
                                         border.color: isSelected ? Theme.divider : identMouse.containsMouse ? Theme.divider : "transparent"
                                         border.width: 1
-                                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
                                         RowLayout {
                                             id: identRow
@@ -553,8 +531,6 @@ Scope {
                                 color: polkitField.activeFocus ? Theme.bgSelected : Theme.panelSurface
                                 border.color: polkitScope.flow && polkitScope.flow.failed ? Theme.errorColor : (polkitField.activeFocus ? Theme.accent : Theme.divider)
                                 border.width: polkitField.activeFocus || (polkitScope.flow && polkitScope.flow.failed) ? 1.4 : 1
-                                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                                Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -568,7 +544,6 @@ Scope {
                                         font.family: Theme.fontFamily
                                         font.pixelSize: Theme.fs(13)
                                         color: polkitField.activeFocus ? Theme.accent : Theme.textMuted
-                                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
                                     }
                                     TextInput {
                                         id: polkitField
@@ -620,7 +595,6 @@ Scope {
                                         Layout.preferredHeight: 24
                                         radius: Theme.cornerRadiusSmall
                                         color: eyeMouse.containsMouse ? Theme.bgHover : "transparent"
-                                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
                                         Text {
                                             antialiasing: Theme.textAa
                                             renderType: Theme.textRenderType
@@ -669,9 +643,6 @@ Scope {
                                 color: cancelBtnMouse.containsMouse ? Theme.bgHover : Theme.panelSurface
                                 border.color: Theme.divider
                                 border.width: 1
-                                scale: Theme.animationsEnabled && cancelBtnMouse.containsMouse ? 1.02 : 1.0
-                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                                Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
                                 Text {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
@@ -699,9 +670,6 @@ Scope {
                                 color: authBtnMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.92) : Theme.accent
                                 border.color: Theme.accent
                                 border.width: 1
-                                scale: Theme.animationsEnabled && authBtnMouse.containsMouse ? 1.02 : 1.0
-                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                                Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
                                 enabled: !polkitScope.flow || !polkitScope.flow.isResponseRequired || polkitScope.inputText.length > 0
                                 opacity: enabled ? 1 : 0.55
                                 Text {

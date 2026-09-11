@@ -12,13 +12,14 @@ Singleton {
     property var knownUpdateKeys: ({})
     property bool hasCompletedFirstCheck: false
 
-    readonly property int updateCount: updates.length
+    // DRY: updateCount was an exact duplicate of totalCount and isVisible was
+    // never read (callers use displayCount). Keep one canonical count.
     readonly property int totalCount: updates.length
     readonly property bool hasUpdates: updates.length > 0
     property bool debugForce: false
     property int debugCount: 5
     property int displayCount: debugForce ? debugCount : updates.length
-    property bool isVisible: displayCount > 0
+    // NOTE: isVisible removed — dead (callers use displayCount > 0).
 
     readonly property string checkSchedule: settingsFile.adapter.checkSchedule !== undefined ? settingsFile.adapter.checkSchedule : "Every 6 hours"
     readonly property bool offerShutdownAction: {
@@ -69,7 +70,7 @@ Singleton {
         updProc.running = true
     }
     function status(): string {
-        return "system=" + count("system") + " aur=" + count("aur") + " flatpak=" + count("flatpak")
+        return "system=" + _counts.system + " aur=" + _counts.aur + " flatpak=" + _counts.flatpak
             + " total=" + totalCount + " hasUpdates=" + hasUpdates
             + " checking=" + checking + " schedule=\"" + checkSchedule + "\""
             + " debugForce=" + debugForce + " display=" + displayCount
@@ -84,10 +85,23 @@ Singleton {
         return "usage: debug on|off|toggle|count <n> | debug 5"
     }
 
+    // CPU: status() used to scan updates 3x (system+aur+flatpak). Single pass.
     function count(source: string): int {
         let total = 0
         for (let i = 0; i < updates.length; i++) if (updates[i].source === source) total++
         return total
+    }
+    // Cached per-updates-change breakdown so status()/panel header don't
+    // re-scan the list on every binding evaluation.
+    readonly property var _counts: {
+        let s = 0, a = 0, f = 0
+        for (let i = 0; i < updates.length; i++) {
+            let src = updates[i].source
+            if (src === "system") s++
+            else if (src === "aur") a++
+            else if (src === "flatpak") f++
+        }
+        return { system: s, aur: a, flatpak: f }
     }
 
     function parseUpdates(raw: string): void {

@@ -31,9 +31,9 @@ Column {
         return out
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Module"
-        SettingsDropdown {
+        SettingsControls.SettingsDropdown {
             label: "Configure"
             options: root.moduleOptions
             current: root.entryTitle(root.selectedModule)
@@ -41,58 +41,53 @@ Column {
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         visible: root.selectedModule === "vitals"
         title: "Vitals"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "CPU"
             subtitle: "Show CPU load in the bar pill + panel"
-            SettingsToggle { on: VitalsService.showCpu; onToggled: n => VitalsService.setShowCpu(n) }
+            SettingsControls.SettingsToggle { on: VitalsService.showCpu; onToggled: n => VitalsService.setShowCpu(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "RAM"
             subtitle: "Show memory usage in the bar pill + panel"
-            SettingsToggle { on: VitalsService.showRam; onToggled: n => VitalsService.setShowRam(n) }
+            SettingsControls.SettingsToggle { on: VitalsService.showRam; onToggled: n => VitalsService.setShowRam(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "GPU"
             subtitle: VitalsService.gpuAvailable ? ("Show GPU load (" + (VitalsService.gpuName.length > 0 ? VitalsService.gpuName : "auto") + ")") : "Show GPU load (auto-hidden: no GPU detected)"
-            SettingsToggle { on: VitalsService.showGpu; enabled: VitalsService.gpuAvailable; onToggled: n => VitalsService.setShowGpu(n) }
+            SettingsControls.SettingsToggle { on: VitalsService.showGpu; enabled: VitalsService.gpuAvailable; onToggled: n => VitalsService.setShowGpu(n) }
         }
-        SettingsRow {
-            title: "Disk"
-            subtitle: "Show root filesystem usage in the bar pill + panel"
-            SettingsToggle { on: VitalsService.showDisk; onToggled: n => VitalsService.setShowDisk(n) }
-        }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "% Labels"
             subtitle: "Show percentage text next to the bar icons"
-            SettingsToggle { on: VitalsService.showLabels; onToggled: n => VitalsService.setShowLabels(n) }
+            SettingsControls.SettingsToggle { on: VitalsService.showLabels; onToggled: n => VitalsService.setShowLabels(n) }
         }
-        SettingsSliderRow { label: "Refresh"; from: 1; to: 10; stepSize: 1; unit: "s"; value: VitalsService.refreshSeconds; onMoved: v => VitalsService.setRefreshSeconds(Math.round(v)); onApplied: v => VitalsService.setRefreshSeconds(Math.round(v)) }
-        SettingsSliderRow { label: "Warn at"; from: 10; to: 95; stepSize: 1; unit: "%"; value: VitalsService.warnThreshold; onMoved: v => VitalsService.setWarnThreshold(Math.round(v)); onApplied: v => VitalsService.setWarnThreshold(Math.round(v)) }
-        SettingsSliderRow { label: "Critical at"; from: 20; to: 99; stepSize: 1; unit: "%"; value: VitalsService.critThreshold; onMoved: v => VitalsService.setCritThreshold(Math.round(v)); onApplied: v => VitalsService.setCritThreshold(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Refresh"; from: 1; to: 10; stepSize: 1; unit: "s"; value: VitalsService.refreshSeconds; onMoved: v => VitalsService.setRefreshSeconds(Math.round(v)); onApplied: v => VitalsService.setRefreshSeconds(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Warn at"; from: 10; to: 95; stepSize: 1; unit: "%"; value: VitalsService.warnThreshold; onMoved: v => VitalsService.setWarnThreshold(Math.round(v)); onApplied: v => VitalsService.setWarnThreshold(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Critical at"; from: 20; to: 99; stepSize: 1; unit: "%"; value: VitalsService.critThreshold; onMoved: v => VitalsService.setCritThreshold(Math.round(v)); onApplied: v => VitalsService.setCritThreshold(Math.round(v)) }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         visible: root.selectedModule === "volume"
         title: "Volume"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "% Label"
             subtitle: "Show volume percentage next to the bar icon"
-            SettingsToggle { on: VolumeService.showPct; onToggled: n => VolumeService.setShowPct(n) }
+            SettingsControls.SettingsToggle { on: VolumeService.showPct; onToggled: n => VolumeService.setShowPct(n) }
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         visible: root.selectedModule === "weather"
         title: "Weather"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Label"
             subtitle: "Show temperature next to the bar icon"
-            SettingsToggle { on: WeatherService.showLabel; onToggled: n => WeatherService.setShowLabel(n) }
+            SettingsControls.SettingsToggle { on: WeatherService.showLabel; onToggled: n => WeatherService.setShowLabel(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             visible: !WeatherService.editingLocation
             title: WeatherService.cityName.length > 0 ? WeatherService.cityName : "Auto-detect"
             subtitle: "City — located by IP"
@@ -102,7 +97,6 @@ Column {
                 radius: Theme.cornerRadiusSmall
                 color: cityEditMouse.containsMouse ? Theme.bgHover : Theme.panelSurface
                 border.color: Theme.divider; border.width: 1
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
@@ -138,8 +132,6 @@ Column {
                     color: cityField.activeFocus ? Theme.bgSelected : Theme.panelSurface
                     border.color: cityField.activeFocus ? Theme.accent : Theme.divider
                     border.width: 1
-                    Behavior on border.color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                     Text {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
@@ -189,7 +181,6 @@ Column {
                     radius: Theme.cornerRadiusSmall
                     color: cityClearMouse.containsMouse && !WeatherService.savingLocation ? Theme.bgHover : Theme.panelSurface
                     border.color: Theme.divider; border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                     Text {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
@@ -197,10 +188,6 @@ Column {
                         text: WeatherService.savingLocation ? "↻" : "✕"
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13)
                         color: Theme.textSecondary
-                        RotationAnimator on rotation {
-                            running: WeatherService.savingLocation && Theme.animationsEnabled
-                            from: 0; to: 360; duration: 800; loops: Animation.Infinite
-                        }
                     }
                     MouseArea {
                         id: cityClearMouse
@@ -223,7 +210,6 @@ Column {
                     color: index === WeatherService.suggestionIndex ? Theme.bgSelected : (suggMouse.containsMouse ? Theme.bgHover : "transparent")
                     border.color: index === WeatherService.suggestionIndex ? Theme.divider : "transparent"
                     border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                     Row {
                         anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                         spacing: 8
@@ -260,7 +246,7 @@ Column {
                 }
             }
         }
-        SettingsSliderRow { label: "Refresh"; from: 1; to: 120; stepSize: 1; unit: "m"; value: WeatherService.refreshMinutes; onMoved: v => WeatherService.setRefreshMinutes(Math.round(v)); onApplied: v => WeatherService.setRefreshMinutes(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Refresh"; from: 1; to: 120; stepSize: 1; unit: "m"; value: WeatherService.refreshMinutes; onMoved: v => WeatherService.setRefreshMinutes(Math.round(v)); onApplied: v => WeatherService.setRefreshMinutes(Math.round(v)) }
     }
 
 }

@@ -9,27 +9,26 @@ Column {
     width: parent ? parent.width : 400
     spacing: 10
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Gaps & Borders"
-        SettingsSliderRow { label: "Gaps In"; from: 0; to: 40; stepSize: 1; value: SettingsService.hyprGapsIn; onMoved: v => SettingsService.previewGapsIn(v); onApplied: v => SettingsService.applyGapsIn(v) }
-        SettingsSliderRow { label: "Gaps Out"; from: 0; to: 60; stepSize: 1; value: SettingsService.hyprGapsOut; onMoved: v => SettingsService.previewGapsOut(v); onApplied: v => SettingsService.applyGapsOut(v) }
-        SettingsSliderRow { label: "Border Size"; from: 0; to: 12; stepSize: 1; value: SettingsService.hyprBorder; onMoved: v => SettingsService.previewBorder(v); onApplied: v => SettingsService.applyBorder(v) }
-        SettingsSliderRow { visible: !Theme.minimalTheme; height: visible ? implicitHeight : 0; label: "Rounding"; from: 0; to: 30; stepSize: 1; value: SettingsService.hyprRounding; onMoved: v => SettingsService.previewRounding(v); onApplied: v => SettingsService.applyRounding(v) }
+        SettingsControls.SettingsSliderRow { label: "Gaps In"; from: 0; to: 40; stepSize: 1; value: SettingsService.hyprGapsIn; onMoved: v => SettingsService.previewGapsIn(v); onApplied: v => SettingsService.applyGapsIn(v) }
+        SettingsControls.SettingsSliderRow { label: "Gaps Out"; from: 0; to: 60; stepSize: 1; value: SettingsService.hyprGapsOut; onMoved: v => SettingsService.previewGapsOut(v); onApplied: v => SettingsService.applyGapsOut(v) }
+        SettingsControls.SettingsSliderRow { label: "Border Size"; from: 0; to: 12; stepSize: 1; value: SettingsService.hyprBorder; onMoved: v => SettingsService.previewBorder(v); onApplied: v => SettingsService.applyBorder(v) }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Effects"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Shadows"
-            SettingsToggle { on: SettingsService.hyprShadow; onToggled: n => SettingsService.applyShadow(n) }
+            SettingsControls.SettingsToggle { on: SettingsService.hyprShadow; onToggled: n => SettingsService.applyShadow(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Tearing"
-            SettingsToggle { on: SettingsService.hyprTearing; onToggled: n => SettingsService.applyTearing(n) }
+            SettingsControls.SettingsToggle { on: SettingsService.hyprTearing; onToggled: n => SettingsService.applyTearing(n) }
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Layout"
         Row {
             width: parent.width; spacing: 8
@@ -40,15 +39,13 @@ Column {
                     required property int index
                     readonly property bool isCurrent: SettingsService.hyprLayout === modelData
                     width: (root.width - 24) / 2; height: 34
-                    radius: Theme.minimalTheme ? 0 : Theme.cornerRadiusSmall
-                    color: isCurrent && Theme.minimalTheme ? Theme.withAlpha(Theme.accent, 0.16)
-                        : isCurrent ? Theme.bgSelected
-                        : layMouse.containsMouse ? (Theme.minimalTheme ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.bgHover)
-                        : (Theme.minimalTheme ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface)
-                    border.color: isCurrent ? Theme.accent : (Theme.minimalTheme ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider)
-                    border.width: isCurrent && Theme.minimalTheme ? 2 : 1
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Text { anchors.centerIn: parent; text: modelData; font.family: Theme.minimalTheme ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.minimalTheme ? Font.Bold : Font.Medium; color: Theme.textPrimary
+                    radius: 0
+                    color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16) : isCurrent ? Theme.bgSelected
+                        : layMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
+                        : (Theme.withAlpha(Theme.textPrimary, 0.04))
+                    border.color: isCurrent ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
+                    border.width: isCurrent ? 2 : 1
+                    Text { anchors.centerIn: parent; text: modelData; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Bold; color: Theme.textPrimary
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
@@ -58,14 +55,14 @@ Column {
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Animations"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Enabled"
-            SettingsToggle { on: SettingsService.animEnabled; onToggled: n => SettingsService.applyAnimEnabled(n) }
+            SettingsControls.SettingsToggle { on: SettingsService.animEnabled; onToggled: n => SettingsService.applyAnimEnabled(n) }
         }
-        SettingsSliderRow { label: "Speed Scale"; from: 0.2; to: 3.0; stepSize: 0.1; unit: "x"; value: SettingsService.animSpeed; onMoved: v => SettingsService.previewAnimSpeed(v); onApplied: v => SettingsService.applyAnimSpeed(v) }
-        SettingsDropdown {
+        SettingsControls.SettingsSliderRow { label: "Speed Scale"; from: 0.2; to: 3.0; stepSize: 0.1; unit: "x"; value: SettingsService.animSpeed; onMoved: v => SettingsService.previewAnimSpeed(v); onApplied: v => SettingsService.applyAnimSpeed(v) }
+        SettingsControls.SettingsDropdown {
             label: "Curve"
             options: ["linear", "md3_standard", "md3_decel", "md3_accel", "overshot", "crazyshot", "hyprnostretch", "fluent_decel", "easeInOutCirc", "easeOutCirc", "easeOutExpo"]
             current: SettingsService.animBezier

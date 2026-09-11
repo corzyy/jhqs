@@ -10,18 +10,17 @@ Item {
     id: root
     signal requestManage()
     property bool vertical: false
-    property var monitor: null
+    // NOTE: monitor removed — never read by any delegate.
 
     readonly property int extent: 26
     readonly property int iconPx: 16
     readonly property int chevronPx: 26
-    readonly property int drawerDur: Math.max(1, Math.round(600 * Theme.animationScale))
+    readonly property int drawerDur: Math.max(1, Math.round(600 * 1))
 
     property bool hoverExpand: false
     property bool touchExpand: false
     readonly property bool expanded: hoverExpand || touchExpand
     property real revealProgress: expanded ? 1 : 0
-    Behavior on revealProgress { NumberAnimation { duration: root.drawerDur; easing.type: Theme.easingStandard } }
 
     property var hoveredItem: null
 
@@ -251,22 +250,7 @@ Item {
         property int slotIndex: 0
         width: root.extent
         height: root.extent
-        property bool entered: false
-        opacity: entered ? 1 : 0
-        transform: Translate {
-            x: !traySlot.vertical && !traySlot.entered ? -10 : 0
-            y: traySlot.vertical && !traySlot.entered ? -10 : 0
-            Behavior on x { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            Behavior on y { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        }
-        Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Timer {
-            id: enterTimer
-            interval: Math.min(traySlot.slotIndex, 8) * Theme.animStagger
-            repeat: false
-            onTriggered: traySlot.entered = true
-        }
-        Component.onCompleted: enterTimer.restart()
+        opacity: 1
         function openMenu(): void { slotMenuAnchor.open() }
         Item {
             anchors.centerIn: parent

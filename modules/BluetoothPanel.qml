@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import "../themes"
 import "../services"
@@ -14,7 +13,7 @@ Scope {
     property bool showBluetooth: false
     signal dismissed()
     property bool _winVisible: showBluetooth
-    Timer { id: hideTimer; interval: Theme.panelAnimExit + 20; repeat: false; onTriggered: if (!scope.showBluetooth) scope._winVisible = false }
+    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showBluetooth) scope._winVisible = false }
     onShowBluetoothChanged: {
         if (showBluetooth) {
             _winVisible = true
@@ -30,7 +29,6 @@ Scope {
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
 
     Timer {
         id: devTimer
@@ -67,15 +65,12 @@ Scope {
             color: swRoot.checked ? Theme.withAlpha(Theme.textPrimary, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.04)
             border.color: swRoot.checked ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
             border.width: swRoot.checked ? 0 : 1
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             Rectangle {
                 width: 16; height: 16
                 radius: 0
                 x: swRoot.checked ? parent.width - width - 3 : 3
                 anchors.verticalCenter: parent.verticalCenter
                 color: swRoot.checked ? Theme.textPrimary : Theme.textSecondary
-                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 120 } }
             }
         }
         MouseArea {
@@ -91,7 +86,6 @@ Scope {
         required property string section
         antialiasing: Theme.shapesAa
         color: rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
-        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         Row {
             anchors.fill: parent
             anchors.leftMargin: 10; anchors.rightMargin: 10
@@ -246,14 +240,11 @@ Scope {
                 }
                 x: btAnchor.panelX
                 y: btAnchor.panelY
-                Behavior on x { enabled: btAnchor.valid && btBox.width > 0 && btBox.implicitHeight > 0 && btSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                Behavior on y { enabled: btAnchor.valid && btBox.width > 0 && btBox.implicitHeight > 0 && btSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                color: scope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: scope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: scope.isMinimal ? 2 : 1
-                radius: scope.isMinimal ? 0 : Theme.cornerRadius
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
+                radius: 0
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                 PanelSpring {
                     id: btSpring
                     slideFade: true

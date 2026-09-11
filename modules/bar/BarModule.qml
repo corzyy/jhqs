@@ -10,9 +10,6 @@ Item {
     signal requestCalendar()
     signal requestWeather()
     signal requestUpdates()
-    signal requestNotif()
-    signal requestCC()
-    signal requestMedia()
     signal requestNetwork()
     signal requestVolume()
     signal requestBluetooth()
@@ -20,6 +17,9 @@ Item {
     signal requestSystemTray()
     required property string moduleId
     property bool vertical: false
+    // Kept for interface compat (DraggableModule assigns monitor:). Unused
+    // internally — no widget reads it — but removing it would break the
+    // assignment in DraggableModule.qml:116.
     property var monitor: null
     property bool slotHovered: false
 
@@ -62,11 +62,6 @@ Item {
         } else if (moduleId === "weather") {
             if (button === Qt.LeftButton) requestWeather()
             else if (button === Qt.RightButton || button === Qt.MiddleButton) WeatherService.refresh()
-        } else if (moduleId === "controlcenter") {
-            if (button === Qt.LeftButton) requestCC()
-        } else if (moduleId === "media") {
-            if (button === Qt.RightButton) MediaService.togglePlay()
-            else if (button === Qt.LeftButton) requestMedia()
         } else if (moduleId === "network") {
             if (button === Qt.LeftButton) requestNetwork()
         } else if (moduleId === "volume") {
@@ -80,8 +75,6 @@ Item {
         } else if (moduleId === "updates") {
             if (button === Qt.MiddleButton) UpdateService.checkNow()
             else if (button === Qt.LeftButton) requestUpdates()
-        } else if (moduleId === "notif") {
-            if (button === Qt.LeftButton) requestNotif()
         } else if (moduleId === "systemtray") {
             try {
                 let t = widgetLoader.item
@@ -107,19 +100,9 @@ Item {
             Hyprland.dispatch(dy > 0 ? "workspace m-1" : "workspace m+1")
             return true
         }
-        if (moduleId === "controlcenter") {
-            if (dy > 0) VolumeService.stepUp()
-            else VolumeService.stepDown()
-            return true
-        }
         if (moduleId === "volume") {
             if (dy > 0) VolumeService.stepUp()
             else VolumeService.stepDown()
-            return true
-        }
-        if (moduleId === "media") {
-            if (dy > 0) MediaService.playNext()
-            else MediaService.playPrev()
             return true
         }
         if (moduleId === "systemtray") {
@@ -137,6 +120,10 @@ Item {
         id: widgetLoader
         anchors.centerIn: parent
         asynchronous: false
+        // RAM: unload collapsed widgets instead of keeping them alive at
+        // width 0 (weather with no data, empty tray). Destroying the item
+        // frees its bindings, timers and images; it reloads on next show.
+        active: root.activeVisible
         sourceComponent: {
             switch (root.moduleId) {
             case "launcher": return launcherComp
@@ -144,9 +131,6 @@ Item {
             case "clock": return clockComp
             case "weather": return weatherComp
             case "updates": return updatesComp
-            case "notif": return notifComp
-            case "controlcenter": return ccComp
-            case "media": return mediaComp
             case "network": return networkComp
             case "volume": return volumeComp
             case "bluetooth": return btComp
@@ -190,9 +174,6 @@ Item {
     }
     Component { id: weatherComp; WeatherWidget { vertical: root.vertical; onClicked: root.requestWeather() } }
     Component { id: updatesComp; UpdatesIndicator { vertical: root.vertical; onClicked: root.requestUpdates() } }
-    Component { id: notifComp; NotifWidget { vertical: root.vertical; onClicked: root.requestNotif() } }
-    Component { id: ccComp; ControlCenterIcons { vertical: root.vertical; onClicked: root.requestCC() } }
-    Component { id: mediaComp; MediaWidget { vertical: root.vertical; onClicked: root.requestMedia() } }
     Component { id: networkComp; NetworkWidget { vertical: root.vertical; onClicked: root.requestNetwork() } }
     Component {
         id: volumeComp

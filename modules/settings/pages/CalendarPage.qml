@@ -9,9 +9,9 @@ Column {
     width: parent ? parent.width : 400
     spacing: 10
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Calendar"
-        SettingsDropdown {
+        SettingsControls.SettingsDropdown {
             label: "Week Starts"
             options: ["sunday", "monday"]
             current: calWeekStart.currentName

@@ -17,7 +17,6 @@ Singleton {
             property bool showCpu: true
             property bool showRam: true
             property bool showGpu: true
-            property bool showDisk: true
             property bool showLabels: true
             property int refreshSeconds: 2
             property int warnThreshold: 75
@@ -28,17 +27,15 @@ Singleton {
     readonly property bool showCpu: vitalsFile.adapter.showCpu !== false
     readonly property bool showRam: vitalsFile.adapter.showRam !== false
     readonly property bool showGpu: vitalsFile.adapter.showGpu !== false
-    readonly property bool showDisk: vitalsFile.adapter.showDisk !== false
     readonly property bool showLabels: vitalsFile.adapter.showLabels !== false
     readonly property int refreshSeconds: Math.max(1, Math.min(10, parseInt(vitalsFile.adapter.refreshSeconds) || 2))
     readonly property int warnThreshold: Math.max(10, Math.min(95, parseInt(vitalsFile.adapter.warnThreshold) || 75))
     readonly property int critThreshold: Math.max(20, Math.min(99, parseInt(vitalsFile.adapter.critThreshold) || 90))
-    readonly property bool hasVisibleMetric: showCpu || showRam || showGpu || showDisk
+    readonly property bool hasVisibleMetric: showCpu || showRam || showGpu
 
     function setShowCpu(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showCpu === nv) return; vitalsFile.adapter.showCpu = nv; vitalsFile.writeAdapter() }
     function setShowRam(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showRam === nv) return; vitalsFile.adapter.showRam = nv; vitalsFile.writeAdapter() }
     function setShowGpu(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showGpu === nv) return; vitalsFile.adapter.showGpu = nv; vitalsFile.writeAdapter() }
-    function setShowDisk(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showDisk === nv) return; vitalsFile.adapter.showDisk = nv; vitalsFile.writeAdapter() }
     function setShowLabels(v: bool): void { let nv = !!v; if ((vitalsFile.adapter.showLabels !== false) === nv) return; vitalsFile.adapter.showLabels = nv; vitalsFile.writeAdapter() }
     function setRefreshSeconds(n: int): void {
         let c = Math.max(1, Math.min(10, Math.round(n)))
@@ -68,9 +65,6 @@ Singleton {
     property real ramPct: 0
     property real ramUsedGb: 0
     property real ramTotalGb: 0
-    property real diskPct: 0
-    property real diskUsedGb: 0
-    property real diskTotalGb: 0
     property real gpuPct: 0
     property string gpuName: ""
     property bool gpuAvailable: false
@@ -90,20 +84,18 @@ Singleton {
         if (showCpu) w = Math.max(w, severity(cpuPct))
         if (showRam) w = Math.max(w, severity(ramPct))
         if (showGpu && gpuAvailable) w = Math.max(w, severity(gpuPct))
-        if (showDisk) w = Math.max(w, severity(diskPct))
         return w
     }
 
     function status(): string {
         return "cpu=" + Math.round(cpuPct) + "% ram=" + Math.round(ramPct) + "%"
             + " gpu=" + (gpuAvailable ? Math.round(gpuPct) + "%" : "n/a")
-            + " disk=" + Math.round(diskPct) + "%"
     }
     function refresh(): void { if (!vitalsProc.running) vitalsProc.running = true }
 
     Process {
         id: vitalsProc
-        command: ["bash", "-c", "idle=$(awk '/^cpu /{print $5}' /proc/stat 2>/dev/null); total=$(awk '/^cpu /{s=0;for(i=2;i<=NF;i++)s+=$i;print s}' /proc/stat 2>/dev/null); echo \"STAT ${idle:-0} ${total:-0}\"; awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{if(t>0) print \"MEM \"t\" \"a}' /proc/meminfo 2>/dev/null; df -B1 --output=used,size,pcent / 2>/dev/null | tail -1 | tr -d '%' | awk '{print \"DISK \"$1\" \"$2\" \"$3}'; if command -v nvidia-smi >/dev/null 2>&1; then g=$(nvidia-smi --query-gpu=utilization.gpu,name --format=csv,noheader,nounits 2>/dev/null | head -1); if [ -n \"$g\" ]; then echo \"GPU_NVIDIA $g\"; else echo \"GPU_NONE\"; fi; elif [ -r /sys/class/drm/card0/device/gpu_busy_percent ]; then echo \"GPU_AMD $(cat /sys/class/drm/card0/device/gpu_busy_percent 2>/dev/null | tr -d '\\n') Generic-AMDGPU\"; elif [ -r /sys/class/drm/card1/device/gpu_busy_percent ]; then echo \"GPU_AMD $(cat /sys/class/drm/card1/device/gpu_busy_percent 2>/dev/null | tr -d '\\n') Generic-AMDGPU\"; else echo \"GPU_NONE\"; fi; awk '{print \"LOAD \"$1}' /proc/loadavg 2>/dev/null; ps -eo pcpu,comm --sort=-pcpu 2>/dev/null | head -6 | tail -5 | awk '{printf \"TOP %.1f|%s\\n\", $1, $2}'"]
+        command: ["bash", "-c", "idle=$(awk '/^cpu /{print $5}' /proc/stat 2>/dev/null); total=$(awk '/^cpu /{s=0;for(i=2;i<=NF;i++)s+=$i;print s}' /proc/stat 2>/dev/null); echo \"STAT ${idle:-0} ${total:-0}\"; awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{if(t>0) print \"MEM \"t\" \"a}' /proc/meminfo 2>/dev/null; if command -v nvidia-smi >/dev/null 2>&1; then g=$(nvidia-smi --query-gpu=utilization.gpu,name --format=csv,noheader,nounits 2>/dev/null | head -1); if [ -n \"$g\" ]; then echo \"GPU_NVIDIA $g\"; else echo \"GPU_NONE\"; fi; elif [ -r /sys/class/drm/card0/device/gpu_busy_percent ]; then echo \"GPU_AMD $(cat /sys/class/drm/card0/device/gpu_busy_percent 2>/dev/null | tr -d '\\n') Generic-AMDGPU\"; elif [ -r /sys/class/drm/card1/device/gpu_busy_percent ]; then echo \"GPU_AMD $(cat /sys/class/drm/card1/device/gpu_busy_percent 2>/dev/null | tr -d '\\n') Generic-AMDGPU\"; else echo \"GPU_NONE\"; fi; awk '{print \"LOAD \"$1}' /proc/loadavg 2>/dev/null; ps -eo pcpu,comm --sort=-pcpu 2>/dev/null | head -6 | tail -5 | awk '{printf \"TOP %.1f|%s\\n\", $1, $2}'"]
         stdout: StdioCollector {
             onStreamFinished: root.parseProbe(text || "")
         }
@@ -138,14 +130,6 @@ Singleton {
                         ramTotalGb = t / 1048576
                         ramUsedGb = Math.max(0, used) / 1048576
                         ramPct = Math.max(0, Math.min(100, used / t * 100))
-                    }
-                } else if (l.indexOf("DISK ") === 0) {
-                    let p = l.substring(5).trim().split(/\s+/)
-                    let u = parseFloat(p[0]), t = parseFloat(p[1]), pct = parseFloat(p[2])
-                    if (!isNaN(u) && !isNaN(t) && t > 0) {
-                        diskUsedGb = u / 1073741824
-                        diskTotalGb = t / 1073741824
-                        diskPct = isNaN(pct) ? Math.max(0, Math.min(100, u / t * 100)) : Math.max(0, Math.min(100, pct))
                     }
                 } else if (l.indexOf("GPU_NVIDIA ") === 0) {
                     let rest = l.substring(11).trim()

@@ -13,7 +13,6 @@ Scope {
 
     readonly property int barT: Theme.barThickness
     readonly property string barPos: Theme.barPosition
-    readonly property bool isMinimal: Theme.minimalTheme
     readonly property int quattroPad: 10
     readonly property int quattroGap: 10
     readonly property int quattroIconGap: 16
@@ -35,7 +34,7 @@ Scope {
 
     property bool osdVisible: false
     property bool _winVisible: osdVisible
-    Timer { id: osdHideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!osdScope.osdVisible) osdScope._winVisible = false }
+    Timer { id: osdHideTimer; interval: 0; repeat: false; onTriggered: if (!osdScope.osdVisible) osdScope._winVisible = false }
     onOsdVisibleChanged: {
         if (osdVisible) { _winVisible = true; osdHideTimer.stop() }
         else osdHideTimer.restart()
@@ -86,7 +85,7 @@ Scope {
         if (!inited) return
         if (!Theme.osdVolumeEnabled) return
         osdVisible = true
-        hideTimer.interval = osdScope.isMinimal ? 1200 : 1600
+        hideTimer.interval = 1200
         hideTimer.restart()
     }
     function showOsd() { showVolume() }
@@ -259,7 +258,7 @@ Scope {
             visible: osdScope._winVisible && Theme.osdVolumeEnabled && modelData.name === "DP-1"
             color: "transparent"
             exclusiveZone: 0
-            mask: Region { item: osdScope.isMinimal ? quattroWrapper : osdWrapper }
+            mask: Region { item: quattroWrapper }
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "volumeosd"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -267,14 +266,12 @@ Scope {
 
             Item {
                 id: quattroWrapper
-                visible: osdScope.isMinimal
                 anchors.bottom: parent.bottom
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottomMargin: osdScope.quattroBottomMargin
                 width: quattroCard.width
                 height: quattroCard.height
                 opacity: osdScope.osdVisible ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: osdScope.osdVisible ? Theme.panelAnimFade : Theme.panelAnimExit; easing.type: osdScope.osdVisible ? Theme.panelEasingFade : Theme.panelEasingExit } }
 
                 Rectangle {
                     id: quattroCard
@@ -324,10 +321,6 @@ Scope {
                                 radius: 3
                                 color: osdScope.displayMuted ? Theme.errorColor : Theme.accent
                                 antialiasing: Theme.shapesAa
-                                Behavior on width {
-                                    enabled: osdScope.osdVisible
-                                    NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
-                                }
                             }
                         }
                         Text {
@@ -369,140 +362,6 @@ Scope {
                 }
             }
 
-            Item {
-                id: osdWrapper
-                visible: !osdScope.isMinimal
-                readonly property int pillW: 64
-                readonly property int pillH: 320
-                readonly property int pillR: Theme.cornerRadius
-                readonly property int bottomClear: 12
-                function applyPosAnchors(): void {
-                    anchors.top = undefined
-                    anchors.bottom = undefined
-                    anchors.verticalCenter = undefined
-                    anchors.horizontalCenter = undefined
-                    anchors.right = undefined
-                    if (Theme.osdPosition === "top") { anchors.top = parent.top; anchors.horizontalCenter = parent.horizontalCenter }
-                    else if (Theme.osdPosition === "bottom") { anchors.bottom = parent.bottom; anchors.horizontalCenter = parent.horizontalCenter }
-                    else { anchors.right = parent.right; anchors.verticalCenter = parent.verticalCenter }
-                }
-                Component.onCompleted: applyPosAnchors()
-                Connections { target: Theme; function onOsdPositionChanged() { osdWrapper.applyPosAnchors() } }
-                anchors.rightMargin: 10 + (osdScope.barPos === "right" ? osdScope.barT : 0)
-                anchors.bottomMargin: Theme.osdPosition === "bottom" ? (osdWrapper.bottomClear + (osdScope.barPos === "bottom" ? osdScope.barT : 0)) : 0
-                anchors.topMargin: Theme.osdPosition === "top" ? (osdScope.barT + 8) : 0
-                width: pillW
-                height: pillH
-                opacity: osdScope.osdVisible ? 1 : 0
-                scale: osdScope.osdVisible ? 1 : 0.88
-                transform: Translate {
-                    id: osdSlide
-                    y: osdScope.osdVisible ? 0 : (Theme.osdPosition === "top" ? -22 : 22)
-                    x: osdScope.osdVisible ? 0 : (Theme.osdPosition === "right" ? 22 : 0)
-                    Behavior on y { NumberAnimation { duration: osdScope.osdVisible ? Theme.panelAnimSlide : Theme.panelAnimExit; easing.type: osdScope.osdVisible ? Theme.panelEasingSlide : Theme.panelEasingExit; easing.overshoot: Theme.panelOvershootSlide } }
-                    Behavior on x { NumberAnimation { duration: osdScope.osdVisible ? Theme.panelAnimSlide : Theme.panelAnimExit; easing.type: osdScope.osdVisible ? Theme.panelEasingSlide : Theme.panelEasingExit; easing.overshoot: Theme.panelOvershootSlide } }
-                }
-                Behavior on opacity { NumberAnimation { duration: osdScope.osdVisible ? Theme.panelAnimFade : Theme.panelAnimExit; easing.type: osdScope.osdVisible ? Theme.panelEasingFade : Theme.panelEasingExit } }
-                Behavior on scale { NumberAnimation { duration: osdScope.osdVisible ? Theme.panelAnimScale : Theme.panelAnimExit; easing.type: osdScope.osdVisible ? Theme.panelEasingScale : Theme.panelEasingExit; easing.overshoot: osdScope.osdVisible ? Theme.panelOvershootScale : 0 } }
-
-                Rectangle {
-                    antialiasing: Theme.shapesAa
-                    anchors.fill: parent
-                    anchors.leftMargin: 2
-                    anchors.topMargin: 2
-                    radius: osdWrapper.pillR
-                    color: Theme.scrim
-                    opacity: osdScope.osdVisible ? 0.18 : 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.animSlow } }
-                }
-
-                Rectangle {
-                    antialiasing: Theme.shapesAa
-                    id: osdBox
-                    anchors.fill: parent
-                    radius: osdWrapper.pillR
-                    color: Theme.panelBg
-                    border.color: Theme.panelBorderColor
-                    border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.topMargin: 12
-                        anchors.bottomMargin: 12
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        spacing: 8
-
-                        Item {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredWidth: 36
-                            Layout.preferredHeight: 36
-                            Text {
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                                anchors.centerIn: parent
-                                text: osdScope.iconFor(osdScope.displayPct, osdScope.displayMuted)
-                                font.family: Theme.iconFontFamily
-                                font.pixelSize: Theme.fs(19)
-                                color: osdScope.displayMuted ? Theme.errorColor : Theme.textPrimary
-                                horizontalAlignment: Text.AlignHCenter
-                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: osdScope.toggleOsdMute()
-                            }
-                        }
-
-                        Ui.MSlider {
-                            id: barV
-                            Layout.fillHeight: true
-                            Layout.alignment: Qt.AlignHCenter
-                            orientation: "vertical"
-                            from: 0; to: 100; value: osdScope.displayPct; stepSize: 1
-                            showStopDot: false; showValueLabel: false; showTicks: false
-                            trackHeight: 24
-                            trackRadius: 12
-                            handleWidth: 4
-                            handleHeight: 28
-                            stateLayerSize: 48
-                            trackGap: 4
-                            activeTrackColor: osdScope.displayMuted ? Theme.withAlpha(Theme.errorColor, 0.95) : Theme.accent
-                            inactiveTrackColor: osdScope.displayMuted ? Theme.withAlpha(Theme.bgHover, 0.9) : Theme.bgHover
-                            handleColor: osdScope.displayMuted ? Theme.errorColor : Theme.accent
-                            stateLayerColor: osdScope.displayMuted ? Theme.errorColor : Theme.accent
-                            onMoved: v => osdScope.setOsdVolumePct(Math.round(v))
-                            onPressedChanged: pressed => { osdScope.osdDragging = pressed; if (pressed) osdScope.showVolume() }
-                        }
-
-                        Item {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 28
-                            Text {
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                                anchors.centerIn: parent
-                                text: "󰒓"
-                                font.family: Theme.iconFontFamily
-                                font.pixelSize: Theme.fs(15)
-                                color: settingsHover.containsMouse ? Theme.textPrimary : Theme.textMuted
-                                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                            }
-                            MouseArea {
-                                id: settingsHover
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: { if (!audioSettingsProc.running) audioSettingsProc.running = true }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }

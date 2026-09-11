@@ -7,14 +7,12 @@ Item {
     id: root
     required property var scope
     required property var bodyRoot
-    readonly property bool isMinimal: Theme.shellTheme === "minimal"
     anchors.fill: parent
-    anchors.margins: isMinimal ? 0 : 4
+    anchors.margins: 0
     clip: true
     opacity: bodyRoot.scope.showModules ? 1 : 0
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showModules
-    Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
 
     property string subview: "root"
     property int selectedIndex: 0
@@ -150,13 +148,13 @@ Item {
 
         ColumnLayout {
             id: resultsCol
-            x: root.isMinimal ? 0 : 6
-            width: root.isMinimal ? parent.width : parent.width - 12
+            x: 0
+            width: parent.width
             spacing: 3
             Repeater {
                 id: rootRepeater
                 model: root.subview === "root" ? root.rootModel : []
-                delegate: ModuleRow {
+                delegate: MenuRow {
                     selected: root.selectedIndex === index
                     glyph: "›"
                     sub: modelData.sub
@@ -192,7 +190,7 @@ Item {
             Repeater {
                 id: addRepeater
                 model: root.subview === "add" ? root.filteredAddList : []
-                delegate: ModuleRow {
+                delegate: MenuRow {
                     selected: root.selectedIndex === index
                     glyph: ""
                     sub: root.detailFor(modelData, false)
@@ -228,7 +226,7 @@ Item {
             Repeater {
                 id: removeRepeater
                 model: root.subview === "remove" ? root.filteredRemoveList : []
-                delegate: ModuleRow {
+                delegate: MenuRow {
                     selected: root.selectedIndex === index
                     glyph: ""
                     sub: root.detailFor(modelData, true)

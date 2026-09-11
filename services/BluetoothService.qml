@@ -17,12 +17,8 @@ Singleton {
         } catch (e) {}
         return "󰂯"
     }
-    readonly property bool anyConnected: {
-        try {
-            for (let d of btDevices) { if (d && d.connected) return true }
-        } catch (e) {}
-        return false
-    }
+    // NOTE: anyConnected removed — exact duplicate of the loop in `icon`,
+    // and zero external readers (panel buckets the list itself).
 
     Process {
         id: btPollProc

@@ -109,7 +109,6 @@ Scope {
                 anchors.fill: parent
                 clip: false
                 opacity: lockScope.locked ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
 
                 Image {
                     smooth: Theme.imageSmooth
@@ -125,8 +124,6 @@ Scope {
                     sourceSize.height: 540
                     scale: lockScope.locked ? 1.0 : 1.06
                     opacity: lockScope.locked ? 1 : 0.85
-                    Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
                     layer.enabled: lockScope.locked
                     layer.effect: MultiEffect {
                         blurEnabled: true
@@ -173,7 +170,6 @@ Scope {
                     anchors.fill: parent
                     color: Theme.scrim
                     opacity: lockScope.locked ? 0.20 : 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
                 }
 
                 Item {
@@ -186,9 +182,7 @@ Scope {
                     height: clockCol.implicitHeight
                     opacity: lockScope.locked ? 1 : 0
                     scale: lockScope.locked ? 1 : 0.96
-                    transform: Translate { y: lockScope.locked ? 0 : -18; Behavior on y { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } } }
-                    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
-                    Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
+                    transform: Translate { y: lockScope.locked ? 0 : -18 }
                     SystemClock { id: lockClock; enabled: lockScope.locked && modelData.name === "DP-1"; precision: SystemClock.Minutes }
                     Column {
                         id: clockCol
@@ -280,19 +274,7 @@ Scope {
                     opacity: lockScope.locked ? 1 : 0
                     scale: lockScope.locked ? 1 : 0.96
                     property real shakeOffset: 0
-                    transform: Translate { y: lockScope.locked ? 0 : 24; x: pinContainer.shakeOffset; Behavior on y { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } } }
-                    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
-                    Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                    SequentialAnimation on shakeOffset {
-                        id: shakeAnim
-                        running: false
-                        NumberAnimation { to: -12; duration: 45; easing.type: Theme.easingStandard }
-                        NumberAnimation { to: 12; duration: 90; easing.type: Theme.easingSmooth }
-                        NumberAnimation { to: -8; duration: 70; easing.type: Theme.easingSmooth }
-                        NumberAnimation { to: 8; duration: 70; easing.type: Theme.easingSmooth }
-                        NumberAnimation { to: 0; duration: 45; easing.type: Theme.easingStandard }
-                    }
-                    Connections { target: lockScope; function onFailedChanged() { if (lockScope.failed && Theme.animationsEnabled) shakeAnim.restart() } }
+                    transform: Translate { y: lockScope.locked ? 0 : 24; x: pinContainer.shakeOffset }
                     ColumnLayout {
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.top
@@ -305,7 +287,6 @@ Scope {
                             color: Theme.withAlpha(Theme.surface2, lockScope.failed ? 0.85 : 0.52)
                             border.color: lockScope.failed ? Theme.errorColor : Theme.withAlpha(Theme.outline, 0.18)
                             border.width: 1
-                            Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
                             Text {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
@@ -326,8 +307,6 @@ Scope {
                             color: lockScope.failed ? Theme.withAlpha(Theme.error, 0.18) : Theme.withAlpha(Theme.surface2, 0.62)
                             border.color: lockScope.failed ? Theme.errorColor : (pinField.activeFocus ? Theme.primary : Theme.withAlpha(Theme.outline, 0.22))
                             border.width: lockScope.failed || pinField.activeFocus ? 1.6 : 1
-                            Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-                            Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
                             layer.enabled: true
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
@@ -347,7 +326,6 @@ Scope {
                                         width: 12; height: 12; radius: Theme.cornerRadiusSmall
                                         color: lockScope.failed ? Theme.errorColor : Theme.textPrimary
                                         opacity: 0.95
-                                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
                                     }
                                 }
                             }

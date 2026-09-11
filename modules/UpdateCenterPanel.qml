@@ -13,7 +13,7 @@ Scope {
     property bool showUpdates: false
     signal dismissed()
     property bool _winVisible: showUpdates
-    Timer { id: hideTimer; interval: Theme.panelAnimExit + 20; repeat: false; onTriggered: if (!scope.showUpdates) scope._winVisible = false }
+    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showUpdates) scope._winVisible = false }
     onShowUpdatesChanged: {
         if (showUpdates) {
             _winVisible = true
@@ -24,7 +24,6 @@ Scope {
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
 
     readonly property int compactRowLimit: 3
     property var expandedSections: ({})
@@ -148,9 +147,7 @@ Scope {
         color: pillMouse.containsMouse ? Theme.bgHover : (highlighted ? Theme.bgSelected : Theme.cardBg)
         border.color: highlighted ? Theme.accent : Theme.divider
         border.width: 1
-        scale: Theme.animationsEnabled && pillMouse.pressed ? Theme.pressScale : 1.0
-        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+        scale: 1.0
         Text {
             id: pillLabel
             anchors.centerIn: parent
@@ -215,14 +212,11 @@ Scope {
                 }
                 x: updAnchor.panelX
                 y: updAnchor.panelY
-                Behavior on x { enabled: updAnchor.valid && updBox.width > 0 && updBox.implicitHeight > 0 && updSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                Behavior on y { enabled: updAnchor.valid && updBox.width > 0 && updBox.implicitHeight > 0 && updSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                color: scope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: scope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: scope.isMinimal ? 2 : 1
-                radius: scope.isMinimal ? 0 : Theme.cornerRadius
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
+                radius: 0
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                 PanelSpring {
                     id: updSpring
                     slideFade: true

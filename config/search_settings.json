@@ -5,6 +5,5 @@
     "remove": true,
     "setup": true,
     "style": true,
-    "system": true,
-    "update": true
+    "system": true
 }

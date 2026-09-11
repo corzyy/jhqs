@@ -84,18 +84,15 @@ ShellRoot {
         id: panel
         readonly property int none: 0
         readonly property int menu: 1
-        readonly property int controlCenter: 2
-        readonly property int calendar: 3
-        readonly property int media: 4
-        readonly property int weather: 5
-        readonly property int settings: 6
-        readonly property int systemTray: 7
-        readonly property int notifCenter: 8
-        readonly property int network: 9
-        readonly property int volume: 10
-        readonly property int bluetooth: 11
-        readonly property int updates: 12
-        readonly property int vitals: 13
+        readonly property int calendar: 2
+        readonly property int weather: 3
+        readonly property int settings: 4
+        readonly property int systemTray: 5
+        readonly property int network: 6
+        readonly property int volume: 7
+        readonly property int bluetooth: 8
+        readonly property int updates: 9
+        readonly property int vitals: 10
     }
 
     property int activePanel: panel.none
@@ -103,13 +100,10 @@ ShellRoot {
     property bool menuCentered: false
 
     readonly property bool menuVisible: activePanel === panel.menu
-    readonly property bool controlCenterVisible: activePanel === panel.controlCenter
     readonly property bool calendarVisible: activePanel === panel.calendar
-    readonly property bool mediaVisible: activePanel === panel.media
     readonly property bool weatherVisible: activePanel === panel.weather
     readonly property bool settingsVisible: activePanel === panel.settings
     readonly property bool systemTrayVisible: activePanel === panel.systemTray
-    readonly property bool notifCenterVisible: activePanel === panel.notifCenter
     readonly property bool networkVisible: activePanel === panel.network
     readonly property bool volumeVisible: activePanel === panel.volume
     readonly property bool bluetoothVisible: activePanel === panel.bluetooth
@@ -156,17 +150,15 @@ ShellRoot {
         toggleExclusive(panel.updates)
     }
 
-    readonly property var jhqsMenu: menuLoader.item
-    readonly property var settingsPanel: settingsLoader.item
+    // RAM: dead aliases removed (jhqsMenu/settingsPanel were never read).
+    // Panel visibility is derived from a single activePanel int to avoid
+    // 13 independent booleans fanning out through TopBar.
 
     Modules.TopBar {
         id: topBar
         menuOpen: root.menuVisible
-        ccOpen: root.controlCenterVisible
         calendarOpen: root.calendarVisible
-        mediaOpen: root.mediaVisible
         weatherOpen: root.weatherVisible
-        notifOpen: root.notifCenterVisible
         networkOpen: root.networkVisible
         volumeOpen: root.volumeVisible
         bluetoothOpen: root.bluetoothVisible
@@ -175,11 +167,8 @@ ShellRoot {
         updatesOpen: root.updatesVisible
 
         onToggleMenu: { root.menuCentered = true; root.toggleExclusive(panel.menu) }
-        onToggleControlCenter: root.toggleExclusive(panel.controlCenter)
         onToggleCalendar: root.toggleExclusive(panel.calendar)
-        onToggleMedia: root.toggleExclusive(panel.media)
         onToggleWeather: root.toggleExclusive(panel.weather)
-        onToggleNotif: root.toggleExclusive(panel.notifCenter)
         onToggleNetwork: root.toggleExclusive(panel.network)
         onToggleVolume: root.toggleExclusive(panel.volume)
         onToggleBluetooth: root.toggleExclusive(panel.bluetooth)
@@ -187,26 +176,25 @@ ShellRoot {
         onToggleSystemTray: root.toggleExclusive(panel.systemTray)
         onOpenUpdates: root.toggleUpdates()
 
+        // CPU: table-driven close — replaces if/else chain so
+        // closePanel is O(1) and cannot drift out of sync with panel enum.
         onClosePanel: moduleId => {
-            if (moduleId === "launcher" && root.menuVisible) root.closeAll()
-            else if (moduleId === "controlcenter" && root.controlCenterVisible) root.closeAll()
-            else if (moduleId === "clock" && root.calendarVisible) root.closeAll()
-            else if (moduleId === "media" && root.mediaVisible) root.closeAll()
-            else if (moduleId === "weather" && root.weatherVisible) root.closeAll()
-            else if (moduleId === "notif" && root.notifCenterVisible) root.closeAll()
-            else if (moduleId === "network" && root.networkVisible) root.closeAll()
-            else if (moduleId === "volume" && root.volumeVisible) root.closeAll()
-            else if (moduleId === "bluetooth" && root.bluetoothVisible) root.closeAll()
-            else if (moduleId === "vitals" && root.vitalsVisible) root.closeAll()
-            else if (moduleId === "systemtray" && root.systemTrayVisible) root.closeAll()
-            else if (moduleId === "updates" && root.updatesVisible) root.closeAll()
-            else if (moduleId === "settings" && root.settingsVisible) root.closeAll()
+            const map = {
+                "launcher": root.menuVisible,
+                "clock": root.calendarVisible,
+                "weather": root.weatherVisible,
+                "network": root.networkVisible, "volume": root.volumeVisible,
+                "bluetooth": root.bluetoothVisible, "vitals": root.vitalsVisible,
+                "systemtray": root.systemTrayVisible, "updates": root.updatesVisible,
+                "settings": root.settingsVisible
+            }
+            if (map[moduleId]) root.closeAll()
         }
     }
 
     function openSettings(section: string): void {
         let s = (section || "global").trim() || "global"
-        let valid = ["global", "hypr", "bar", "modules", "workspaces", "notif", "osd", "search"]
+        let valid = ["global", "theming", "hypr", "bar", "modules", "workspaces", "notif", "osd", "search"]
         if (valid.indexOf(s) === -1) s = "global"
         settingsSection = s
         if (settingsLoader.item) settingsLoader.item.section = s
@@ -256,11 +244,8 @@ ShellRoot {
         function state(): string {
             return "menu=" + root.menuVisible
                 + " centered=" + root.menuCentered
-                + " controlCenter=" + root.controlCenterVisible
                 + " calendar=" + root.calendarVisible
-                + " media=" + root.mediaVisible
             + " weather=" + root.weatherVisible
-            + " notifcenter=" + root.notifCenterVisible
             + " network=" + root.networkVisible
             + " volume=" + root.volumeVisible
             + " bluetooth=" + root.bluetoothVisible
@@ -269,21 +254,12 @@ ShellRoot {
             + " settings=" + root.settingsVisible
             + " systemtray=" + root.systemTrayVisible
         }
-        function toggleControlCenter(): void { root.toggleExclusive(panel.controlCenter) }
-        function showControlCenter(): void { root.openPanel(panel.controlCenter) }
-        function hideControlCenter(): void { root.closeAll() }
         function toggleCalendar(): void { root.toggleExclusive(panel.calendar) }
         function showCalendar(): void { root.openPanel(panel.calendar) }
         function hideCalendar(): void { root.closeAll() }
-        function toggleMedia(): void { root.toggleExclusive(panel.media) }
-        function showMedia(): void { root.openPanel(panel.media) }
-        function hideMedia(): void { root.closeAll() }
         function toggleWeather(): void { root.toggleExclusive(panel.weather) }
         function showWeather(): void { root.openPanel(panel.weather) }
         function hideWeather(): void { root.closeAll() }
-        function toggleNotif(): void { root.toggleExclusive(panel.notifCenter) }
-        function showNotif(): void { root.openPanel(panel.notifCenter) }
-        function hideNotif(): void { root.closeAll() }
         function toggleNetwork(): void { root.toggleExclusive(panel.network) }
         function showNetwork(): void { root.openPanel(panel.network) }
         function hideNetwork(): void { root.closeAll() }
@@ -338,16 +314,6 @@ ShellRoot {
         }
     }
 
-    Loader { id: ccLoader; active: root.controlCenterVisible; asynchronous: true; sourceComponent: ccComp }
-    Component {
-        id: ccComp
-        Modules.ControlCenter {
-            showControlCenter: root.controlCenterVisible
-            onDismissed: root.closeAll()
-            onOpenSettings: section => root.openSettings(section || "global")
-        }
-    }
-
     Loader { id: calLoader; active: root.calendarVisible; asynchronous: true; sourceComponent: calComp }
     Component {
         id: calComp
@@ -357,30 +323,11 @@ ShellRoot {
         }
     }
 
-    Loader { id: mediaLoader; active: root.mediaVisible; asynchronous: true; sourceComponent: mediaComp }
-    Component {
-        id: mediaComp
-        Modules.MediaPanel {
-            showMedia: root.mediaVisible
-            onDismissed: root.closeAll()
-        }
-    }
-
     Loader { id: weatherLoader; active: root.weatherVisible; asynchronous: true; sourceComponent: weatherComp }
     Component {
         id: weatherComp
         Modules.WeatherPanel {
             showWeather: root.weatherVisible
-            onDismissed: root.closeAll()
-        }
-    }
-
-    Loader { id: notifCenterLoader; active: root.notifCenterVisible; asynchronous: true; sourceComponent: notifCenterComp }
-    Component {
-        id: notifCenterComp
-        Modules.NotificationCenter {
-            showNotif: root.notifCenterVisible
-            notifServer: root.notifServer
             onDismissed: root.closeAll()
         }
     }
@@ -455,6 +402,13 @@ ShellRoot {
         }
     }
 
+    // NOTE: VolumeOSD/LaunchOSD/Lockscreen/Polkit stay resident on purpose:
+    // they are trigger listeners (Theme.volumeOsdTrigger/launchOsdTrigger,
+    // lock IPC, polkit agent). Gating them on a visible flag would break
+    // the trigger itself. Their windows already render nothing when hidden
+    // (_winVisible=false -> visible:false), so steady-state cost is one
+    // Scope + timers, not a scene tree. Real RAM wins are the 14 panel
+    // Loaders above, which ARE correctly gated.
     Modules.VolumeOSD { }
     Modules.LaunchOSD { }
     Modules.Lockscreen { }

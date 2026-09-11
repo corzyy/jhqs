@@ -14,11 +14,8 @@ import "../themes"
 Scope {
     id: topBarScope
     signal toggleMenu()
-    signal toggleControlCenter()
     signal toggleCalendar()
-    signal toggleMedia()
     signal toggleWeather()
-    signal toggleNotif()
     signal toggleNetwork()
     signal toggleVolume()
     signal toggleBluetooth()
@@ -28,11 +25,8 @@ Scope {
     signal closePanel(string moduleId)
 
     property bool menuOpen: false
-    property bool ccOpen: false
     property bool calendarOpen: false
-    property bool mediaOpen: false
     property bool weatherOpen: false
-    property bool notifOpen: false
     property bool networkOpen: false
     property bool volumeOpen: false
     property bool bluetoothOpen: false
@@ -42,10 +36,7 @@ Scope {
     function moduleActive(id: string): bool {
         if (id === "launcher") return topBarScope.menuOpen
         if (id === "clock") return topBarScope.calendarOpen
-        if (id === "controlcenter") return topBarScope.ccOpen
-        if (id === "media") return topBarScope.mediaOpen
         if (id === "weather") return topBarScope.weatherOpen
-        if (id === "notif") return topBarScope.notifOpen
         if (id === "network") return topBarScope.networkOpen
         if (id === "volume") return topBarScope.volumeOpen
         if (id === "bluetooth") return topBarScope.bluetoothOpen
@@ -196,8 +187,6 @@ Scope {
             implicitHeight: isVertical ? 0 : barHeight
             implicitWidth: isVertical ? barWidth : 0
             color: "transparent"
-            Behavior on implicitHeight { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
-            Behavior on implicitWidth { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
 
             Rectangle {
                 antialiasing: Theme.shapesAa
@@ -206,12 +195,9 @@ Scope {
                 visible: !topBarWindow.isIsland
                 radius: (topBarWindow.edgeDist > 0 || topBarWindow.topDist > 0) ? Theme.cornerRadius : 0
                 color: topBarWindow.barOpacity >= 0.999 ? Theme.panelBg : Theme.withAlpha(Theme.bg, Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha)))
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
-                Behavior on radius { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingStandard } }
             }
 
-            property real _entrance: 0
-            Component.onCompleted: { _entrance = 1; Theme.barEffectiveWidth = barWidth; Theme.barEffectiveHeight = barHeight; publishWindowRect(); Qt.callLater(publishWindowRect) }
+            Component.onCompleted: { Theme.barEffectiveWidth = barWidth; Theme.barEffectiveHeight = barHeight; publishWindowRect(); Qt.callLater(publishWindowRect) }
 
             function clearDrag(): void {
                 topBarScope.dragActive = false
@@ -400,12 +386,7 @@ Scope {
                 id: horizontalContainer
                 visible: topBarWindow.isHorizontal
                 anchors.fill: parent; anchors.leftMargin: Theme.barContentPadding; anchors.rightMargin: Theme.barContentPadding
-                opacity: visible ? topBarWindow._entrance : 0
-                transform: Translate {
-                    y: visible ? (1 - topBarWindow._entrance) * (topBarWindow.barPos === "top" ? -12 : 12) : 0
-                    Behavior on y { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                }
-                Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                opacity: 1
 
                 Item {
                     id: leftZoneWrap
@@ -423,7 +404,6 @@ Scope {
                             let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
                             return Theme.withAlpha(base, a)
                         }
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Rectangle {
                         antialiasing: Theme.shapesAa
@@ -458,14 +438,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -496,7 +473,6 @@ Scope {
                             let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
                             return Theme.withAlpha(base, a)
                         }
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Rectangle {
                         antialiasing: Theme.shapesAa
@@ -531,14 +507,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -567,7 +540,6 @@ Scope {
                             let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
                             return Theme.withAlpha(base, a)
                         }
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Rectangle {
                         antialiasing: Theme.shapesAa
@@ -602,14 +574,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -640,7 +609,6 @@ Scope {
                             let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
                             return Theme.withAlpha(base, a)
                         }
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Rectangle {
                         antialiasing: Theme.shapesAa
@@ -675,14 +643,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -711,7 +676,6 @@ Scope {
                             let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
                             return Theme.withAlpha(base, a)
                         }
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Rectangle {
                         antialiasing: Theme.shapesAa
@@ -746,14 +710,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -772,12 +733,7 @@ Scope {
                 visible: topBarWindow.isVertical
                 anchors.fill: parent; anchors.topMargin: Theme.barContentPadding; anchors.bottomMargin: Theme.barContentPadding; anchors.leftMargin: 4; anchors.rightMargin: 4
                 clip: true
-                opacity: visible ? topBarWindow._entrance : 0
-                transform: Translate {
-                    x: visible ? (1 - topBarWindow._entrance) * (topBarWindow.barPos === "left" ? -12 : 12) : 0
-                    Behavior on x { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                }
-                Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                opacity: 1
 
                 ColumnLayout {
                     id: vCol; anchors.fill: parent; spacing: 10
@@ -833,14 +789,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -905,14 +858,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -977,14 +927,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -1049,14 +996,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -1121,14 +1065,11 @@ Scope {
                                     onRequestCalendar: topBarScope.toggleCalendar()
                                     onRequestWeather: topBarScope.toggleWeather()
                                     onRequestUpdates: topBarScope.openUpdates()
-                                    onRequestCC: topBarScope.toggleControlCenter()
-                                    onRequestMedia: topBarScope.toggleMedia()
                                     onRequestNetwork: topBarScope.toggleNetwork()
                                     onRequestVolume: topBarScope.toggleVolume()
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
-                                    onRequestNotif: topBarScope.toggleNotif()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)

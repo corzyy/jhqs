@@ -8,9 +8,9 @@ Column {
     width: parent ? parent.width : 400
     spacing: 10
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Style"
-        SettingsDropdown {
+        SettingsControls.SettingsDropdown {
             label: "Style"
             options: ["Full Bar", "Island"]
             current: Theme.barStyle === "island" ? "Island" : "Full Bar"
@@ -23,10 +23,10 @@ Column {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
                 text: "Position"
-                font.family: Theme.minimalTheme ? Theme.iconFontFamily : Theme.fontFamily
+                font.family: Theme.iconFontFamily
                 font.pixelSize: Theme.fs(12)
                 font.weight: Font.Medium
-                color: Theme.minimalTheme ? Theme.textSecondary : Theme.textPrimary
+                color: Theme.textSecondary
             }
             Row {
                 width: parent.width
@@ -44,15 +44,13 @@ Column {
                         readonly property bool isCurrent: Theme.barPosition === posId
                         width: (root.width - 24) / 4
                         height: 56
-                        radius: Theme.minimalTheme ? 0 : Theme.cornerRadiusSmall
+                        radius: 0
                         antialiasing: Theme.shapesAa
-                        color: isCurrent && Theme.minimalTheme ? Theme.withAlpha(Theme.accent, 0.16)
-                            : isCurrent ? Theme.bgSelected
-                            : posMouse.containsMouse ? (Theme.minimalTheme ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.bgHover)
-                            : (Theme.minimalTheme ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface)
-                        border.color: isCurrent ? Theme.accent : (Theme.minimalTheme ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider)
-                        border.width: isCurrent && Theme.minimalTheme ? 2 : 1
-                        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+                        color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16) : isCurrent ? Theme.bgSelected
+                            : posMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
+                            : (Theme.withAlpha(Theme.textPrimary, 0.04))
+                        border.color: isCurrent ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
+                        border.width: isCurrent ? 2 : 1
                         Column {
                             anchors.centerIn: parent
                             spacing: 4
@@ -73,7 +71,6 @@ Column {
                                     height: (posId === "left" || posId === "right") ? parent.height - 2 : 3
                                     radius: 1
                                     color: isCurrent ? Theme.accent : Theme.textMuted
-                                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                                 }
                             }
                             Text {
@@ -81,7 +78,7 @@ Column {
                                 renderType: Theme.textRenderType
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: modelData.label
-                                font.family: Theme.minimalTheme ? Theme.iconFontFamily : Theme.fontFamily
+                                font.family: Theme.iconFontFamily
                                 font.pixelSize: Theme.fs(11)
                                 font.weight: isCurrent ? Font.Medium : Font.Normal
                                 color: isCurrent ? Theme.textPrimary : Theme.textSecondary
@@ -94,18 +91,18 @@ Column {
         }
     }
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Bar"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Module Background"
             subtitle: "Matugen pill behind left / 2-5ths / center / 4-5ths / right modules"
-            SettingsToggle { on: Theme.barModuleBackground; onToggled: n => Theme.setBarModuleBackground(n) }
+            SettingsControls.SettingsToggle { on: Theme.barModuleBackground; onToggled: n => Theme.setBarModuleBackground(n) }
         }
-        SettingsSliderRow { label: "Thickness"; from: 20; to: 48; stepSize: 1; unit: "px"; value: Theme.barThickness; onMoved: v => Theme.setBarThickness(Math.round(v)); onApplied: v => Theme.setBarThickness(Math.round(v)) }
-        SettingsSliderRow { label: "Opacity"; from: 0; to: 1; stepSize: 0.01; value: Theme.barOpacity; onMoved: v => Theme.setBarOpacity(v); onApplied: v => Theme.setBarOpacity(v) }
-        SettingsSliderRow { label: "Module Spacing"; from: -12; to: 24; stepSize: 1; unit: "px"; value: Theme.barModuleSpacing; onMoved: v => Theme.setBarModuleSpacing(Math.round(v)); onApplied: v => Theme.setBarModuleSpacing(Math.round(v)) }
-        SettingsSliderRow { label: "Edge Distance"; from: 0; to: 600; stepSize: 1; unit: "px"; value: Theme.barEdgeDistance; onMoved: v => Theme.setBarEdgeDistance(Math.round(v)); onApplied: v => Theme.setBarEdgeDistance(Math.round(v)) }
-        SettingsSliderRow { label: "Top Distance"; from: 0; to: 32; stepSize: 1; unit: "px"; value: Theme.barTopDistance; onMoved: v => Theme.setBarTopDistance(Math.round(v)); onApplied: v => Theme.setBarTopDistance(Math.round(v)) }
-        SettingsSliderRow { label: "Content Padding"; from: 0; to: 32; stepSize: 1; unit: "px"; value: Theme.barContentPadding; onMoved: v => Theme.setBarContentPadding(Math.round(v)); onApplied: v => Theme.setBarContentPadding(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Thickness"; from: 20; to: 48; stepSize: 1; unit: "px"; value: Theme.barThickness; onMoved: v => Theme.setBarThickness(Math.round(v)); onApplied: v => Theme.setBarThickness(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Opacity"; from: 0; to: 1; stepSize: 0.01; value: Theme.barOpacity; onMoved: v => Theme.setBarOpacity(v); onApplied: v => Theme.setBarOpacity(v) }
+        SettingsControls.SettingsSliderRow { label: "Module Spacing"; from: -12; to: 24; stepSize: 1; unit: "px"; value: Theme.barModuleSpacing; onMoved: v => Theme.setBarModuleSpacing(Math.round(v)); onApplied: v => Theme.setBarModuleSpacing(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Edge Distance"; from: 0; to: 600; stepSize: 1; unit: "px"; value: Theme.barEdgeDistance; onMoved: v => Theme.setBarEdgeDistance(Math.round(v)); onApplied: v => Theme.setBarEdgeDistance(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Top Distance"; from: 0; to: 32; stepSize: 1; unit: "px"; value: Theme.barTopDistance; onMoved: v => Theme.setBarTopDistance(Math.round(v)); onApplied: v => Theme.setBarTopDistance(Math.round(v)) }
+        SettingsControls.SettingsSliderRow { label: "Content Padding"; from: 0; to: 32; stepSize: 1; unit: "px"; value: Theme.barContentPadding; onMoved: v => Theme.setBarContentPadding(Math.round(v)); onApplied: v => Theme.setBarContentPadding(Math.round(v)) }
     }
 }

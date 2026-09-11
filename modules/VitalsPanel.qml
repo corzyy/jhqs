@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import "../themes"
 import "../services"
@@ -14,7 +13,7 @@ Scope {
     property bool showVitals: false
     signal dismissed()
     property bool _winVisible: showVitals
-    Timer { id: hideTimer; interval: Theme.panelAnimExit + 20; repeat: false; onTriggered: if (!scope.showVitals) scope._winVisible = false }
+    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showVitals) scope._winVisible = false }
     onShowVitalsChanged: {
         if (showVitals) {
             _winVisible = true
@@ -25,7 +24,6 @@ Scope {
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
 
     function barColor(pct: real): color {
         let s = VitalsService.severity(pct)
@@ -47,8 +45,6 @@ Scope {
         color: Theme.cardBg
         border.color: Theme.divider
         border.width: 1
-        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
-        Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 12; anchors.rightMargin: 12
@@ -86,7 +82,6 @@ Scope {
                         text: Math.round(card.pct) + "%"
                         font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Bold
                         color: scope.barColor(card.pct)
-                        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                     }
                 }
                 Rectangle {
@@ -99,8 +94,6 @@ Scope {
                         height: parent.height
                         radius: parent.radius
                         color: scope.barColor(card.pct)
-                        Behavior on width { NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
                     }
                 }
                 Text {
@@ -157,14 +150,11 @@ Scope {
                 }
                 x: vitAnchor.panelX
                 y: vitAnchor.panelY
-                Behavior on x { enabled: vitAnchor.valid && vitBox.width > 0 && vitBox.implicitHeight > 0 && vitSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                Behavior on y { enabled: vitAnchor.valid && vitBox.width > 0 && vitBox.implicitHeight > 0 && vitSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                radius: scope.isMinimal ? 0 : Theme.cornerRadius
-                color: scope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: scope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: scope.isMinimal ? 2 : 1
+                radius: 0
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                 PanelSpring {
                     id: vitSpring
                     slideFade: true
@@ -242,12 +232,6 @@ Scope {
                             glyph: "󰢮"; title: "GPU"
                             pct: VitalsService.gpuPct
                             subtitle: VitalsService.gpuName.length > 0 ? VitalsService.gpuName : "graphics"
-                        }
-                        MetricCard {
-                            visible: VitalsService.showDisk
-                            glyph: "󰋊"; title: "Disk /"
-                            pct: VitalsService.diskPct
-                            subtitle: scope.fmtGb(VitalsService.diskUsedGb) + " / " + scope.fmtGb(VitalsService.diskTotalGb) + " used"
                         }
                         Column {
                             width: parent.width

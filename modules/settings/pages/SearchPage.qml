@@ -8,41 +8,41 @@ Column {
     width: parent ? parent.width : 400
     spacing: 10
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Menu Search"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Apps"
             subtitle: "App hits and the Apps entry"
-            SettingsToggle { on: Theme.searchAppsEnabled; onToggled: n => Theme.setSearchAppsEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchAppsEnabled; onToggled: n => Theme.setSearchAppsEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Style"
             subtitle: "Wallpaper, Themes, Font, Modules"
-            SettingsToggle { on: Theme.searchStyleEnabled; onToggled: n => Theme.setSearchStyleEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchStyleEnabled; onToggled: n => Theme.setSearchStyleEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Setup"
             subtitle: "Settings, Monitors, Keybindings, Autostart, Audio"
-            SettingsToggle { on: Theme.searchSetupEnabled; onToggled: n => Theme.setSearchSetupEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchSetupEnabled; onToggled: n => Theme.setSearchSetupEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Install"
             subtitle: "Package, AUR, Flatpak, Web App, Gaming, Browser"
-            SettingsToggle { on: Theme.searchInstallEnabled; onToggled: n => Theme.setSearchInstallEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchInstallEnabled; onToggled: n => Theme.setSearchInstallEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Remove"
             subtitle: "Package, AUR, Flatpak, Web App"
-            SettingsToggle { on: Theme.searchRemoveEnabled; onToggled: n => Theme.setSearchRemoveEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchRemoveEnabled; onToggled: n => Theme.setSearchRemoveEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "About"
-            SettingsToggle { on: Theme.searchAboutEnabled; onToggled: n => Theme.setSearchAboutEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchAboutEnabled; onToggled: n => Theme.setSearchAboutEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "System"
             subtitle: "Lock, logout, suspend, reboot, shutdown"
-            SettingsToggle { on: Theme.searchSystemEnabled; onToggled: n => Theme.setSearchSystemEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.searchSystemEnabled; onToggled: n => Theme.setSearchSystemEnabled(n) }
         }
     }
 }

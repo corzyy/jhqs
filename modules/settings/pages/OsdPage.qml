@@ -8,21 +8,15 @@ Column {
     width: parent ? parent.width : 400
     spacing: 10
 
-    SettingsSection {
+    SettingsControls.SettingsSection {
         title: "Overlays"
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Volume OSD"
-            SettingsToggle { on: Theme.osdVolumeEnabled; onToggled: n => Theme.setOsdVolumeEnabled(n) }
+            SettingsControls.SettingsToggle { on: Theme.osdVolumeEnabled; onToggled: n => Theme.setOsdVolumeEnabled(n) }
         }
-        SettingsRow {
+        SettingsControls.SettingsRow {
             title: "Launch OSD"
-            SettingsToggle { on: Theme.osdLaunchEnabled; onToggled: n => Theme.setOsdLaunchEnabled(n) }
-        }
-        SettingsDropdown {
-            label: "Position"
-            options: ["top", "bottom", "right"]
-            current: Theme.osdPosition
-            onPicked: v => Theme.setOsdPosition(v)
+            SettingsControls.SettingsToggle { on: Theme.osdLaunchEnabled; onToggled: n => Theme.setOsdLaunchEnabled(n) }
         }
     }
 }

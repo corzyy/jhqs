@@ -14,14 +14,13 @@ Scope {
     property bool showTray: false
     signal dismissed()
     property bool _winVisible: showTray
-    Timer { id: trayHideTimer; interval: Theme.animSlow + 20; repeat: false; onTriggered: if (!trayScope.showTray) trayScope._winVisible = false }
+    Timer { id: trayHideTimer; interval: 0; repeat: false; onTriggered: if (!trayScope.showTray) trayScope._winVisible = false }
     onShowTrayChanged: {
         if (showTray) { _winVisible = true; trayHideTimer.stop() } else trayHideTimer.restart()
     }
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
 
     readonly property var rawItems: {
         let out = []
@@ -83,7 +82,6 @@ Scope {
                 id: trayBox
                 width: 340
                 implicitHeight: Math.max(120, Math.min(24 + trayFlick.contentHeight, 440))
-                Behavior on implicitHeight { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
                 BarAnchor {
                     id: trayAnchor
                     moduleId: "systemtray"
@@ -98,14 +96,11 @@ Scope {
                 }
                 x: trayAnchor.panelX
                 y: trayAnchor.panelY
-                Behavior on x { enabled: trayAnchor.valid && traySpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                Behavior on y { enabled: trayAnchor.valid && traySpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                color: trayScope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: trayScope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: trayScope.isMinimal ? 2 : 1
-                radius: trayScope.isMinimal ? 0 : Theme.cornerRadius
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
+                radius: 0
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                 PanelSpring {
                     id: traySpring
                     slideFade: true
@@ -191,7 +186,6 @@ Scope {
                                     border.color: rowMouse.containsMouse ? Theme.divider : "transparent"
                                     border.width: 1
                                     opacity: isHidden ? 0.55 : 1.0
-                                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                                     MouseArea {
                                         id: rowMouse
                                         anchors.fill: parent
@@ -246,7 +240,6 @@ Scope {
                                             color: trayRow.isPinned ? Theme.bgSelected : (pinMouse.containsMouse ? Theme.bgHover : Theme.panelSurface)
                                             border.color: Theme.divider
                                             border.width: 1
-                                            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                                             Text {
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType
@@ -272,7 +265,6 @@ Scope {
                                             color: trayRow.isHidden ? Theme.bgSelected : (hideMouse.containsMouse ? Theme.bgHover : Theme.panelSurface)
                                             border.color: Theme.divider
                                             border.width: 1
-                                            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                                             Text {
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType

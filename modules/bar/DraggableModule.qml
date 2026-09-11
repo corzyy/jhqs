@@ -19,9 +19,6 @@ Item {
     signal requestCalendar()
     signal requestWeather()
     signal requestUpdates()
-    signal requestNotif()
-    signal requestCC()
-    signal requestMedia()
     signal requestNetwork()
     signal requestVolume()
     signal requestBluetooth()
@@ -91,22 +88,9 @@ Item {
     implicitHeight: moduleLoader.implicitHeight
     visible: moduleLoader.activeVisible
     opacity: isSource ? 0.25 : 1.0
-    Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
     z: slotPointer.dragging ? 100 : 0
 
-    Rectangle {
-        antialiasing: Theme.shapesAa
-        anchors.fill: parent
-        anchors.margins: 2
-        radius: Theme.cornerRadiusSmall
-        color: Theme.withAlpha(Theme.bgSelected, 0.45)
-        opacity: (root.active && !Theme.minimalTheme) ? 1 : 0
-        visible: !Theme.minimalTheme
-        Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-    }
 
-    scale: Theme.animationsEnabled && slotPointer.containsMouse && !root.active && root.moduleId !== "workspaces" ? 1.05 : 1.0
-    Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
 
     BarModule {
         id: moduleLoader
@@ -119,9 +103,6 @@ Item {
         onRequestCalendar: root.requestCalendar()
         onRequestWeather: root.requestWeather()
         onRequestUpdates: root.requestUpdates()
-        onRequestNotif: root.requestNotif()
-        onRequestCC: root.requestCC()
-        onRequestMedia: root.requestMedia()
         onRequestNetwork: root.requestNetwork()
         onRequestVolume: root.requestVolume()
         onRequestBluetooth: root.requestBluetooth()
@@ -136,16 +117,11 @@ Item {
         property real thick: 3
         width: isH ? parent.width : thick
         height: isH ? thick : parent.height
-        radius: Theme.minimalTheme ? 0 : thick / 2
+        radius: 0
         color: Theme.accent
         x: isH ? 0 : (root.barPos === "left" ? parent.width - width : 0)
         y: isH ? (root.barPos === "top" ? parent.height - height : 0) : 0
         opacity: root.active ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Behavior on x { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Behavior on y { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Behavior on width { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Behavior on height { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
     }
 
     MouseArea {

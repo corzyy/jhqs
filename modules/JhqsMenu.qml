@@ -9,7 +9,6 @@ import "../services"
 import "../Ui"
 import "./jhqsmenu" as JHQ
 import "./jhqsmenu/views" as Views
-import "./jhqsmenu/categories" as Cats
 
 Scope {
     id: jhqsMenuScope
@@ -196,14 +195,40 @@ Scope {
         }
     }
     property var fontFallbackFamilies: []
+    property int fontRevision: 0
+    property bool fontLoading: false
+    property bool fontRescanning: false
     Process {
         id: fontListProc
-        command: ["bash", "-c", "fc-list : family 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | head -n 800"]
+        command: ["bash", "-c", "fc-list : family 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | grep -i -E 'JetBrains ?Mono|Geist ?Mono' | sort -u | head -n 800"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
-                if (out.length === 0) return
-                jhqsMenuScope.fontFallbackFamilies = out.split("\n").map(s => s.trim()).filter(s => s.length > 0)
+                if (out.length === 0) jhqsMenuScope.fontFallbackFamilies = []
+                else jhqsMenuScope.fontFallbackFamilies = out.split("\n").map(s => s.trim()).filter(s => s.length > 0)
+                jhqsMenuScope.fontLoading = fontRescanProc.running
+                jhqsMenuScope.fontRevision++
+            }
+        }
+        onExited: {
+            // Ensure loading flag clears even if stdout was empty
+            jhqsMenuScope.fontLoading = fontRescanProc.running
+        }
+    }
+    Process {
+        id: fontRescanProc
+        command: ["bash", "-c", "fc-cache -f >/dev/null 2>&1; echo done"]
+        stdout: StdioCollector {
+            onStreamFinished: { }
+        }
+        onExited: {
+            jhqsMenuScope.fontRescanning = false
+            // Chain into a fresh fc-list query
+            if (!fontListProc.running) {
+                jhqsMenuScope.fontLoading = true
+                fontListProc.running = true
+            } else {
+                jhqsMenuScope.fontLoading = true
             }
         }
     }
@@ -241,15 +266,21 @@ Scope {
             }
         }
     }
-    function refreshFonts() { if (!fontListProc.running) fontListProc.running = true }
-    function toggleFontExpanded(family) {
-        if (fontExpanded === family) { fontExpanded = ""; return }
-        fontExpanded = family
-        if (!fontStylesCache[family] && fontStylesLoading !== family && !fontStyleProc.running) {
-            fontStylesLoading = family
-            fontStyleProc.command = ["bash", "-c", "fc-list \"" + escShellArg(family) + "\" : style 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u"]
-            fontStyleProc.running = true
-        }
+    function refreshFonts() {
+        if (fontListProc.running || fontRescanProc.running) return
+        fontLoading = true
+        fontRevision++
+        fontListProc.running = true
+    }
+    function rescanFonts() {
+        if (fontListProc.running || fontRescanProc.running) return
+        fontLoading = true
+        fontRescanning = true
+        fontRescanProc.running = true
+    }
+    function toggleFontExpanded(groupTitle) {
+        if (fontExpanded === groupTitle) { fontExpanded = ""; return }
+        fontExpanded = groupTitle
     }
     function setSystemFont(family) {
         if (!family || ("" + family).trim().length === 0) return
@@ -786,7 +817,7 @@ Scope {
             let si = selectedIndex
             if (showWallpaper) { let p = filteredWallpapers[si]; return "wallpaper:" + (p ? p.split("/").pop() : "none") + " idx=" + si }
             if (showThemes) { let t = filteredThemes[si]; return "theme:" + (t ? t.title : "none") + " idx=" + si }
-            if (showFont) { let f = filteredFonts[si]; return "font:" + (f ? f : "none") + " idx=" + si }
+            if (showFont) { let g = filteredFontGroups[si]; return "fontgroup:" + (g ? g.title : "none") + " idx=" + si }
             if (showNewAppMenu) { let e = filteredNewApps[si]; return "newapp:" + (e ? e.name || e.id : "none") + " idx=" + si }
             if (showPackages) { let p = filteredPackages[si]; return "package:" + (p ? p.name : "none") + " idx=" + si }
             if (showWebApp) { return "webapp:" + webAppMode + " count=" + filteredWebApps.length + " idx=" + si }
@@ -801,7 +832,7 @@ Scope {
     IpcHandler {
         target: "jhqsMenu"
         function setQuery(t: string): void { jhqsMenuScope.filterText = t; jhqsMenuScope.selectedIndex = 0; jhqsMenuScope.syncQueryInput(jhqsMenuScope.filterText) }
-        function getCounts(): string { return "filter=\"" + jhqsMenuScope.filterText + "\" menu=" + jhqsMenuScope.filteredMenu.length + " cats=" + jhqsMenuScope.categoryOptionsCount + " (" + jhqsMenuScope.filteredCategorySections.length + " sections) apps=" + jhqsMenuScope.filteredApps.length + " newapps=" + jhqsMenuScope.filteredNewApps.length + " packages=" + jhqsMenuScope.filteredPackages.length + " webapps=" + jhqsMenuScope.filteredWebApps.length + " wallpaper=" + jhqsMenuScope.filteredWallpapers.length + " themes=" + jhqsMenuScope.filteredThemes.length + " fonts=" + jhqsMenuScope.filteredFonts.length + " total=" + jhqsMenuScope.totalCount + " selected=" + jhqsMenuScope.selectedIndex }
+        function getCounts(): string { return "filter=\"" + jhqsMenuScope.filterText + "\" menu=" + jhqsMenuScope.filteredMenu.length + " cats=" + jhqsMenuScope.categoryOptionsCount + " (" + jhqsMenuScope.filteredCategorySections.length + " sections) apps=" + jhqsMenuScope.filteredApps.length + " newapps=" + jhqsMenuScope.filteredNewApps.length + " packages=" + jhqsMenuScope.filteredPackages.length + " webapps=" + jhqsMenuScope.filteredWebApps.length + " wallpaper=" + jhqsMenuScope.filteredWallpapers.length + " themes=" + jhqsMenuScope.filteredThemes.length + " fonts=" + jhqsMenuScope.filteredFontGroups.length + " total=" + jhqsMenuScope.totalCount + " selected=" + jhqsMenuScope.selectedIndex }
         function pressEnter(): void { if (jhqsMenuScope.bodyRootRef) { jhqsMenuScope.selectedIndex = jhqsMenuScope.bodyRootRef.selectedIndex; jhqsMenuScope.bodyRootRef.activateCurrent() } }
         function pressEsc(): void { if (!jhqsMenuScope.handleEsc()) jhqsMenuScope.dismissed() }
         function moveDown(): void { if (jhqsMenuScope.totalCount === 0) return; jhqsMenuScope.selectedIndex = jhqsMenuScope.showWallpaper ? Math.min(jhqsMenuScope.selectedIndex + 3, jhqsMenuScope.totalCount - 1) : (jhqsMenuScope.selectedIndex + 1) % jhqsMenuScope.totalCount }
@@ -852,17 +883,13 @@ Scope {
         return out
     }
     onFilterTextChanged: { tryAutoExpandCategory(); scheduleAurSearch() }
-    Cats.StyleCategory { id: styleCategoryData }
-    readonly property var styleMenu: styleCategoryData.items
-    readonly property var themeOptions: styleCategoryData.themeOptions
-    Cats.SetupCategory { id: setupCategoryData }
-    readonly property var setupMenu: setupCategoryData.items
-    Cats.InstallCategory { id: installCategoryData }
-    readonly property var installMenu: installCategoryData.items
-    Cats.RemoveCategory { id: removeCategoryData }
-    readonly property var removeMenu: removeCategoryData.items
-    Cats.SystemCategory { id: systemCategoryData }
-    readonly property var sessionMenu: systemCategoryData.items
+    JHQ.MenuCategories { id: menuCategories }
+    readonly property var styleMenu: menuCategories.styleMenu
+    readonly property var themeOptions: menuCategories.themeOptions
+    readonly property var setupMenu: menuCategories.setupMenu
+    readonly property var installMenu: menuCategories.installMenu
+    readonly property var removeMenu: menuCategories.removeMenu
+    readonly property var sessionMenu: menuCategories.sessionMenu
     property var menuModel: [
         {title:"Apps",icon:"󰀻",arrow:"›", submenu: null},
         {title:"Style",icon:"󰏘",arrow:"›", submenu: styleMenu},
@@ -944,14 +971,34 @@ Scope {
     }
     property var fontAllFamilies: {
         if (!showFont) return []
+        // Depend on revision so manual reload re-queries Qt.fontFamilies() + fc-list merge
+        let _rev = fontRevision
         let all = []
         try {
             let qtf = Qt.fontFamilies()
             if (qtf && qtf.length > 0) all = qtf.slice()
         } catch(e) { }
-        if (all.length === 0) {
-            try { all = fontFallbackFamilies.slice() } catch(e) { all = [] }
-        }
+        // Merge fresh fc-list results so newly installed fonts show without restart
+        try {
+            let fb = fontFallbackFamilies
+            if (fb && fb.length > 0) {
+                let seen = { }
+                for (let i = 0; i < all.length; i++) seen["" + all[i]] = true
+                for (let j = 0; j < fb.length; j++) {
+                    let f = "" + fb[j]
+                    if (!seen[f]) { seen[f] = true; all.push(fb[j]) }
+                }
+            }
+        } catch(e) { }
+        // Only show JetBrains Mono and Geist Mono
+        let allowed = ["jetbrainsmono", "geistmono"]
+        all = all.filter(f => {
+            try {
+                let n = ("" + f).toLowerCase().replace(/[\s_\-]+/g, "")
+                for (let i = 0; i < allowed.length; i++) if (n.includes(allowed[i])) return true
+                return false
+            } catch(e) { return false }
+        })
         all.sort((a, b) => ("" + a).toLowerCase() < ("" + b).toLowerCase() ? -1 : 1)
         return all
     }
@@ -961,6 +1008,120 @@ Scope {
         let all = fontAllFamilies
         if (q === "") return all
         return all.filter(f => ("" + f).toLowerCase().includes(q)).slice(0, 100)
+    }
+    // Merge weight variants (Regular/Medium/Bold/...) into one group per typeface,
+    // e.g. "JetBrains Mono" + "Geist Mono". Only the Regular (400) cut is kept.
+    function fontGroupTitleFor(family: string): string {
+        try {
+            let n = ("" + family).toLowerCase().replace(/[\s_\-]+/g, "")
+            if (n.includes("jetbrainsmono")) return "JetBrains Mono"
+            if (n.includes("geistmono")) return "Geist Mono"
+        } catch(e) { }
+        return ("" + family).trim()
+    }
+    function fontWeightRank(family: string): int {
+        try {
+            let n = ("" + family).toLowerCase()
+            if (n.includes("thin")) return 1
+            if (n.includes("extralight")) return 2
+            if (n.includes("light")) return 3
+            if (n.includes("medium")) return 5
+            if (n.includes("semibold")) return 6
+            if (n.includes("extrabold")) return 8
+            if (n.includes("bold")) return 7
+            if (n.includes("black")) return 9
+        } catch(e) { }
+        return 4
+    }
+    function fontWeightName(family: string): string {
+        let r = fontWeightRank(family)
+        if (r === 1) return "Thin"
+        if (r === 2) return "ExtraLight"
+        if (r === 3) return "Light"
+        if (r === 5) return "Medium"
+        if (r === 6) return "SemiBold"
+        if (r === 7) return "Bold"
+        if (r === 8) return "ExtraBold"
+        if (r === 9) return "Black"
+        return "Regular"
+    }
+    function fontVariantLabel(variant: string, group: string): string {
+        try {
+            let f = ("" + variant).trim()
+            let g = ("" + group).trim()
+            if (f.toLowerCase() === g.toLowerCase()) return "Regular"
+            if (f.toLowerCase().startsWith(g.toLowerCase())) {
+                let rest = f.slice(g.length).trim().replace(/^[-_\s]+/, "")
+                return rest === "" ? "Regular" : rest
+            }
+            let rest2 = f.replace(/^(JetBrains\s?Mono|Geist\s?Mono|GeistMono|JetBrainsMono)\s*/i, "").trim()
+            return rest2 === "" ? "Regular" : rest2
+        } catch(e) { return ("" + variant).trim() }
+    }
+    function fontGroupActiveVariant(group): string {
+        try {
+            let cur = ("" + Theme.fontFamily).trim()
+            let vs = (group && group.variants) || []
+            for (let i = 0; i < vs.length; i++) if (("" + vs[i]).trim() === cur) return ("" + vs[i])
+            if (cur === ("" + (group && group.title)).trim()) return cur
+        } catch(e) { }
+        return ""
+    }
+    property var fontGrouped: {
+        if (!showFont) return []
+        let _r = fontRevision
+        let all = []
+        try { all = fontAllFamilies.slice() } catch(e) { all = [] }
+        let map = { }
+        let order = []
+        for (let i = 0; i < all.length; i++) {
+            let fam = "" + all[i]
+            let g = fontGroupTitleFor(fam)
+            if (!map[g]) { map[g] = []; order.push(g) }
+            if (map[g].indexOf(fam) === -1) map[g].push(fam)
+        }
+        order.sort((a, b) => {
+            let ra = a === "JetBrains Mono" ? 0 : a === "Geist Mono" ? 1 : 2
+            let rb = b === "JetBrains Mono" ? 0 : b === "Geist Mono" ? 1 : 2
+            if (ra !== rb) return ra - rb
+            return ("" + a).toLowerCase() < ("" + b).toLowerCase() ? -1 : 1
+        })
+        let out = []
+        for (let k = 0; k < order.length; k++) {
+            let g = order[k]
+            let variants = map[g].slice()
+            variants.sort((a, b) => {
+                let ra = fontWeightRank(a), rb = fontWeightRank(b)
+                if (ra !== rb) return ra - rb
+                return ("" + a).toLowerCase() < ("" + b).toLowerCase() ? -1 : 1
+            })
+            let preview = g
+            if (variants.indexOf(g) !== -1) preview = g
+            else if (variants.length > 0) {
+                preview = variants[0]
+                for (let v = 0; v < variants.length; v++) {
+                    if (fontWeightRank(variants[v]) === 4) { preview = variants[v]; break }
+                }
+            }
+            // Only keep the preferred cut, drop every other weight/style variant
+            if (preview === "") continue
+            out.push({ title: g, preview: preview, variants: [preview] })
+        }
+        return out
+    }
+    property var filteredFontGroups: {
+        if (!showFont) return []
+        let q = qLower()
+        let groups = fontGrouped
+        if (q === "") return groups
+        return groups.filter(g => {
+            try {
+                if (("" + g.title).toLowerCase().includes(q)) return true
+                let vs = g.variants || []
+                for (let i = 0; i < vs.length; i++) if (("" + vs[i]).toLowerCase().includes(q)) return true
+                return false
+            } catch(e) { return false }
+        })
     }
     property var filteredNewApps: {
         if (!showNewAppMenu) return []
@@ -1305,11 +1466,21 @@ Scope {
         r.sort((a,b)=>{ let an=(a.name||"").toLowerCase(), bn=(b.name||"").toLowerCase(); if((an===q)!==(bn===q)) return an===q?-1:1; if(an.startsWith(q)!==bn.startsWith(q)) return an.startsWith(q)?-1:1; return an.length-bn.length })
         return r.slice(0,8)
     }
-    property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFonts.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : filteredApps.length + filteredMenu.length + categoryOptionsCount
+    property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFontGroups.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : filteredApps.length + filteredMenu.length + categoryOptionsCount
     property int selectedIndex: 0
 
     function runProc(p) { if (p && !p.running) p.running = true }
     function openAbout() { Quickshell.execDetached(["bash", "-c", "kitty --class about-fastfetch --title About bash -c 'fastfetch; sleep 0.5; read -n1 -s' &"]) }
+    // Session actions must use execDetached (not Process.running) because the
+    // menu Loader is destroyed on dismissed(), which would kill a freshly
+    // started Process before it can exec.
+    function doSessionAction(t: string): void {
+        if (t === "Sperren") Quickshell.execDetached(["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1"])
+        else if (t === "Abmelden") Quickshell.execDetached(["bash", "-c", "hyprctl dispatch exit >/dev/null 2>&1 || uwsm stop >/dev/null 2>&1 || true"])
+        else if (t === "Ruhezustand") Quickshell.execDetached(["systemctl", "suspend"])
+        else if (t === "Neustarten") Quickshell.execDetached(["systemctl", "reboot"])
+        else if (t === "Herunterfahren") Quickshell.execDetached(["systemctl", "poweroff"])
+    }
 
     function executeCategoryOption(category, entry) {
         let t = entry.title
@@ -1328,11 +1499,7 @@ Scope {
             else if (t === "AUR") { openPackages("AurRemove"); return }
             dismissed()
         } else if (category === "System") {
-            if (t === "Sperren") runProc(sessionLockProc)
-            else if (t === "Abmelden") runProc(sessionLogoutProc)
-            else if (t === "Ruhezustand") runProc(sessionSuspendProc)
-            else if (t === "Neustarten") runProc(sessionRebootProc)
-            else if (t === "Herunterfahren") runProc(sessionPoweroffProc)
+            doSessionAction(t)
             dismissed()
         } else if (category === "Style") {
             if (t === "Wallpaper") { showStyle=false; showWallpaper=true; refreshWallpapers(); clearSearch(); return }
@@ -1353,7 +1520,7 @@ Scope {
     function activateCurrent() {
         if (showWallpaper) { let p = filteredWallpapers[selectedIndex]; if (p) setWallpaper(p); return }
         if (showThemes) { let t = filteredThemes[selectedIndex]; if (t) setThemeEngine(t.id); return }
-        if (showFont) { let f = filteredFonts[selectedIndex]; if (f) setSystemFont(f); return }
+        if (showFont) { let g = filteredFontGroups[selectedIndex]; if (g) setSystemFont(g.preview || g.title); return }
         if (showNewAppMenu) { let e = filteredNewApps[selectedIndex]; if (e && e.execute) { try { Theme.triggerLaunchOsd(e.name || "", e.icon || "") } catch (err) { } e.execute(); dismissed() } return }
         if (showPackages) {
             if (packageOpActive) { if (!packageOpRunning) dismissed(); return }
@@ -1375,7 +1542,7 @@ Scope {
             }
             if (showInstall) { if (m.title==="Flatpak") { openPackages("FlatpakInstall"); return } else if (m.title==="Web App") { openWebApp("install"); return } else if (m.title==="Package") { openPackages("Install"); return } else if (m.title==="AUR") { openPackages("AurInstall"); return } else if (m.title==="Gaming") { openPackages("GamingInstall"); return } else if (m.title==="Browser") { openPackages("BrowserInstall"); return } dismissed(); return }
             if (showRemove) { if (m.title==="Flatpak") { openPackages("FlatpakRemove"); return } else if (m.title==="Web App") { openWebApp("remove"); return } else if (m.title==="Package") { openPackages("Remove"); return } else if (m.title==="AUR") { openPackages("AurRemove"); return } dismissed(); return }
-            if (showSession) { if (m.title==="Sperren") runProc(sessionLockProc); else if (m.title==="Abmelden") runProc(sessionLogoutProc); else if (m.title==="Ruhezustand") runProc(sessionSuspendProc); else if (m.title==="Neustarten") runProc(sessionRebootProc); else if (m.title==="Herunterfahren") runProc(sessionPoweroffProc); dismissed(); return }
+            if (showSession) { doSessionAction(m.title); dismissed(); return }
             if (showSetup) {
                 if (m.title==="Settings") { openSettings("global"); return }
                 else if (m.title==="Monitors") runProc(setupMonitorsProc)
@@ -1485,16 +1652,15 @@ Scope {
                 height: item ? item.implicitHeight : implicitHeight
                 sourceComponent: Item {
                     property int catDynH: {
-                        let isMinimal = Theme.shellTheme === "minimal"
-                        let rowH = isMinimal ? 50 : 40
-                        let rowGap = isMinimal ? 3 : 4
+                        let rowH = 50
+                        let rowGap = 3
                         let n = jhqsMenuScope.menuModel ? jhqsMenuScope.menuModel.length : 8
                         if (n < 1) n = 1
                         let content = n * rowH + Math.max(0, n - 1) * rowGap
-                        let overhead = isMinimal ? (18 + 34 + 6 + 18) : (10 + 36 + 8 + 1 + 4 + 8)
+                        let overhead = (18 + 34 + 6 + 18)
                         return overhead + content + 2
                     }
-                    implicitWidth: (jhqsMenuScope.showWallpaper || jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? 760 : (Theme.shellTheme === "minimal" ? 300 : Theme.sharedMenuWidth)
+                    implicitWidth: jhqsMenuScope.showWallpaper ? 760 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? Theme.sharedMenuWidth : 300
                     implicitHeight: jhqsMenuScope.showWallpaper ? 820 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? Theme.sharedMenuHeight : catDynH
                     Behavior on implicitWidth { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
                     Behavior on implicitHeight { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
@@ -1502,7 +1668,7 @@ Scope {
                         antialiasing: Theme.shapesAa
                         id: panel
                         anchors.fill: parent
-                        radius: Theme.cornerRadius; color: Theme.shellTheme === "minimal" ? Theme.bg : Theme.panelBg; border.color: Theme.shellTheme === "minimal" ? Theme.accent : Theme.panelBorderColor; border.width: Theme.shellTheme === "minimal" ? 2 : 1; clip: true
+                        radius: Theme.cornerRadius; color: Theme.bg; border.color: Theme.accent; border.width: 2; clip: true
                         Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Item {
@@ -1538,10 +1704,9 @@ Scope {
 
                         Item {
                             id: searchRow
-                            readonly property bool isMinimal: Theme.shellTheme === "minimal"
                             anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-                            anchors.topMargin: isMinimal ? 18 : 10; anchors.leftMargin: isMinimal ? 18 : 10; anchors.rightMargin: isMinimal ? 18 : 10
-                            height: isMinimal ? 34 : 36
+                            anchors.topMargin: 18; anchors.leftMargin: 18; anchors.rightMargin: 18
+                            height: 34
                             Rectangle {
                                 antialiasing: Theme.shapesAa
                                 id: backBtn
@@ -1558,8 +1723,8 @@ Scope {
                                 transformOrigin: Item.Left
                                 Behavior on scale { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
                                 radius: Theme.cornerRadiusSmall
-                                color: searchRow.isMinimal ? "transparent" : (backBtnMouse.containsMouse ? Theme.bgSelected : Theme.panelSurface)
-                                border.color: searchRow.isMinimal ? "transparent" : Theme.divider; border.width: searchRow.isMinimal ? 0 : 1
+                                color: "transparent"
+                                border.color: "transparent"; border.width: 0
                                 Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
                                 Text { anchors.centerIn: parent; anchors.verticalCenterOffset: -1; width: 36; height: 24; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: "‹"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: backBtnMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
                                     antialiasing: Theme.textAa
@@ -1573,25 +1738,21 @@ Scope {
                             anchors.left: backBtn.right; anchors.right: parent.right
                             anchors.top: parent.top; anchors.bottom: parent.bottom
                             anchors.leftMargin: 8 * (backBtn.width / 36)
-                            radius: searchRow.isMinimal ? 0 : Theme.cornerRadiusSmall
-                            color: searchRow.isMinimal ? "transparent" : Theme.panelSurface
-                            border.color: searchRow.isMinimal ? "transparent" : (queryInput.activeFocus ? Theme.accent : Theme.divider)
-                            border.width: searchRow.isMinimal ? 0 : 1
+                            radius: 0
+                            color: "transparent"
+                            border.color: "transparent"
+                            border.width: 0
                             Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                             Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: searchRow.isMinimal ? 0 : 10; anchors.rightMargin: searchRow.isMinimal ? 0 : 10; spacing: 8
-                                Text { visible: !searchRow.isMinimal; text: "󰍉"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textMuted
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                }
+                                anchors.fill: parent; anchors.leftMargin: 0; anchors.rightMargin: 0; spacing: 8
                                 TextInput {
                                     id: queryInput
                                     Layout.fillWidth: true
                                     text: bodyRoot.filterText
                                     color: Theme.textPrimary
-                                    opacity: searchRow.isMinimal ? (text.length > 0 ? 1.0 : 0.0) : 1.0
-                                    font.family: searchRow.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: searchRow.isMinimal ? Theme.fs(16) : Theme.fs(13)
+                                    opacity: (text.length > 0 ? 1.0 : 0.0)
+                                    font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16)
                                     clip: true; focus: true; activeFocusOnTab: true; selectByMouse: true
                                     selectionColor: Theme.accent
                                     onTextChanged: {
@@ -1639,23 +1800,19 @@ Scope {
                             Text {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
-                                anchors.left: parent.left; anchors.leftMargin: searchRow.isMinimal ? 0 : 36; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                text: searchRow.isMinimal ? (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showNewAppMenu ? "Search apps…" : bodyRoot.scope.showWallpaper ? "Wallpaper…" : bodyRoot.scope.showThemes ? "Themes…" : bodyRoot.scope.showFont ? "Fonts suchen…" : bodyRoot.scope.showModules ? "Modules…" : bodyRoot.scope.showStyle ? "Style…" : bodyRoot.scope.showSetup ? "Setup…" : bodyRoot.scope.showInstall ? "Install…" : bodyRoot.scope.showRemove ? "Remove…" : bodyRoot.scope.showSession ? "System…" : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Web Apps filtern…" : "Web App installieren…") : bodyRoot.scope.showPackages ? "Packages…" : "Go…") : "Go…") : (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showWallpaper ? "Wallpaper..." : bodyRoot.scope.showThemes ? "Themes..." : bodyRoot.scope.showFont ? "Fonts suchen..." : bodyRoot.scope.showModules ? "Modules..." : bodyRoot.scope.showStyle ? "Style..." : bodyRoot.scope.showSetup ? "Setup..." : bodyRoot.scope.showInstall ? "Install..." : bodyRoot.scope.showRemove ? "Remove..." : bodyRoot.scope.showSession ? "System..." : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Web Apps filtern..." : "Web App installieren...") : bodyRoot.scope.showPackages ? (bodyRoot.scope.packageMode === "remove" ? "Entfernen..." : bodyRoot.scope.packageMode === "aur" ? "AUR suchen..." : bodyRoot.scope.packageMode === "aurremove" ? "AUR entfernen..." : bodyRoot.scope.packageMode === "flatpak" ? "Flatpak suchen..." : bodyRoot.scope.packageMode === "flatpakremove" ? "Flatpak entfernen..." : "Packages...") : "Search...") : "Search...")
-                                color: searchRow.isMinimal ? Theme.textPrimary : Theme.textMuted; opacity: searchRow.isMinimal ? 0.58 : 1.0; font.family: searchRow.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: searchRow.isMinimal ? Theme.fs(16) : Theme.fs(13)
+                                anchors.left: parent.left; anchors.leftMargin: 0; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                text: (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showNewAppMenu ? "Search apps…" : bodyRoot.scope.showWallpaper ? "Wallpaper…" : bodyRoot.scope.showThemes ? "Themes…" : bodyRoot.scope.showFont ? "Fonts suchen…" : bodyRoot.scope.showModules ? "Modules…" : bodyRoot.scope.showStyle ? "Style…" : bodyRoot.scope.showSetup ? "Setup…" : bodyRoot.scope.showInstall ? "Install…" : bodyRoot.scope.showRemove ? "Remove…" : bodyRoot.scope.showSession ? "System…" : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Web Apps filtern…" : "Web App installieren…") : bodyRoot.scope.showPackages ? "Packages…" : "Go…") : "Go…")
+                                color: Theme.textPrimary; opacity: 0.58; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16)
                                 elide: Text.ElideRight
                                 visible: bodyRoot.filterText.length === 0
                             }
                             }
                         }
-                        Rectangle { id: searchDivider; visible: !searchRow.isMinimal; anchors.top: searchRow.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.topMargin: 8; anchors.leftMargin: 10; anchors.rightMargin: 10; height: visible ? 1 : 0; color: Theme.divider; opacity: 0.5
-                            antialiasing: Theme.shapesAa
-                        }
 
-                        Item {
+                            Item {
                             id: contentStage
-                            anchors.top: searchRow.isMinimal ? searchRow.bottom : searchDivider.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                            anchors.topMargin: searchRow.isMinimal ? 6 : 4; anchors.leftMargin: searchRow.isMinimal ? 18 : 10; anchors.rightMargin: searchRow.isMinimal ? 18 : 10; anchors.bottomMargin: searchRow.isMinimal ? 18 : 10
-                            clip: true
+                                anchors.top: searchRow.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                                anchors.topMargin: 6; anchors.leftMargin: 18; anchors.rightMargin: 18; anchors.bottomMargin: 18
                             property bool isListView: !bodyRoot.scope.showWallpaper && !bodyRoot.scope.showThemes && !bodyRoot.scope.showFont && !bodyRoot.scope.showModules && !bodyRoot.scope.showNewAppMenu && !bodyRoot.scope.showPackages && !bodyRoot.scope.showWebApp
 
                             Views.RootListView {

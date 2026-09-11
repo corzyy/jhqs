@@ -8,7 +8,9 @@ Item {
     signal clicked()
     property bool vertical: false
 
-    visible: true
+    // NOTE: redundant `visible: true` removed; also dropped the per-widget
+    // `Behavior on implicitWidth` pattern elsewhere (it re-animated the bar
+    // on every count change).
     implicitWidth: (root.vertical ? colContent.implicitWidth : rowContent.implicitWidth) + 12
     implicitHeight: (root.vertical ? colContent.implicitHeight : rowContent.implicitHeight) + 8
 
@@ -17,8 +19,6 @@ Item {
         visible: !root.vertical
         anchors.centerIn: parent
         spacing: 5
-        scale: Theme.animationsEnabled && mouse.containsMouse ? 1.06 : 1.0
-        Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
 
         Text {
             antialiasing: Theme.textAa
@@ -27,7 +27,6 @@ Item {
             font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
             color: mouse.containsMouse ? Theme.primary : Theme.secondary
             anchors.verticalCenter: parent.verticalCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
         Text {
             antialiasing: Theme.textAa
@@ -37,7 +36,6 @@ Item {
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold
             color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
             anchors.verticalCenter: parent.verticalCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
     }
 
@@ -46,8 +44,6 @@ Item {
         visible: root.vertical
         anchors.centerIn: parent
         spacing: 2
-        scale: Theme.animationsEnabled && mouse.containsMouse ? 1.06 : 1.0
-        Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
 
         Text {
             antialiasing: Theme.textAa
@@ -56,7 +52,6 @@ Item {
             font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
             color: mouse.containsMouse ? Theme.primary : Theme.secondary
             anchors.horizontalCenter: parent.horizontalCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
         Text {
             antialiasing: Theme.textAa
@@ -66,7 +61,6 @@ Item {
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold
             color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
             anchors.horizontalCenter: parent.horizontalCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
         }
     }
 

@@ -13,11 +13,6 @@ jhqs/
 ├── Ui/                    — shared visuals: BarAnchor + PanelSpring (from modules/),
 │                             MSlider.qml (from components/common/, removed)
 │
-├── plugins/               — static manifest map onto Omarchy's shell/plugins/
-│                             (22x manifest.json + README; entryPoints resolve to
-│                             the real modules/*, services/* — no code moved,
-│                             nothing loaded from here at runtime)
-│
 ├── config/                — canonical settings & state (FileView watchers point here)
 │   ├── topbar_settings.json (thickness/opacity/position/radius/animations/…)
 │   ├── calendar.json, dnd.json, gamemode.json, powermode.json
@@ -40,12 +35,19 @@ jhqs/
 ├── modules/
 │   ├── TopBar.qml         — bar shell (delegates to services + modules/bar/*)
 │   ├── bar/               — bar atoms: Workspaces, Clock, Launcher, UpdatesIndicator, WeatherWidget,
-│   │                         ControlCenterIcons, MediaWidget, ActiveWindow, SystemTray (Quattro drawer)
-│   ├── calendar/          — CalendarModel.js (canonical math) + CalendarHeader/Grid/Footer + MusicPlayer
-│   ├── controlcenter/     — NotificationCenter + tiles/ + pickers/ (tray lives in bar/SystemTray + SystemTrayPanel)
-│   ├── jhqsmenu/          — ThemeEngine.qml + categories/ + views/
-│   ├── notifications/     — NotificationCard.qml (Notifications.qml is the list shell)
-│   └── AppLauncher, CalendarMenu, ControlCenter, JhqsMenu, Lockscreen, Notifications, Polkit, VolumeOSD, WeatherPanel, SystemTrayPanel, MediaPanel
+│   │                         ActiveWindow, SystemTray (Quattro drawer)
+│   ├── CalendarMenu.qml + CalendarModel.js (header/grid/footer are inline
+│   │                             CalHeader/CalGrid/CalFooter components — merged 2026-09-10,
+│   │                             `modules/calendar/` removed)
+│   ├── jhqsmenu/          — ThemeEngine.qml + MenuCategories.qml (merged 2026-09-10,
+│   │                             was categories/{Style,Setup,Install,Remove,System}Category.qml)
+│   │                         + views/ (ListRow+ModuleRow merged into MenuRow.qml 2026-09-10)
+│   ├── Notifications.qml  — list shell + inline NotifCard delegate (merged 2026-09-10,
+│   │                             `modules/notifications/` removed)
+│   ├── settings/          — SettingsControls.qml (merged 2026-09-10, was 7 files:
+│   │                             Dropdown/Row/Section/Sidebar/SliderRow/TextField/Toggle;
+│   │                             use as SettingsControls.SettingsRow) + pages/
+│   └── AppLauncher, CalendarMenu, JhqsMenu, Lockscreen, Notifications, Polkit, VolumeOSD, WeatherPanel, SystemTrayPanel
 │                             (all panels: `import "../Ui"` → BarAnchor/PanelSpring;
 │                             sliders: `import "../Ui" as Ui` → Ui.MSlider)
 │
@@ -62,8 +64,8 @@ The root contains only `shell.qml`. There is no `qs` module anymore — singleto
 registered per-directory via local `qmldir` files and imported as filesystem directories:
 
 - `import "./themes"` (or `"../themes"`, `"../../themes"`, …) → `Theme`
-- `import "./services"` → `HistoryService`, `UpdateService`, `NetworkService`, `VolumeService`, `MediaService`, `WeatherService` (+ `WeatherModel.js` helpers)
-- `import "./modules" as Modules` → `Modules.TopBar`, `Modules.ControlCenter`, …
+- `import "./services"` → `HistoryService`, `UpdateService`, `NetworkService`, `VolumeService`, `WeatherService` (+ `WeatherModel.js` helpers)
+- `import "./modules" as Modules` → `Modules.TopBar`, …
 - services referencing a sibling singleton use `import "."` (e.g. UpdateService → NetworkService)
 
 Rules learned the hard way:
@@ -92,6 +94,11 @@ jq '.key //= default' > /tmp/x.json && mv` — never raw echo over existing json
 ## Splits & removals — see git history / earlier reports (2026-09-01 / 2026-09-02)
 ControlCenter/CalendarMenu/JhqsMenu split into sections; dead network+airplane polling,
 misc/ wrappers, SearchField/StyledPanel, root theme_engine.json + nightlight.json removed.
+ControlCenter + MediaPanel/MediaService removed (2026-09-10).
+plugins/ manifest map removed (2026-09-10, nothing loaded it at runtime);
+QML merges same day: categories/ 5→MenuCategories, calendar/ 3→inline in
+CalendarMenu, NotificationCard→inline in Notifications, ListRow+ModuleRow→MenuRow,
+settings primitives 7→SettingsControls.
 
 ## Verification
 ```

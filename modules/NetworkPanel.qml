@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Io
 import Quickshell.Wayland
 import "../themes"
 import "../services"
@@ -14,7 +13,7 @@ Scope {
     property bool showNetwork: false
     signal dismissed()
     property bool _winVisible: showNetwork
-    Timer { id: hideTimer; interval: Theme.panelAnimExit + 20; repeat: false; onTriggered: if (!scope.showNetwork) scope._winVisible = false }
+    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showNetwork) scope._winVisible = false }
     onShowNetworkChanged: {
         if (showNetwork) {
             _winVisible = true
@@ -29,7 +28,6 @@ Scope {
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
 
     Timer { id: statsTimer; interval: 5000; running: scope.showNetwork; repeat: true; triggeredOnStart: false; onTriggered: NetworkService.refreshStats() }
     Timer { id: listTimer; interval: 10000; running: scope.showNetwork; repeat: true; triggeredOnStart: false; onTriggered: { NetworkService.refreshLink(); NetworkService.refreshLists(); NetworkService.refreshDns() } }
@@ -80,15 +78,12 @@ Scope {
             color: swRoot.checked ? Theme.withAlpha(Theme.textPrimary, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.04)
             border.color: swRoot.checked ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
             border.width: swRoot.checked ? 0 : 1
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             Rectangle {
                 width: 16; height: 16
                 radius: 0
                 x: swRoot.checked ? parent.width - width - 3 : 3
                 anchors.verticalCenter: parent.verticalCenter
                 color: swRoot.checked ? Theme.textPrimary : Theme.textSecondary
-                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-                Behavior on color { ColorAnimation { duration: 120 } }
             }
         }
         MouseArea {
@@ -113,8 +108,6 @@ Scope {
         border.color: active ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.25)
         border.width: active ? 2 : 1
         opacity: enabled ? 1 : 0.55
-        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-        Behavior on border.color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         Column {
             anchors.centerIn: parent
             spacing: 0
@@ -154,7 +147,6 @@ Scope {
             width: wifiCol.width
             implicitHeight: 48
             color: wifiMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: 10; anchors.rightMargin: 10
@@ -212,7 +204,6 @@ Scope {
                     width: 22
                     horizontalAlignment: Text.AlignHCenter
                     anchors.verticalCenter: parent.verticalCenter
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                     MouseArea {
                         id: forgetHover
                         anchors.fill: parent
@@ -242,7 +233,6 @@ Scope {
             height: visible ? 40 : 0
             clip: true
             color: "transparent"
-            Behavior on height { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             Row {
                 anchors.fill: parent
                 anchors.leftMargin: 42; anchors.rightMargin: 10
@@ -336,14 +326,11 @@ Scope {
                 }
                 x: netAnchor.panelX
                 y: netAnchor.panelY
-                Behavior on x { enabled: netAnchor.valid && netBox.width > 0 && netBox.implicitHeight > 0 && netSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                Behavior on y { enabled: netAnchor.valid && netBox.width > 0 && netBox.implicitHeight > 0 && netSpring.offset === 0; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                color: scope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: scope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: scope.isMinimal ? 2 : 1
-                radius: scope.isMinimal ? 0 : Theme.cornerRadius
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
+                radius: 0
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                 PanelSpring {
                     id: netSpring
                     slideFade: true
@@ -508,7 +495,6 @@ Scope {
                                 width: parent.width
                                 implicitHeight: 48
                                 color: ethMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
-                                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                                 antialiasing: Theme.shapesAa
                                 Row {
                                     anchors.fill: parent
@@ -585,7 +571,6 @@ Scope {
                                 font.pixelSize: Theme.fs(13)
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
-                                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                                 MouseArea {
                                     id: rescanMouse
                                     anchors.fill: parent

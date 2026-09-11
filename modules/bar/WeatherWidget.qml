@@ -9,9 +9,6 @@ Item {
     property bool vertical: false
     implicitWidth: vertical ? col.implicitWidth + 12 : row.implicitWidth + 16
     implicitHeight: vertical ? col.implicitHeight + 10 : row.implicitHeight + 10
-    scale: Theme.animationsEnabled && mouse.containsMouse ? 1.06 : 1.0
-    Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-    Behavior on implicitWidth { NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
 
     RowLayout {
         id: row
@@ -25,7 +22,6 @@ Item {
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(14); font.weight: Theme.textBold ? Font.Bold : Font.Normal
             color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
             Layout.alignment: Qt.AlignVCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         }
         Text {
             antialiasing: Theme.textAa
@@ -35,7 +31,6 @@ Item {
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
             color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
             Layout.alignment: Qt.AlignVCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         }
     }
     ColumnLayout {
@@ -50,7 +45,6 @@ Item {
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(14); font.weight: Theme.textBold ? Font.Bold : Font.Normal
             color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
             Layout.alignment: Qt.AlignHCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         }
         Text {
             antialiasing: Theme.textAa
@@ -60,7 +54,6 @@ Item {
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Theme.textBold ? Font.Bold : Font.Normal
             color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
             Layout.alignment: Qt.AlignHCenter
-            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
         }
     }
     MouseArea {

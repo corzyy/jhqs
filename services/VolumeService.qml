@@ -51,7 +51,16 @@ Singleton {
             }
         }
     }
-    Timer { interval: 1000; running: true; repeat: true; triggeredOnStart: true; onTriggered: if (!volProbe.running) volProbe.running = true }
+    // CPU/RAM: fallback shell probe used to run every 1s forever, even when
+    // PipeWire signals already drive pct/isMuted. Gate it to !sinkReady and
+    // slow to 5s so the steady state is zero forks on a working PipeWire box.
+    Timer {
+        interval: 5000
+        running: !root.sinkReady
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (!volProbe.running) volProbe.running = true
+    }
 
     Process { id: volUp; command: ["/usr/bin/wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%+", "-l", "1.0"] }
     Process { id: volDown; command: ["/usr/bin/wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "5%-"] }

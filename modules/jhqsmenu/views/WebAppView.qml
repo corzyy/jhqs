@@ -9,17 +9,14 @@ Item {
     id: root
     required property var scope
     required property var bodyRoot
-    readonly property bool isMinimal: Theme.shellTheme === "minimal"
     anchors.fill: parent
-    anchors.margins: isMinimal ? 0 : 4
+    anchors.margins: 0
     clip: true
     opacity: bodyRoot.scope.showWebApp ? 1 : 0
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showWebApp
     scale: bodyRoot.scope.showWebApp ? 1 : 0.97
     transformOrigin: Item.Center
-    Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-    Behavior on scale { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
 
     readonly property bool isInstall: bodyRoot.scope.webAppMode !== "remove"
     readonly property bool busy: bodyRoot.scope.webAppBusy
@@ -125,32 +122,15 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: root.isMinimal ? 0 : 6; Layout.rightMargin: root.isMinimal ? 0 : 6
-            spacing: root.isMinimal ? 14 : 10
+            Layout.leftMargin: 0; Layout.rightMargin: 0
+            spacing: 14
             Text {
-                visible: root.isMinimal
                 Layout.alignment: Qt.AlignVCenter
                 text: "󰖟"
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(24)
                 color: root.busy ? Theme.accent : Theme.textPrimary
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-            }
-            Rectangle {
-                visible: !root.isMinimal
-                antialiasing: Theme.shapesAa
-                Layout.preferredWidth: 42; Layout.preferredHeight: 42
-                radius: Theme.cornerRadiusSmall
-                color: Theme.panelSurface
-                border.color: Theme.divider; border.width: 1
-                Text {
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                    anchors.centerIn: parent
-                    text: "󰖟"
-                    font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18)
-                    color: root.busy ? Theme.accent : Theme.textSecondary
-                }
             }
             ColumnLayout {
                 Layout.fillWidth: true; spacing: 2
@@ -159,7 +139,7 @@ Item {
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
                     text: root.isInstall ? "Web App installieren" : "Web App entfernen"
-                    color: Theme.textPrimary; font.family: Theme.iconFontFamily; font.pixelSize: root.isMinimal ? Theme.fs(16) : Theme.fs(13); font.weight: Font.Bold
+                    color: Theme.textPrimary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Bold
                     elide: Text.ElideRight
                 }
                 Text {
@@ -167,15 +147,14 @@ Item {
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
                     text: (root.isInstall ? "Chromium --app Launcher (.desktop) erstellen" : (bodyRoot.scope.webAppLoading ? "Lade Web Apps…" : bodyRoot.scope.webAppList.length + (bodyRoot.scope.webAppList.length === 1 ? " Web App" : " Web Apps") + " — tippen zum Filtern")).toUpperCase()
-                    color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: root.isMinimal ? Font.Bold : Font.Normal
-                    font.letterSpacing: root.isMinimal ? 1.2 : 0
+                    color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold
+                    font.letterSpacing: 1.2
                     elide: Text.ElideRight
                 }
             }
         }
 
         Rectangle {
-            visible: root.isMinimal
             Layout.fillWidth: true; height: 1
             color: Theme.withAlpha(Theme.textPrimary, 0.12)
         }
@@ -185,18 +164,17 @@ Item {
             Layout.fillWidth: true
             spacing: 4
 
-            Text { text: "Name"; color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; Layout.leftMargin: root.isMinimal ? 0 : 6; font.letterSpacing: root.isMinimal ? 1.2 : 0.8
+            Text { text: "Name"; color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; Layout.leftMargin: 0; font.letterSpacing: 1.2
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
                 Layout.fillWidth: true; Layout.preferredHeight: 36
-                radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-                color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface
-                border.color: nameInput.activeFocus || root.fieldIdx === 0 ? Theme.accent : (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider)
-                border.width: (nameInput.activeFocus || root.fieldIdx === 0) && root.isMinimal ? 2 : 1
-                Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
+                radius: 0
+                color: Theme.withAlpha(Theme.textPrimary, 0.04)
+                border.color: nameInput.activeFocus || root.fieldIdx === 0 ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
+                border.width: (nameInput.activeFocus || root.fieldIdx === 0) ? 2 : 1
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
                     Text { text: "󰷖"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textMuted
@@ -220,22 +198,21 @@ Item {
                 renderType: Theme.textRenderType
                 visible: nameInput.text.length === 0 && !nameInput.activeFocus
                 text: "z. B. YouTube Music"
-                color: Theme.textMuted; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
+                color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
                 Layout.leftMargin: 42; Layout.topMargin: -32; Layout.bottomMargin: 12
             }
 
-            Text { text: "URL"; color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; Layout.leftMargin: root.isMinimal ? 0 : 6; font.letterSpacing: root.isMinimal ? 1.2 : 0.8
+            Text { text: "URL"; color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; Layout.leftMargin: 0; font.letterSpacing: 1.2
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
                 Layout.fillWidth: true; Layout.preferredHeight: 36
-                radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-                color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface
-                border.color: urlInput.activeFocus || root.fieldIdx === 1 ? Theme.accent : (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider)
-                border.width: (urlInput.activeFocus || root.fieldIdx === 1) && root.isMinimal ? 2 : 1
-                Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
+                radius: 0
+                color: Theme.withAlpha(Theme.textPrimary, 0.04)
+                border.color: urlInput.activeFocus || root.fieldIdx === 1 ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
+                border.width: (urlInput.activeFocus || root.fieldIdx === 1) ? 2 : 1
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
                     Text { text: "󰖟"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textMuted
@@ -260,22 +237,21 @@ Item {
                 renderType: Theme.textRenderType
                 visible: urlInput.text.length === 0 && !urlInput.activeFocus
                 text: "https://… (https:// wird ergänzt)"
-                color: Theme.textMuted; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
+                color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
                 Layout.leftMargin: 42; Layout.topMargin: -32; Layout.bottomMargin: 12
             }
 
-            Text { text: "Icon (optional)"; color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; Layout.leftMargin: root.isMinimal ? 0 : 6; font.letterSpacing: root.isMinimal ? 1.2 : 0.8
+            Text { text: "Icon (optional)"; color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; Layout.leftMargin: 0; font.letterSpacing: 1.2
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
                 Layout.fillWidth: true; Layout.preferredHeight: 36
-                radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-                color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface
-                border.color: iconInput.activeFocus || root.fieldIdx === 2 ? Theme.accent : (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider)
-                border.width: (iconInput.activeFocus || root.fieldIdx === 2) && root.isMinimal ? 2 : 1
-                Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
+                radius: 0
+                color: Theme.withAlpha(Theme.textPrimary, 0.04)
+                border.color: iconInput.activeFocus || root.fieldIdx === 2 ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
+                border.width: (iconInput.activeFocus || root.fieldIdx === 2) ? 2 : 1
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
                     Text { text: "󰣇"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textMuted
@@ -299,7 +275,7 @@ Item {
                 renderType: Theme.textRenderType
                 visible: iconInput.text.length === 0 && !iconInput.activeFocus
                 text: "Leer = Icon automatisch holen · sonst PNG-URL, Datei oder Icon-Name"
-                color: Theme.textMuted; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
+                color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
                 Layout.leftMargin: 42; Layout.topMargin: -32; Layout.bottomMargin: 12
             }
         }
@@ -308,10 +284,10 @@ Item {
             id: removeList
             visible: !root.isInstall
             Layout.fillWidth: true; Layout.fillHeight: true
-            Layout.leftMargin: root.isMinimal ? 0 : 6; Layout.rightMargin: root.isMinimal ? 0 : 6
+            Layout.leftMargin: 0; Layout.rightMargin: 0
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            spacing: root.isMinimal ? 3 : 4
+            spacing: 3
             model: bodyRoot.scope.filteredWebApps
             currentIndex: root.selIdx
             delegate: Rectangle {
@@ -319,14 +295,12 @@ Item {
                 required property var modelData
                 required property int index
                 width: removeList.width
-                height: root.isMinimal ? 58 : 40
-                radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
+                height: 58
+                radius: 0
                 readonly property var entry: modelData
                 readonly property bool isSelected: root.selIdx === index
-                color: root.isMinimal ? (isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent") : (isSelected ? Theme.bgSelected : rowMouse.containsMouse ? Theme.panelSurface : "transparent")
-                border.color: root.isMinimal ? "transparent" : (isSelected ? Theme.accent : "transparent"); border.width: root.isMinimal ? 0 : (isSelected ? 1 : 0)
-                Behavior on border.color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
-                Behavior on border.width { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+                color: (isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
+                border.color: "transparent"; border.width: 0
                 MouseArea {
                     id: rowMouse
                     anchors.fill: parent
@@ -335,9 +309,9 @@ Item {
                     onClicked: { root.selIdx = index; root.ensureVisible() }
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: root.isMinimal ? 8 : 10; anchors.rightMargin: root.isMinimal ? 8 : 10; spacing: root.isMinimal ? 6 : 10
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                     IconImage {
-                        Layout.preferredWidth: root.isMinimal ? 20 : 18; Layout.preferredHeight: root.isMinimal ? 20 : 18
+                        Layout.preferredWidth: 20; Layout.preferredHeight: 20
                         source: entry && entry.icon ? Quickshell.iconPath(entry.icon) : ""
                         implicitSize: Qt.size(36, 36)
                         asynchronous: true
@@ -347,9 +321,9 @@ Item {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                         visible: !(entry && entry.icon && ("" + entry.icon).length > 0)
-                        text: "󰖟"; font.family: Theme.iconFontFamily; font.pixelSize: root.isMinimal ? Theme.fs(18) : Theme.fs(14)
-                        color: isSelected ? Theme.accent : (root.isMinimal ? Theme.textPrimary : Theme.textMuted)
-                        Layout.preferredWidth: root.isMinimal ? 36 : 18; horizontalAlignment: Text.AlignHCenter
+                        text: "󰖟"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18)
+                        color: isSelected ? Theme.accent : (Theme.textPrimary)
+                        Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
                     }
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 3
@@ -358,10 +332,9 @@ Item {
                             renderType: Theme.textRenderType
                             Layout.fillWidth: true
                             text: (entry.displayName && entry.displayName.length > 0) ? entry.displayName : (entry.name || "—")
-                            font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: root.isMinimal ? Theme.fs(16) : Theme.fs(13); font.weight: Font.Medium
-                            color: isSelected ? (root.isMinimal ? Theme.accent : Theme.textPrimary) : (root.isMinimal ? Theme.textPrimary : Theme.textSecondary)
+                            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium
+                            color: isSelected ? (Theme.accent) : (Theme.textPrimary)
                             elide: Text.ElideRight
-                            Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
                         }
                         Text {
                             antialiasing: Theme.textAa
@@ -369,24 +342,23 @@ Item {
                             visible: entry.url && entry.url.length > 0
                             Layout.fillWidth: true
                             text: entry.url || ""
-                            font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: root.isMinimal ? Theme.fs(11) : Theme.fs(10)
-                            color: Theme.textPrimary; opacity: root.isMinimal ? 0.52 : 1.0
+                            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
+                            color: Theme.textPrimary; opacity: 0.52
                             elide: Text.ElideRight
                         }
                     }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         Layout.preferredWidth: 64; Layout.preferredHeight: 28
-                        radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
+                        radius: 0
                         color: delMouse.containsMouse ? Theme.error : "transparent"
-                        border.color: delMouse.containsMouse ? Theme.error : (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider); border.width: 1
-                        Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
+                        border.color: delMouse.containsMouse ? Theme.error : (Theme.withAlpha(Theme.textPrimary, 0.25)); border.width: 1
                         Text {
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                             anchors.centerIn: parent
                             text: "Entfernen"
-                            font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(10)
+                            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10)
                             color: delMouse.containsMouse ? Theme.onAccent : Theme.textSecondary
                         }
                         MouseArea {
@@ -413,7 +385,7 @@ Item {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                     text: bodyRoot.scope.webAppLoading ? "Lade Web Apps…" : (bodyRoot.scope.filterText.length > 0 ? "Keine Treffer" : "Keine Web Apps installiert")
-                    color: Theme.textMuted; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
+                    color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
                 }
             }
         }
@@ -422,10 +394,10 @@ Item {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
             visible: (bodyRoot.scope.webAppStatus && bodyRoot.scope.webAppStatus.length > 0) || root.busy
-            Layout.fillWidth: true; Layout.leftMargin: root.isMinimal ? 0 : 6; Layout.rightMargin: root.isMinimal ? 0 : 6
+            Layout.fillWidth: true; Layout.leftMargin: 0; Layout.rightMargin: 0
             text: root.busy ? ("◌ " + (bodyRoot.scope.webAppStatus.length > 0 ? bodyRoot.scope.webAppStatus : "Arbeite…")) : bodyRoot.scope.webAppStatus
             color: root.busy ? Theme.textMuted : (root.success ? Theme.accent : (bodyRoot.scope.webAppStatus.startsWith("✗") ? Theme.errorColor : Theme.textSecondary))
-            font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: root.success ? Font.Medium : Font.Normal
+            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); font.weight: root.success ? Font.Medium : Font.Normal
             elide: Text.ElideRight
         }
         Rectangle {
@@ -433,8 +405,8 @@ Item {
             visible: bodyRoot.scope.webAppLog.length > 0
             Layout.fillWidth: true
             Layout.preferredHeight: root.isInstall ? 88 : 72
-            radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall; color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface
-            border.color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider; border.width: 1; clip: true
+            radius: 0; color: Theme.withAlpha(Theme.textPrimary, 0.04)
+            border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1; clip: true
             Flickable {
                 id: logFlick
                 anchors.fill: parent; anchors.margins: 10
@@ -446,7 +418,7 @@ Item {
                     id: logText
                     width: parent.width
                     text: bodyRoot.scope.webAppLog
-                    color: Theme.textSecondary; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11)
+                    color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
                     wrapMode: Text.WordWrap; textFormat: Text.PlainText; lineHeight: 1.3
                 }
             }
@@ -469,33 +441,31 @@ Item {
         Rectangle {
             antialiasing: Theme.shapesAa
             Layout.fillWidth: true; Layout.preferredHeight: 52
-            radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-            color: root.isMinimal ? "transparent" : Theme.panelSurface
-            border.color: root.isMinimal ? "transparent" : Theme.divider; border.width: root.isMinimal ? 0 : 1
+            radius: 0
+            color: "transparent"
+            border.color: "transparent"; border.width: 0
             Rectangle {
-                visible: root.isMinimal
                 anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
                 height: 1; color: Theme.withAlpha(Theme.textPrimary, 0.12)
             }
             RowLayout {
-                anchors.fill: parent; anchors.leftMargin: root.isMinimal ? 0 : 12; anchors.rightMargin: root.isMinimal ? 0 : 10; spacing: 8
+                anchors.fill: parent; anchors.leftMargin: 0; anchors.rightMargin: 0; spacing: 8
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
                     elide: Text.ElideRight
                     text: root.isInstall ? (root.busy ? "Installiere…" : "Enter: installieren · Tab: Feld wechseln") : (bodyRoot.scope.filteredWebApps.length + " Web Apps · Enter: entfernen")
-                    font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11)
+                    font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
                     color: Theme.textMuted
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     visible: root.isInstall && (nameInput.text.length > 0 || urlInput.text.length > 0 || iconInput.text.length > 0)
-                    Layout.preferredWidth: clearLabel.implicitWidth + 20; Layout.preferredHeight: 30; radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
-                    color: clearMouse.containsMouse ? (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.bgHover) : "transparent"
-                    border.color: root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider; border.width: 1
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
-                    Text { id: clearLabel; anchors.centerIn: parent; text: "Leeren"; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); color: Theme.textSecondary
+                    Layout.preferredWidth: clearLabel.implicitWidth + 20; Layout.preferredHeight: 30; radius: 0
+                    color: clearMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
+                    border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1
+                    Text { id: clearLabel; anchors.centerIn: parent; text: "Leeren"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textSecondary
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
@@ -506,17 +476,16 @@ Item {
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
-                    Layout.preferredWidth: primaryLabel.implicitWidth + 24; Layout.preferredHeight: 32; radius: root.isMinimal ? 0 : Theme.cornerRadiusSmall
+                    Layout.preferredWidth: primaryLabel.implicitWidth + 24; Layout.preferredHeight: 32; radius: 0
                     color: primaryMouse.containsMouse ? (root.isInstall ? Theme.withAlpha(Theme.accent, 0.92) : Theme.withAlpha(Theme.error, 0.92)) : (root.isInstall ? Theme.accent : Theme.error)
                     border.color: root.isInstall ? Theme.accent : Theme.error; border.width: 1
                     opacity: (root.busy || (root.isInstall ? (nameInput.text.trim().length === 0 || urlInput.text.trim().length === 0) : bodyRoot.scope.filteredWebApps.length === 0)) ? 0.5 : 1
-                    Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
                     Text {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                         id: primaryLabel; anchors.centerIn: parent
                         text: root.busy ? "Arbeite…" : (root.isInstall ? "Installieren" : "Entfernen")
-                        font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium; color: Theme.onAccent
+                        font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium; color: Theme.onAccent
                     }
                     MouseArea {
                         id: primaryMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor

@@ -73,7 +73,15 @@ EOF
 done
 
 gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
-gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+# jhqs Application Theming → "Sync Mode with Portal": when disabled, leave the
+# portal color-scheme alone so system-wide dark-mode hints stay untouched
+# (mirrors DMS syncModeWithPortal). GTK css/settings still apply; only the
+# portal color-scheme value is preserved.
+SYNC="$(jq -r '.syncModeWithPortal // true' "$HOME/.config/quickshell/jhqs/config/theming_settings.json" 2>/dev/null || echo true)"
+PREV_SCHEME="$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'" || echo "")"
+if [ "$SYNC" != "false" ]; then
+  gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+fi
 gsettings set org.gnome.desktop.interface gtk-theme "" 2>/dev/null || true
 gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
 HOOK="$HOME/.config/matugen/post-hook-scripts/gtk-themes-reload.sh"
@@ -88,7 +96,11 @@ else
     gsettings set org.gnome.desktop.interface color-scheme prefer-dark 2>/dev/null || true
     gsettings set org.gnome.desktop.interface color-scheme prefer-light 2>/dev/null || true
   fi
-  gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+  if [ "$SYNC" != "false" ]; then
+    gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+  elif [ -n "$PREV_SCHEME" ]; then
+    gsettings set org.gnome.desktop.interface color-scheme "$PREV_SCHEME" 2>/dev/null || true
+  fi
 fi
 
 echo "gtk applied: $MODE ($GTK_THEME)"

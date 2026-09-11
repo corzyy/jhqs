@@ -6,10 +6,12 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "../themes"
 import "../services"
-import "../Ui"
 import "./settings" as S
 import "./settings/pages" as Pages
 
+// Settings rework: one synchronous Loader for the active page (no async
+// blank races, no 9-loader flip flapping), one source of truth for the
+// section, no hide-timer / _winVisible two-stage visibility.
 Scope {
     id: settingsScope
     property bool showSettings: false
@@ -17,23 +19,39 @@ Scope {
     property string filterText: ""
     signal dismissed()
 
-    property bool _winVisible: showSettings
-    Timer { id: settingsHideTimer; interval: Theme.animSlow + 20; repeat: false; onTriggered: if (!settingsScope.showSettings) settingsScope._winVisible = false }
-    onShowSettingsChanged: {
-        if (showSettings) {
-            _winVisible = true
-            settingsHideTimer.stop()
-            SettingsService.refresh()
-        } else {
-            settingsHideTimer.restart()
-            filterText = ""
+    // All valid sections in sidebar order. Unknown ids fall back to global
+    // so a stale id can never blank the panel.
+    readonly property var sectionIds: ["global", "theming", "hypr", "bar", "modules", "workspaces", "notif", "osd", "search"]
+    function selectSection(id: string): void {
+        section = sectionIds.indexOf(id) >= 0 ? id : "global"
+    }
+
+    // Robust page swap: Components are direct children of Scope (same
+    // lexical scope, so pageFor sees them under ComponentBehavior: Bound).
+    // Pages size themselves via `width: parent ? parent.width : 400`,
+    // so no width binding (which would need an out-of-scope id) is used.
+    function pageFor(s: string): Component {
+        switch (s) {
+        case "theming": return themingComp
+        case "hypr": return hyprComp
+        case "bar": return barComp
+        case "modules": return modulesComp
+        case "workspaces": return workspacesComp
+        case "notif": return notifComp
+        case "osd": return osdComp
+        case "search": return searchComp
+        default: return globalComp
         }
     }
 
-    readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
-    readonly property bool isMinimal: Theme.minimalTheme
+    onShowSettingsChanged: {
+        if (showSettings) {
+            SettingsService.refresh()
+            ThemingService.refresh()
+        } else {
+            filterText = ""
+        }
+    }
 
     IpcHandler {
         target: "settings"
@@ -45,7 +63,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: settingsScope._winVisible && modelData.name === "DP-1"
+            visible: settingsScope.showSettings && modelData.name === "DP-1"
             color: "transparent"
             exclusiveZone: -1
             anchors { top: true; left: true; right: true; bottom: true }
@@ -55,15 +73,18 @@ Scope {
                 antialiasing: Theme.shapesAa
                 anchors.fill: parent
                 color: Theme.scrim
-                opacity: settingsScope.showSettings ? 0.25 : 0.0
-                Behavior on opacity { NumberAnimation { duration: settingsScope.showSettings ? Theme.panelAnimFade : Theme.animSlow; easing.type: settingsScope.showSettings ? Theme.panelEasingFade : Theme.panelEasingExit } }
+                opacity: 0.25
             }
             MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onClicked: settingsScope.dismissed() }
         }
+    }
+
+    Variants {
+        model: Quickshell.screens
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: settingsScope._winVisible && modelData.name === "DP-1"
+            visible: settingsScope.showSettings && modelData.name === "DP-1"
             color: "transparent"
             exclusiveZone: 0
             anchors { top: true; left: true; right: true; bottom: true }
@@ -78,10 +99,9 @@ Scope {
                         if (settingsScope.filterText.length > 0) settingsScope.filterText = ""
                         else settingsScope.dismissed()
                         event.accepted = true
-                    } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_8) {
-                        let ids = ["global", "hypr", "bar", "modules", "workspaces", "notif", "osd", "search"]
+                    } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_9) {
                         let i = event.key - Qt.Key_1
-                        if (i >= 0 && i < ids.length) settingsScope.section = ids[i]
+                        if (i >= 0 && i < settingsScope.sectionIds.length) settingsScope.selectSection(settingsScope.sectionIds[i])
                         event.accepted = true
                     }
                 }
@@ -95,24 +115,12 @@ Scope {
                 implicitHeight: Math.min(600, parent.height - 60)
                 x: (parent.width - width) / 2
                 y: (parent.height - implicitHeight) / 2
-                color: settingsScope.isMinimal ? Theme.bg : Theme.panelBg
-                border.color: settingsScope.isMinimal ? Theme.accent : Theme.panelBorderColor
-                border.width: settingsScope.isMinimal ? 2 : 1
-                radius: settingsScope.isMinimal ? 0 : Theme.cornerRadius
+                color: Theme.bg
+                border.color: Theme.accent
+                border.width: 2
+                radius: 0
                 clip: true
-                Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
-                PanelSpring {
-                    id: settingsSpring
-                    slideFade: true
-                    shown: settingsScope.showSettings
-                    hiddenX: 0
-                    hiddenY: -(settingsBox.implicitHeight + 5)
-                }
-                visible: settingsSpring.boxVisible
-                opacity: settingsSpring.fade
-                scale: settingsSpring.zoom
-                transformOrigin: Item.Center
-                transform: Translate { x: settingsSpring.slideX; y: settingsSpring.slideY }
+                visible: settingsScope.showSettings
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.AllButtons
@@ -122,16 +130,16 @@ Scope {
                 }
                 Column {
                     anchors.fill: parent
-                    anchors.margins: settingsScope.isMinimal ? 18 : 12
-                    spacing: settingsScope.isMinimal ? 14 : 10
+                    anchors.margins: 18
+                    spacing: 14
                     Item {
                         width: parent.width
                         height: 36
-                        Text { id: settingsTitle; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "󰒓  Settings"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(15); font.weight: Font.Bold; color: Theme.textPrimary
+                        Text { id: settingsTitle; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: "  Settings"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(15); font.weight: Font.Bold; color: Theme.textPrimary
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                         }
-                        Text { anchors.left: settingsTitle.right; anchors.leftMargin: 10; anchors.right: closeBtn.left; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: settingsScope.isMinimal ? settingsScope.section.toUpperCase() : "—  " + settingsScope.section; font.family: settingsScope.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: Theme.fs(settingsScope.isMinimal ? 10 : 12); font.weight: settingsScope.isMinimal ? Font.Bold : Font.Normal; font.letterSpacing: settingsScope.isMinimal ? 1.2 : 0.8; color: settingsScope.isMinimal ? Theme.textSecondary : Theme.textMuted; elide: Text.ElideRight
+                        Text { anchors.left: settingsTitle.right; anchors.leftMargin: 10; anchors.right: closeBtn.left; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: settingsScope.section.toUpperCase(); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; font.letterSpacing: 1.2; color: Theme.textSecondary; elide: Text.ElideRight
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                         }
@@ -141,9 +149,9 @@ Scope {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             width: 36; height: 36
-                            radius: settingsScope.isMinimal ? 0 : Theme.cornerRadiusSmall
-                            color: closeMouse.containsMouse ? (settingsScope.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.bgHover) : "transparent"
-                            border.color: settingsScope.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.25) : Theme.divider; border.width: 1
+                            radius: 0
+                            color: closeMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
+                            border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1
                             Text { anchors.centerIn: parent; text: "✕"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); color: Theme.textSecondary
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
@@ -154,13 +162,13 @@ Scope {
                     Row {
                         id: bodyRow
                         width: parent.width
-                        height: parent.height - 36 - (settingsScope.isMinimal ? 14 : 10)
-                        spacing: settingsScope.isMinimal ? 14 : 10
-                        S.SettingsSidebar {
+                        height: parent.height - 36 - 14
+                        spacing: 14
+                        S.SettingsControls.SettingsSidebar {
                             height: bodyRow.height
                             current: settingsScope.section
                             query: settingsScope.filterText
-                            onSelect: n => settingsScope.section = n
+                            onSelect: n => settingsScope.selectSection(n)
                             onQueryChanged2: t => settingsScope.filterText = t
                         }
                         Flickable {
@@ -172,19 +180,26 @@ Scope {
                             contentWidth: width
                             boundsBehavior: Flickable.StopAtBounds
                             flickableDirection: Flickable.VerticalFlick
-                            onContentHeightChanged: contentY = 0
+                            Connections {
+                                target: settingsScope
+                                ignoreUnknownSignals: true
+                                function onSectionChanged() { pageFlick.contentY = 0 }
+                            }
                             Column {
                                 id: pageCol
                                 width: pageFlick.width
-                                spacing: settingsScope.isMinimal ? 14 : 10
-                                Pages.GlobalPage { visible: settingsScope.section === "global"; width: parent.width }
-                                Pages.HyprPage { visible: settingsScope.section === "hypr"; width: parent.width }
-                                Pages.TopBarPage { visible: settingsScope.section === "bar"; width: parent.width }
-                                Pages.ModulesPage { visible: settingsScope.section === "modules"; width: parent.width }
-                                Pages.WorkspacesPage { visible: settingsScope.section === "workspaces"; width: parent.width }
-                                Pages.NotificationsPage { visible: settingsScope.section === "notif"; width: parent.width }
-                                Pages.OsdPage { visible: settingsScope.section === "osd"; width: parent.width }
-                                Pages.SearchPage { visible: settingsScope.section === "search"; width: parent.width }
+                                spacing: 14
+                                // RAM + robustness: exactly one page exists at a
+                                // time, loaded synchronously so a click swaps
+                                // content in the same frame (no blank races).
+                                // Unloaded when the panel closes.
+                                Loader {
+                                    id: pageLoader
+                                    width: parent.width
+                                    active: settingsScope.showSettings
+                                    asynchronous: false
+                                    sourceComponent: settingsScope.pageFor(settingsScope.section)
+                                }
                             }
                         }
                     }
@@ -192,4 +207,14 @@ Scope {
             }
         }
     }
+
+    Component { id: globalComp; Pages.GlobalPage {} }
+    Component { id: themingComp; Pages.ThemingPage {} }
+    Component { id: hyprComp; Pages.HyprPage {} }
+    Component { id: barComp; Pages.TopBarPage {} }
+    Component { id: modulesComp; Pages.ModulesPage {} }
+    Component { id: workspacesComp; Pages.WorkspacesPage {} }
+    Component { id: notifComp; Pages.NotificationsPage {} }
+    Component { id: osdComp; Pages.OsdPage {} }
+    Component { id: searchComp; Pages.SearchPage {} }
 }

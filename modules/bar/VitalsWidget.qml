@@ -10,9 +10,6 @@ Item {
     implicitWidth: vertical ? col.implicitWidth + 12 : row.implicitWidth + 16
     implicitHeight: vertical ? col.implicitHeight + 10 : row.implicitHeight + 10
     visible: VitalsService.hasVisibleMetric
-    scale: Theme.animationsEnabled && mouse.containsMouse ? 1.06 : 1.0
-    Behavior on scale { NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-    Behavior on implicitWidth { NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
 
     function metricColor(pct: real): color {
         let s = VitalsService.severity(pct)
@@ -35,7 +32,6 @@ Item {
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
                 color: root.metricColor(VitalsService.cpuPct)
                 Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             }
             Text {
                 visible: VitalsService.showLabels
@@ -43,7 +39,6 @@ Item {
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
                 color: root.metricColor(VitalsService.cpuPct)
                 Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             }
         }
         RowLayout {
@@ -54,7 +49,6 @@ Item {
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
                 color: root.metricColor(VitalsService.ramPct)
                 Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             }
             Text {
                 visible: VitalsService.showLabels
@@ -62,7 +56,6 @@ Item {
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
                 color: root.metricColor(VitalsService.ramPct)
                 Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             }
         }
         RowLayout {
@@ -73,7 +66,6 @@ Item {
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
                 color: root.metricColor(VitalsService.gpuPct)
                 Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             }
             Text {
                 visible: VitalsService.showLabels
@@ -81,26 +73,6 @@ Item {
                 font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
                 color: root.metricColor(VitalsService.gpuPct)
                 Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            }
-        }
-        RowLayout {
-            visible: VitalsService.showDisk
-            spacing: 4
-            Text {
-                text: "󰋊"
-                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
-                color: root.metricColor(VitalsService.diskPct)
-                Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-            }
-            Text {
-                visible: VitalsService.showLabels
-                text: Math.round(VitalsService.diskPct) + "%"
-                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
-                color: root.metricColor(VitalsService.diskPct)
-                Layout.alignment: Qt.AlignVCenter
-                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
             }
         }
     }
@@ -129,13 +101,6 @@ Item {
             text: "󰢮" + (VitalsService.showLabels ? " " + Math.round(VitalsService.gpuPct) + "%" : "")
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
             color: root.metricColor(VitalsService.gpuPct)
-            Layout.alignment: Qt.AlignHCenter
-        }
-        Text {
-            visible: VitalsService.showDisk
-            text: "󰋊" + (VitalsService.showLabels ? " " + Math.round(VitalsService.diskPct) + "%" : "")
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
-            color: root.metricColor(VitalsService.diskPct)
             Layout.alignment: Qt.AlignHCenter
         }
     }

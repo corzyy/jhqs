@@ -124,7 +124,9 @@ Item {
     }
 
     function matugenBin(): string {
-        return "[ -x \"$HOME/.cargo/bin/matugen\" ] && MATUGEN=\"$HOME/.cargo/bin/matugen\" || MATUGEN=\"matugen\";"
+        // jhqs Application Theming: route through matugen-run.sh so template
+        // toggles (theming_settings.json) + terminals-always-dark are honored.
+        return "MATUGEN_RUN=\"$HOME/.config/quickshell/jhqs/scripts/matugen-run.sh\"; if [ ! -x \"$MATUGEN_RUN\" ]; then [ -x \"$HOME/.cargo/bin/matugen\" ] && MATUGEN_RUN=\"$HOME/.cargo/bin/matugen\" || MATUGEN_RUN=\"matugen\"; fi;"
     }
 
     function runMonetApply(escPath: string) {
@@ -135,7 +137,7 @@ Item {
         cmd += " if [ ! -f \"$WALL\" ]; then for d in \"$HOME/Bilder/wallpapers\" \"$HOME/Pictures/wallpapers\" \"$HOME/Wallpapers\" \"${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers\" \"$HOME/wallpapers\"; do if [ -d \"$d\" ]; then WALL=\"$(find \"$d\" -mindepth 1 -maxdepth 2 -type f \\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.gif' -o -iname '*.tiff' \\) 2>/dev/null | sort | head -1)\"; [ -f \"$WALL\" ] && break; fi; done; fi;"
         cmd += " TYPE=$(jq -r '.type // \"scheme-tonal-spot\"' \"$HOME/.config/quickshell/jhqs/themes/matugen_settings.json\" 2>/dev/null); MODE=$(jq -r '.mode // \"dark\"' \"$HOME/.config/quickshell/jhqs/themes/matugen_settings.json\" 2>/dev/null);"
         cmd += " if ! echo \"$TYPE\" | grep -q \"^scheme-\"; then TYPE=\"scheme-tonal-spot\"; fi; if [ \"$MODE\" != \"dark\" ] && [ \"$MODE\" != \"light\" ]; then MODE=\"dark\"; fi;"
-        cmd += " if [ -f \"$WALL\" ]; then \"$MATUGEN\" image \"$WALL\" -t \"$TYPE\" -m \"$MODE\" --prefer saturation 2>&1 | logger -t matugen; sed -i -E 's/^color_theme *= *\".*\"/color_theme = \"matugen\"/; s/^theme_background *= *.*/theme_background = False/' ~/.config/btop/btop.conf 2>/dev/null; bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"$MODE\" 2>&1 | logger -t gtk; hyprctl eval 'package.loaded[\"matugen-colors\"]=nil; pcall(require, \"matugen-colors\")' 2>&1 | logger -t hyprctl; notify-send -u low \"Monet\" \"Farbschema $TYPE • $MODE\" 2>/dev/null || true;"
+        cmd += " if [ -f \"$WALL\" ]; then if [ -x \"$MATUGEN_RUN\" ] && [ \"$(basename \"$MATUGEN_RUN\")\" = \"matugen-run.sh\" ]; then bash \"$MATUGEN_RUN\" image \"$WALL\" -t \"$TYPE\" -m \"$MODE\" --prefer saturation 2>&1 | logger -t matugen; else \"$MATUGEN_RUN\" image \"$WALL\" -t \"$TYPE\" -m \"$MODE\" --prefer saturation 2>&1 | logger -t matugen; fi; sed -i -E 's/^color_theme *= *\".*\"/color_theme = \"matugen\"/; s/^theme_background *= *.*/theme_background = False/' ~/.config/btop/btop.conf 2>/dev/null; bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"$MODE\" 2>&1 | logger -t gtk; hyprctl eval 'package.loaded[\"matugen-colors\"]=nil; pcall(require, \"matugen-colors\")' 2>&1 | logger -t hyprctl; notify-send -u low \"Monet\" \"Farbschema $TYPE • $MODE\" 2>/dev/null || true;"
         cmd += " else echo \"[ThemeEngine] no wallpaper found, Monet skipped\" | logger -t monet; notify-send -u critical \"Monet\" \"Kein Wallpaper gefunden — Farben unverändert\" 2>/dev/null || true; fi; echo done"
         if (themeSerialProc.running) { _pendingSpec = "monet:" + escPath; return }
         themeSerialProc.command = ["bash", "-c", cmd]

@@ -7,7 +7,7 @@ import "../../themes"
 
 Item {
     id: root
-    property var monitor: null
+    // NOTE: monitor removed — never read.
     property bool vertical: false
     implicitWidth: vertical ? 24 : hRow.implicitWidth
     implicitHeight: vertical ? vCol.implicitHeight : hRow.implicitHeight
@@ -98,8 +98,6 @@ Item {
                 implicitWidth: ((root.isM3 ? (ws.focused ? 28 : occupied ? 14 : 8) + 2 : 20) + (root.isDefault2 ? 0 : Theme.workspaceSpacing)) * root.uiScale; implicitHeight: 24 * root.uiScale
                 opacity: root.isM3 ? 1.0 : (occupied || ws.focused ? 1.0 : 0.5)
                 scale: root.hoverScaleFor(index)
-                Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-                Behavior on scale { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     anchors.centerIn: parent
@@ -108,7 +106,6 @@ Item {
                     height: 10 * root.uiScale
                     radius: height / 2
                     color: ws.focused ? Theme.accent : occupied ? Theme.textSecondary : Theme.divider
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -117,9 +114,6 @@ Item {
                     visible: !root.isM3 && !root.isDefault2
                     opacity: ws.focused ? 1 : 0
                     scale: ws.focused ? 1.1 : 0.6
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on scale { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -132,8 +126,6 @@ Item {
                     border.width: 1
                     visible: root.isDefault2 && (ws.focused || root.hoveredIndex === index)
                     opacity: (ws.focused || root.hoveredIndex === index) ? 1 : 0
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 Text {
                     antialiasing: Theme.textAa
@@ -145,9 +137,6 @@ Item {
                     visible: !root.isM3
                     opacity: root.isDefault2 ? 1 : (ws.focused ? 0 : 1)
                     scale: root.isDefault2 ? 1.0 : (ws.focused ? 0.7 : 1.0)
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on scale { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -158,8 +147,6 @@ Item {
                     color: Theme.accent
                     visible: root.isDefault2
                     opacity: ws.focused ? 1 : 0
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 MouseArea {
                     id: hHover
@@ -186,7 +173,6 @@ Item {
             renderType: Theme.textRenderType
             visible: root.sortedWorkspaces.length===0; text:"\u2014"; color: Theme.textPrimary; font.pixelSize: Theme.fs(13)
             opacity: visible ? 1 : 0
-            Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
         }
     }
 
@@ -206,8 +192,6 @@ Item {
                 implicitWidth: 24 * root.uiScale; implicitHeight: ((root.isM3 ? (ws.focused ? 28 : occupied ? 14 : 8) + 2 : 20) + (root.isDefault2 ? 0 : Theme.workspaceSpacing)) * root.uiScale
                 opacity: root.isM3 ? 1.0 : (occupied || ws.focused ? 1.0 : 0.5)
                 scale: root.hoverScaleFor(index)
-                Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
-                Behavior on scale { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     anchors.centerIn: parent
@@ -216,7 +200,6 @@ Item {
                     height: (ws.focused ? 28 : occupied ? 14 : 8) * root.uiScale
                     radius: width / 2
                     color: ws.focused ? Theme.accent : occupied ? Theme.textSecondary : Theme.divider
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -225,9 +208,6 @@ Item {
                     visible: !root.isM3 && !root.isDefault2
                     opacity: ws.focused ? 1 : 0
                     scale: ws.focused ? 1.1 : 0.6
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on scale { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -240,8 +220,6 @@ Item {
                     border.width: 1
                     visible: root.isDefault2 && (ws.focused || root.hoveredIndex === index)
                     opacity: (ws.focused || root.hoveredIndex === index) ? 1 : 0
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 Text {
                     antialiasing: Theme.textAa
@@ -253,9 +231,6 @@ Item {
                     visible: !root.isM3
                     opacity: root.isDefault2 ? 1 : (ws.focused ? 0 : 1)
                     scale: root.isDefault2 ? 1.0 : (ws.focused ? 0.7 : 1.0)
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on scale { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animBounce; easing.type: Theme.easingBounce; easing.overshoot: Theme.hoverOvershoot } }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -266,8 +241,6 @@ Item {
                     color: Theme.accent
                     visible: root.isDefault2
                     opacity: ws.focused ? 1 : 0
-                    Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-                    Behavior on color { enabled: !root.isDefault2; ColorAnimation { duration: Theme.animFast } }
                 }
                 MouseArea {
                     id: vHover
@@ -295,7 +268,6 @@ Item {
             visible: root.sortedWorkspaces.length===0; text:"\u2014"; color: Theme.textPrimary; font.pixelSize: Theme.fs(13)
             Layout.alignment: Qt.AlignHCenter
             opacity: visible ? 1 : 0
-            Behavior on opacity { enabled: !root.isDefault2; NumberAnimation { duration: Theme.animNormal; easing.type: Theme.easingStandard } }
         }
     }
 }

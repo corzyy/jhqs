@@ -8,7 +8,7 @@ Item {
     required property var scope
     required property var bodyRoot
     anchors.fill: parent
-    anchors.margins: 4
+    anchors.margins: 0
     clip: true
     opacity: bodyRoot.scope.showThemes ? 1 : 0
     visible: opacity > 0.01
@@ -49,6 +49,21 @@ Item {
         return -1
     }
     function isSelected(id: string): bool { return root.navIndex(id) === root.selectedIndex }
+    readonly property bool lightBg: (0.299 * Theme.bg.r + 0.587 * Theme.bg.g + 0.114 * Theme.bg.b) > 0.5
+    function themePrimary(id: string): color {
+        if (id === "wallpaper") return Theme.primary
+        if (id === "everforest") return lightBg ? "#8DA101" : "#A7C080"
+        if (id === "tokyonight") return lightBg ? "#2959aa" : "#7aa2f7"
+        if (id === "petrichor") return lightBg ? "#7f9459" : "#93a06b"
+        if (id === "monochrome") return lightBg ? "#181818" : "#e7e7e7"
+        if (id === "catppuccin") return lightBg ? "#8839ef" : "#cba6f7"
+        return Theme.textPrimary
+    }
+    function openMonetSettings() {
+        bodyRoot.scope.clearSearch()
+        root.showMonetSettings = true
+        root.selectedIndex = root.navIndex("mode")
+    }
     function selectedItem(): var {
         let it = root.navItems[root.selectedIndex]
         if (!it) return null
@@ -111,6 +126,8 @@ Item {
         if (it.type === "mode") {
             let next = delta > 0 ? (bodyRoot.scope.monetMode === "dark" ? "light" : "dark") : (bodyRoot.scope.monetMode === "light" ? "dark" : "light")
             if (next !== bodyRoot.scope.monetMode) bodyRoot.scope.applyMonetScheme(bodyRoot.scope.monetType, next)
+        } else if (it.type === "preset" && it.id === "preset-wallpaper") {
+            if (delta > 0) root.openMonetSettings()
         }
     }
     function handleKey(event): bool {
@@ -144,21 +161,21 @@ Item {
     Flickable {
         id: themesFlick
         visible: !root.showMonetSettings
-        anchors.top: parent.top; anchors.topMargin: 10; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.fill: parent
         clip: true
         contentHeight: themesCol.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         ColumnLayout {
             id: themesCol
-            x: 6
-            width: parent.width - 12
-            spacing: 4
+            x: 0
+            width: parent.width
+            spacing: 3
 
             ColumnLayout {
                 id: filteredBody
                 visible: bodyRoot.scope.filterText && bodyRoot.scope.filterText.trim().length > 0 && !root.showMonetSettings
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: 3
                 Repeater {
                     model: bodyRoot.scope.filterText && bodyRoot.scope.filterText.trim().length > 0 ? bodyRoot.scope.filteredThemes : []
                     delegate: Item {
@@ -167,69 +184,46 @@ Item {
                         property bool isActive: bodyRoot.scope.currentEngine === modelData.id
                         property bool isSelected: root.navIndex("preset-" + modelData.id) === root.selectedIndex
                         Layout.fillWidth: true
-                        implicitHeight: filteredRow.implicitHeight
+                        implicitHeight: 50
                         Rectangle {
                             antialiasing: Theme.shapesAa
-                            id: filteredRow
-                            anchors.left: parent.left; anchors.right: parent.right
-                            implicitHeight: 56; radius: Theme.cornerRadiusSmall
-                            color: isSelected ? Theme.bgSelected : isActive ? Theme.panelSurface : filteredMouse.containsMouse ? Theme.panelSurface : Theme.panelBg
-                            border.color: isSelected ? Theme.accent : isActive ? Theme.divider : Theme.divider; border.width: isSelected ? 1.5 : isActive ? 1 : 1
+                            anchors.fill: parent
+                            height: 50; radius: Theme.cornerRadius
+                            color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : filteredMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
+                            border.color: "transparent"; border.width: 0
                             MouseArea { id: filteredMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("preset-" + modelData.id); bodyRoot.scope.setThemeEngine(modelData.id) } }
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
-                                Rectangle { Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: Theme.cornerRadiusSmall; color: isSelected ? Theme.accent : isActive ? Theme.surface2 : Theme.surface2; border.color: isSelected ? Theme.accent : Theme.divider; border.width: 1
-                                    antialiasing: Theme.shapesAa
-                                    Text { anchors.centerIn: parent; text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: isSelected ? Theme.onAccent : isActive ? Theme.textMuted : Theme.textSecondary
-                                        antialiasing: Theme.textAa
-                                        renderType: Theme.textRenderType
-                                    }
-                                }
-                                Text { text: modelData.title; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.Medium; color: isSelected ? Theme.textPrimary : isActive ? Theme.textSecondary : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                                Text { text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: root.themePrimary(modelData.id); Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                 }
-                                Row { spacing: 4
-                                    Rectangle { width: 10; height: 10; radius: 5; color: modelData.id === "everforest" ? "#A7C080" : modelData.id === "tokyonight" ? "#7aa2f7" : modelData.id === "petrichor" ? "#93a06b" : modelData.id === "monochrome" ? "#e7e7e7" : modelData.id === "catppuccin" ? "#cba6f7" : Theme.primary; border.color: Theme.divider; border.width: 1
-                                        antialiasing: Theme.shapesAa
-                                    }
-                                    Rectangle { width: 10; height: 10; radius: 5; color: modelData.id === "everforest" ? "#DBBC7F" : modelData.id === "tokyonight" ? "#bb9af7" : modelData.id === "petrichor" ? "#c9a35c" : modelData.id === "monochrome" ? "#ababab" : modelData.id === "catppuccin" ? "#89b4fa" : Theme.secondary; border.color: Theme.divider; border.width: 1
-                                        antialiasing: Theme.shapesAa
-                                    }
-                                    Rectangle { width: 10; height: 10; radius: 5; color: modelData.id === "everforest" ? "#7FBBB3" : modelData.id === "tokyonight" ? "#7dcfff" : modelData.id === "petrichor" ? "#84a89e" : modelData.id === "monochrome" ? "#717171" : modelData.id === "catppuccin" ? "#94e2d5" : Theme.tertiary; border.color: Theme.divider; border.width: 1
-                                        antialiasing: Theme.shapesAa
-                                    }
+                                Text { text: modelData.title; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
                                 }
-                                Rectangle {
-                                    antialiasing: Theme.shapesAa
+                                Text { visible: isActive; text: "✓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14); color: Theme.accent; Layout.preferredWidth: 14; horizontalAlignment: Text.AlignHCenter
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                }
+                                Text {
                                     visible: modelData.id === "wallpaper"
-                                    Layout.preferredWidth: 30; Layout.preferredHeight: 28; radius: Theme.cornerRadiusSmall
-                                    color: filteredCogMouse.containsMouse ? Theme.bgHover : Theme.surface2
-                                    border.color: Theme.divider; border.width: 1
-                                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                                    Text { anchors.centerIn: parent; text: "󰒓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); color: Theme.textSecondary
-                                        antialiasing: Theme.textAa
-                                        renderType: Theme.textRenderType
-                                    }
-                                    MouseArea { id: filteredCogMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: (mouse) => { mouse.accepted = true; bodyRoot.scope.clearSearch(); root.showMonetSettings = true; root.selectedIndex = root.navIndex("mode") } }
-                                }
-                                Rectangle { Layout.preferredWidth: 56; Layout.preferredHeight: 20; radius: 10; color: isActive ? Theme.primary : Theme.withAlpha(Theme.surface2, 0.9); border.color: isActive ? Theme.primary : Theme.divider; border.width: 1
-                                    antialiasing: Theme.shapesAa
-                                    Text { anchors.centerIn: parent; text: isActive ? "Aktiv" : "Wählen"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(9); font.weight: Font.Medium; color: isActive ? Theme.onAccent : Theme.textSecondary
-                                        antialiasing: Theme.textAa
-                                        renderType: Theme.textRenderType
-                                    }
+                                    text: "›"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: isSelected ? Theme.accent : Theme.textPrimary; opacity: isSelected ? 1.0 : 0.36
+                                    Layout.preferredWidth: 14; horizontalAlignment: Text.AlignHCenter
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                    MouseArea { anchors.fill: parent; anchors.margins: -6; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: (mouse) => { mouse.accepted = true; root.openMonetSettings() } }
                                 }
                             }
                         }
                     }
                 }
-                Column { visible: bodyRoot.scope.filteredThemes.length === 0 && bodyRoot.scope.filterText.trim().length > 0 && !root.showMonetSettings; Layout.fillWidth: true; spacing: 6; topPadding: 16
+                Column { visible: bodyRoot.scope.filteredThemes.length === 0 && bodyRoot.scope.filterText.trim().length > 0 && !root.showMonetSettings; Layout.fillWidth: true; spacing: 8; topPadding: 24
                     Text { text: "󰸉"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(28); color: Theme.textMuted; width: parent.width; horizontalAlignment: Text.AlignHCenter
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    Text { text: "Keine Treffer"; color: Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); width: parent.width; horizontalAlignment: Text.AlignHCenter
+                    Text { text: "Keine Treffer"; color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); width: parent.width; horizontalAlignment: Text.AlignHCenter
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
@@ -239,11 +233,11 @@ Item {
             ColumnLayout {
                 visible: (!bodyRoot.scope.filterText || bodyRoot.scope.filterText.trim().length === 0) && !root.showMonetSettings
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: 3
                 ColumnLayout {
                     id: presetsBody
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: 3
                     Repeater {
                         model: bodyRoot.scope.themeOptions
                         delegate: Rectangle {
@@ -252,57 +246,32 @@ Item {
                             property bool isActive: bodyRoot.scope.currentEngine === modelData.id
                             property bool isSelected: root.navIndex("preset-" + modelData.id) === root.selectedIndex
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
-                            radius: Theme.cornerRadiusSmall
-                            color: isSelected ? Theme.bgSelected : isActive ? Theme.panelSurface : presetMouse.containsMouse ? Theme.panelSurface : Theme.panelBg
-                            border.color: isSelected ? Theme.accent : isActive ? Theme.divider : Theme.divider; border.width: isSelected ? 1.5 : isActive ? 1 : 1
+                            Layout.preferredHeight: 50
+                            radius: Theme.cornerRadius
+                            color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : presetMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
+                            border.color: "transparent"; border.width: 0
                             MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("preset-" + modelData.id); bodyRoot.scope.setThemeEngine(modelData.id) } }
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
-                                Rectangle { Layout.preferredWidth: 36; Layout.preferredHeight: 36; radius: Theme.cornerRadiusSmall; color: isSelected ? Theme.accent : isActive ? Theme.surface2 : Theme.surface2; border.color: isSelected ? Theme.accent : Theme.divider; border.width: 1
-                                    antialiasing: Theme.shapesAa
-                                    Text { anchors.centerIn: parent; text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: isSelected ? Theme.onAccent : isActive ? Theme.textMuted : Theme.textSecondary
-                                        antialiasing: Theme.textAa
-                                        renderType: Theme.textRenderType
-                                    }
-                                }
-                                Text { text: modelData.title; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.Medium; color: isSelected ? Theme.textPrimary : isActive ? Theme.textSecondary : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+                                anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                                Text { text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: root.themePrimary(modelData.id); Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                 }
-                                Row { spacing: 4
-                                    Rectangle { width: 10; height: 10; radius: 5; color: modelData.id === "everforest" ? "#A7C080" : modelData.id === "tokyonight" ? "#7aa2f7" : modelData.id === "petrichor" ? "#93a06b" : modelData.id === "monochrome" ? "#e7e7e7" : modelData.id === "catppuccin" ? "#cba6f7" : Theme.primary; border.color: Theme.divider; border.width: 1
-                                        antialiasing: Theme.shapesAa
-                                    }
-                                    Rectangle { width: 10; height: 10; radius: 5; color: modelData.id === "everforest" ? "#DBBC7F" : modelData.id === "tokyonight" ? "#bb9af7" : modelData.id === "petrichor" ? "#c9a35c" : modelData.id === "monochrome" ? "#ababab" : modelData.id === "catppuccin" ? "#89b4fa" : Theme.secondary; border.color: Theme.divider; border.width: 1
-                                        antialiasing: Theme.shapesAa
-                                    }
-                                    Rectangle { width: 10; height: 10; radius: 5; color: modelData.id === "everforest" ? "#7FBBB3" : modelData.id === "tokyonight" ? "#7dcfff" : modelData.id === "petrichor" ? "#84a89e" : modelData.id === "monochrome" ? "#717171" : modelData.id === "catppuccin" ? "#94e2d5" : Theme.tertiary; border.color: Theme.divider; border.width: 1
-                                        antialiasing: Theme.shapesAa
-                                    }
+                                Text { text: modelData.title; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
                                 }
-                                Rectangle {
-                                    antialiasing: Theme.shapesAa
+                                Text { visible: isActive; text: "✓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14); color: Theme.accent; Layout.preferredWidth: 14; horizontalAlignment: Text.AlignHCenter
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                }
+                                Text {
                                     visible: modelData.id === "wallpaper"
-                                    Layout.preferredWidth: 30; Layout.preferredHeight: 28; radius: Theme.cornerRadiusSmall
-                                    color: monetCogMouse.containsMouse ? Theme.bgHover : Theme.surface2
-                                    border.color: Theme.divider; border.width: 1
-                                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                                    Text { anchors.centerIn: parent; text: "󰒓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); color: Theme.textSecondary
-                                        antialiasing: Theme.textAa
-                                        renderType: Theme.textRenderType
-                                    }
-                                    MouseArea {
-                                        id: monetCogMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onClicked: (mouse) => { mouse.accepted = true; root.showMonetSettings = true; root.selectedIndex = root.navIndex("mode") }
-                                    }
-                                }
-                                Rectangle { Layout.preferredWidth: 56; Layout.preferredHeight: 20; radius: 10; color: isActive ? Theme.primary : Theme.withAlpha(Theme.surface2, 0.9); border.color: isActive ? Theme.primary : Theme.divider; border.width: 1
-                                    antialiasing: Theme.shapesAa
-                                    Text { anchors.centerIn: parent; text: isActive ? "Aktiv" : "Wählen"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(9); font.weight: Font.Medium; color: isActive ? Theme.onAccent : Theme.textSecondary
-                                        antialiasing: Theme.textAa
-                                        renderType: Theme.textRenderType
-                                    }
+                                    text: "›"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: isSelected ? Theme.accent : Theme.textPrimary; opacity: isSelected ? 1.0 : 0.36
+                                    Layout.preferredWidth: 14; horizontalAlignment: Text.AlignHCenter
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                    MouseArea { anchors.fill: parent; anchors.margins: -6; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: (mouse) => { mouse.accepted = true; root.openMonetSettings() } }
                                 }
                             }
                         }
@@ -315,59 +284,49 @@ Item {
     Flickable {
         id: monetFlick
         visible: root.showMonetSettings
-        anchors.top: parent.top; anchors.topMargin: 10; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.fill: parent
         clip: true
         contentHeight: monetCol.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         ColumnLayout {
             id: monetCol
-            x: 6
-            width: parent.width - 12
-            spacing: 4
+            x: 0
+            width: parent.width
+            spacing: 3
             Rectangle {
                 antialiasing: Theme.shapesAa
                 id: modeRow
                 Layout.fillWidth: true
-                Layout.preferredHeight: 40
-                radius: Theme.cornerRadiusSmall
-                color: root.isSelected("mode") ? Theme.bgSelected : modeMouse.containsMouse ? Theme.panelSurface : "transparent"
-                border.color: root.isSelected("mode") ? Theme.accent : "transparent"
-                border.width: root.isSelected("mode") ? 1 : 0
-                MouseArea { id: modeMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.selectedIndex = root.navIndex("mode") }
+                Layout.preferredHeight: 50
+                radius: Theme.cornerRadius
+                color: root.isSelected("mode") ? Theme.withAlpha(Theme.textPrimary, 0.08) : modeMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
+                border.color: "transparent"
+                border.width: 0
+                MouseArea { id: modeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("mode"); root.activateSelected() } }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
-                    Text { text: "󰽢"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14); color: root.isSelected("mode") ? Theme.accent : Theme.textMuted; Behavior on color { ColorAnimation { duration: Theme.animFast } } Layout.preferredWidth: 18; horizontalAlignment: Text.AlignHCenter
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󰽢"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: root.isSelected("mode") ? Theme.accent : Theme.textPrimary; Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    Text { text: "Modus"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: root.isSelected("mode") ? Font.Medium : Font.Normal; color: root.isSelected("mode") ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight
+                    Text { text: "Modus"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: root.isSelected("mode") ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    Row { spacing: 6; Layout.alignment: Qt.AlignVCenter
-                        Rectangle { width: 76; height: 30; radius: Theme.cornerRadiusSmall; color: bodyRoot.scope.monetMode === "dark" ? Theme.accent : Theme.surface2; border.color: bodyRoot.scope.monetMode === "dark" ? Theme.accent : Theme.divider; border.width: 1
-                            antialiasing: Theme.shapesAa
-                            Text { anchors.centerIn: parent; text: "Dunkel"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); color: bodyRoot.scope.monetMode === "dark" ? Theme.onAccent : Theme.textSecondary
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                            }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bodyRoot.scope.applyMonetScheme(bodyRoot.scope.monetType, "dark") }
-                        }
-                        Rectangle { width: 76; height: 30; radius: Theme.cornerRadiusSmall; color: bodyRoot.scope.monetMode === "light" ? Theme.accent : Theme.surface2; border.color: bodyRoot.scope.monetMode === "light" ? Theme.accent : Theme.divider; border.width: 1
-                            antialiasing: Theme.shapesAa
-                            Text { anchors.centerIn: parent; text: "Hell"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); color: bodyRoot.scope.monetMode === "light" ? Theme.onAccent : Theme.textSecondary
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                            }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bodyRoot.scope.applyMonetScheme(bodyRoot.scope.monetType, "light") }
-                        }
+                    Text { text: bodyRoot.scope.monetMode === "dark" ? "Dunkel" : "Hell"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textMuted; Layout.preferredWidth: 52; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
+                    }
+                    Text { text: "›"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: root.isSelected("mode") ? Theme.accent : Theme.textPrimary; opacity: root.isSelected("mode") ? 1.0 : 0.36; Layout.preferredWidth: 14; horizontalAlignment: Text.AlignHCenter
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
                     }
                 }
             }
             ColumnLayout {
                 id: monetVariantsBody
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: 3
                 Repeater {
                     model: bodyRoot.scope.matugenTypes
                     delegate: Rectangle {
@@ -376,20 +335,21 @@ Item {
                         property bool isSelected: root.navIndex("type-" + typeName) === root.selectedIndex
                         property bool isActive: bodyRoot.scope.monetType === typeName
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 36
-                        radius: Theme.cornerRadiusSmall
-                        color: isActive ? Theme.bgSelected : isSelected ? Theme.bgSelected : variantMouse.containsMouse ? Theme.panelSurface : "transparent"
-                        border.color: isActive ? Theme.primary : isSelected ? Theme.divider : "transparent"; border.width: isActive || isSelected ? 1 : 0
+                        Layout.preferredHeight: 50
+                        radius: Theme.cornerRadius
+                        color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : variantMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
+                        border.color: "transparent"; border.width: 0
                         RowLayout {
-                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8
-                            Rectangle { Layout.preferredWidth: 12; Layout.preferredHeight: 12; radius: 6; color: isActive ? Theme.accent : Theme.panelSurface; border.color: isActive ? Theme.accent : Theme.divider; border.width: 1
-                                antialiasing: Theme.shapesAa
-                            }
-                            Text { text: bodyRoot.scope.matugenTypeLabels[typeName] || typeName; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: isActive || isSelected ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight
+                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                            Text { text: "󰸉"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : Theme.textPrimary; Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             }
-                            Text { visible: isActive; text: "󰄬"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.accent
+                            Text { text: bodyRoot.scope.matugenTypeLabels[typeName] || typeName; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
+                            }
+                            Text { visible: isActive; text: "✓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14); color: Theme.accent; Layout.preferredWidth: 14; horizontalAlignment: Text.AlignHCenter
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             }

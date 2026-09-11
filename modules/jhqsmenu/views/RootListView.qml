@@ -11,17 +11,14 @@ Item {
     required property var scope
     required property var bodyRoot
     required property bool isListView
-    readonly property bool isMinimal: Theme.shellTheme === "minimal"
     anchors.fill: parent
-    anchors.margins: isMinimal ? 0 : 4
+    anchors.margins: 0
     clip: true
     opacity: root.isListView ? 1 : 0
     visible: opacity > 0.01
     enabled: root.isListView
     scale: root.isListView ? 1 : 0.98
     transformOrigin: Item.Center
-    Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
-    Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
 
     Flickable {
         id: listFlick
@@ -44,7 +41,7 @@ Item {
         function ensureVisible(idx) {
             if (!root.visible || bodyRoot.totalCount === 0) return
             if (idx < 0 || idx >= bodyRoot.totalCount) return
-            let rowH = root.isMinimal ? 53 : 44
+            let rowH = 53
             let headerH = 24
             let y = idx * rowH
             let appsLen = bodyRoot.filteredApps.length
@@ -69,11 +66,10 @@ Item {
 
         Column {
             id: resultsCol
-            x: root.isMinimal ? 0 : 6
-            width: root.isMinimal ? parent.width : parent.width - 12; spacing: root.isMinimal ? 3 : 4
+            x: 0
+            width: parent.width; spacing: 3
             opacity: 1
             scale: 1
-            Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
 
             Text {
                 antialiasing: Theme.textAa
@@ -97,23 +93,21 @@ Item {
                     required property var modelData
                     required property int index
                     width: resultsCol.width
-                    height: root.isMinimal ? 50 : 40
-                    radius: root.isMinimal ? Theme.cornerRadius : Theme.cornerRadiusSmall
+                    height: 50
+                    radius: Theme.cornerRadius
                     property var entry: modelData
                     readonly property int globalIndex: index
                     readonly property bool isSelected: bodyRoot.selectedIndex === globalIndex
-                    color: isSelected ? (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.bgSelected) : appMouse.containsMouse ? (root.isMinimal ? Theme.withAlpha(Theme.textPrimary, 0.04) : Theme.panelSurface) : "transparent"
-                    border.color: root.isMinimal ? "transparent" : (isSelected ? Theme.accent : "transparent"); border.width: root.isMinimal ? 0 : (isSelected ? 1 : 0)
-                    Behavior on border.color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
-                    Behavior on border.width { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+                    color: isSelected ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : appMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
+                    border.color: "transparent"; border.width: 0
                     RowLayout {
-                        anchors.fill: parent; anchors.leftMargin: root.isMinimal ? 8 : 12; anchors.rightMargin: root.isMinimal ? 8 : 10; spacing: root.isMinimal ? 6 : 10
+                        anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                         Item {
-                            Layout.preferredWidth: root.isMinimal ? 36 : 18; Layout.preferredHeight: 18
+                            Layout.preferredWidth: 36; Layout.preferredHeight: 18
                             Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
                             IconImage { anchors.centerIn: parent; width: 18; height: 18; source: Quickshell.iconPath(entry.icon); asynchronous: true; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
                         }
-                        Text { text: entry.name || entry.id || "—"; font.family: root.isMinimal ? Theme.iconFontFamily : Theme.fontFamily; font.pixelSize: root.isMinimal ? Theme.fs(16) : Theme.fs(13); font.weight: root.isMinimal ? Font.Medium : (isSelected ? Font.Medium : Font.Normal); color: isSelected ? (root.isMinimal ? Theme.accent : Theme.textPrimary) : (root.isMinimal ? Theme.textPrimary : Theme.textSecondary); Layout.fillWidth: true; elide: Text.ElideRight; Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
+                        Text { text: entry.name || entry.id || "—"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? (Theme.accent) : (Theme.textPrimary); Layout.fillWidth: true; elide: Text.ElideRight
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                         }
@@ -136,9 +130,7 @@ Item {
             Repeater {
                 id: menuRepeater
                 model: bodyRoot.filteredMenu
-                delegate: Views.ListRow {
-                    required property var modelData
-                    required property int index
+                delegate: Views.MenuRow {
                     width: resultsCol.width
                     readonly property int globalIndex: bodyRoot.filteredApps.length + index
                     isSelected: bodyRoot.selectedIndex === globalIndex
@@ -197,9 +189,7 @@ Item {
                     }
                     Repeater {
                         model: modelData.options
-                        delegate: Views.ListRow {
-                            required property var modelData
-                            required property int index
+                        delegate: Views.MenuRow {
                             width: catSection.width
                             readonly property int globalIndex: catSection.sectionOffset + index
                             isSelected: bodyRoot.selectedIndex === globalIndex

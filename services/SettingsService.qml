@@ -153,9 +153,7 @@ Singleton {
                 let gi = parseInt(p[0]); if (!isNaN(gi)) { root.hyprGapsIn = Math.max(0, Math.min(40, gi)); settingsFile.adapter.gapsIn = root.hyprGapsIn }
                 let go = parseInt(p[1]); if (!isNaN(go)) { root.hyprGapsOut = Math.max(0, Math.min(60, go)); settingsFile.adapter.gapsOut = root.hyprGapsOut }
                 let bs = parseInt(p[2]); if (!isNaN(bs)) { root.hyprBorder = Math.max(0, Math.min(12, bs)); settingsFile.adapter.border = root.hyprBorder }
-                if (!Theme.minimalTheme) { let rd = parseInt(p[3]); if (!isNaN(rd)) { root.hyprRounding = Math.max(0, Math.min(30, rd)); settingsFile.adapter.rounding = root.hyprRounding } }
                 if (p[4] === "1") { root.hyprShadow = true; settingsFile.adapter.shadow = true } else if (p[4] === "0") { root.hyprShadow = false; settingsFile.adapter.shadow = false }
-                if (!Theme.minimalTheme) { if (p[5] === "1") { root.hyprBlur = true; settingsFile.adapter.blur = true } else if (p[5] === "0") { root.hyprBlur = false; settingsFile.adapter.blur = false } }
                 let lay = (p[6] || "").trim().toLowerCase()
                 if (lay === "dwindle" || lay === "scrolling") { root.hyprLayout = lay; settingsFile.adapter.layout = lay }
                 let bS = parseInt(p[7]); if (!isNaN(bS)) { root.hyprBlurSize = Math.max(0, Math.min(30, bS)); settingsFile.adapter.blurSize = root.hyprBlurSize }
@@ -172,11 +170,11 @@ Singleton {
                 if (p[18] === "1") { root.hyprSpecial = true; settingsFile.adapter.blurSpecial = true } else if (p[18] === "0") { root.hyprSpecial = false; settingsFile.adapter.blurSpecial = false }
                 if (p[19] === "1") { root.hyprPopups = true; settingsFile.adapter.blurPopups = true } else if (p[19] === "0") { root.hyprPopups = false; settingsFile.adapter.blurPopups = false }
                 settingsFile.writeAdapter()
-                if (Theme.minimalTheme) root.enforceMinimalHypr()
+                root.enforceMinimalHypr()
             }
         }
     }
-    Component.onCompleted: Qt.callLater(() => { syncFromFile(); if (!seedProc.running) seedProc.running = true; if (Theme.minimalTheme) { root.enforceMinimalHypr(); minimalBootTimer.restart() } })
+    Component.onCompleted: Qt.callLater(() => { syncFromFile(); if (!seedProc.running) seedProc.running = true; root.enforceMinimalHypr(); minimalBootTimer.restart() })
     function refresh(): void { if (!seedProc.running) seedProc.running = true }
 
     Process { id: minimalHyprProc; command: ["bash", "-c", "echo"] }
@@ -197,21 +195,10 @@ Singleton {
     Timer {
         id: minimalBootTimer
         interval: 25000; repeat: false
-        onTriggered: { if (Theme.minimalTheme) root.enforceMinimalHypr() }
+        onTriggered: { root.enforceMinimalHypr() }
     }
     function enforceMinimalHypr(): void {
-        if (!Theme.minimalTheme) return
         minimalHyprTimer.restart()
-    }
-    function restoreMinimalHypr(): void {
-        runHypr(cfg("decoration={blur={enabled=" + (hyprBlur ? "true" : "false") + "}}") + "; " + cfg("decoration={rounding=" + hyprRounding + "}"))
-    }
-    Connections {
-        target: Theme
-        function onMinimalThemeChanged() {
-            if (Theme.minimalTheme) root.enforceMinimalHypr()
-            else root.restoreMinimalHypr()
-        }
     }
 
     function previewGapsIn(v): void { let c = clampInt(v, 0, 40, hyprGapsIn); hyprGapsIn = c; runHypr(cfg("general={gaps_in=" + c + "}")) }
@@ -291,7 +278,7 @@ Singleton {
         } else {
             runHypr(cfg("decoration={blur={enabled=" + (_snapBlur ? "true" : "false") + "}}") + "; " + cfg("decoration={shadow={enabled=" + (_snapShadow ? "true" : "false") + "}}") + "; " + cfg("animations={enabled=" + (_snapAnim ? "true" : "false") + "}}"))
             hyprBlur = _snapBlur; hyprShadow = _snapShadow; animEnabled = _snapAnim
-            if (Theme.minimalTheme) enforceMinimalHypr()
+            enforceMinimalHypr()
         }
     }
 }
