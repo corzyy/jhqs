@@ -40,6 +40,8 @@ Scope {
     readonly property string headerTitle: checking ? "Checking updates…" : (updateCount > 0 ? updateCount + " updates available" : "Everything is up to date")
     readonly property string lastCheckedLabel: lastChecked ? "Last check: " + Qt.formatDateTime(lastChecked, "ddd d MMM · HH:mm") : "Not checked yet"
     readonly property string updateScript: Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/update.sh"
+    readonly property string shellScript: Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/update-shell.sh"
+    readonly property string shellRepo: "https://github.com/corzyy/jhqs"
 
     readonly property var sections: [
         { id: "system", title: "System", action: "Update system" },
@@ -104,6 +106,7 @@ Scope {
         return "'" + String(value).replace(/'/g, "'\\''") + "'"
     }
     function updateCommand(kind: string): string {
+        if (kind === "shell") return "bash " + shellQuote(shellScript)
         let target = (kind === "system" || kind === "aur" || kind === "flatpak") ? kind : "all"
         return "bash " + shellQuote(updateScript) + " " + target
     }
@@ -392,6 +395,40 @@ Scope {
                                 highlighted: true
                                 width: parent.width
                                 onClicked: scope.launch("all")
+                            }
+                        }
+                        Column {
+                            width: parent.width
+                            spacing: 6
+                            Hairline { width: parent.width }
+                            RowLayout {
+                                width: parent.width
+                                spacing: 8
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Shell"
+                                    color: Theme.textPrimary
+                                    font.family: Theme.iconFontFamily
+                                    font.pixelSize: Theme.fs(12)
+                                    font.weight: Font.Bold
+                                    elide: Text.ElideRight
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                }
+                                PillButton {
+                                    label: "Update Shell"
+                                    onClicked: scope.launch("shell")
+                                }
+                            }
+                            Text {
+                                width: parent.width
+                                text: "Clone the latest jhqs from GitHub, install it (keeps your config/) and restart the shell."
+                                wrapMode: Text.WordWrap
+                                color: Theme.textSecondary
+                                font.family: Theme.iconFontFamily
+                                font.pixelSize: Theme.fs(11)
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
                             }
                         }
                         Repeater {
