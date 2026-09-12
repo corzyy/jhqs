@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -32,7 +33,7 @@ Item {
         if (!contextMenuEntry) return
         let actions = contextMenuEntry.actions || []
         if (contextMenuSelectedIndex === 0) {
-            if (contextMenuEntry.execute) { try { Theme.triggerLaunchOsd(contextMenuEntry.name || "", contextMenuEntry.icon || "") } catch (e) { } contextMenuEntry.execute() }
+            if (contextMenuEntry.execute) { contextMenuEntry.execute() }
             hideContextMenu(); scope.dismissed()
         } else {
             let act = actions[contextMenuSelectedIndex - 1]
@@ -41,12 +42,16 @@ Item {
         }
     }
 
+    ScrollIndicator { flick: appList }
     ListView {
         id: appList
         anchors.fill: parent
         anchors.topMargin: 0
         anchors.leftMargin: 0; anchors.rightMargin: 0
         clip: true
+        // PERF: recycle delegates (was create-all on every filter keystroke).
+        reuseItems: true
+        cacheBuffer: 200
         boundsBehavior: Flickable.StopAtBounds
         model: bodyRoot.scope.filteredNewApps
         spacing: 3
@@ -60,12 +65,17 @@ Item {
             radius: 0
             readonly property var entry: modelData
             readonly property bool isSelected: bodyRoot.selectedIndex === index
-            color: isSelected ? (Theme.withAlpha(Theme.accent, 0.25)) : rowMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
-            border.color: isSelected ? Theme.accent : "transparent"; border.width: 0
+            color: isSelected ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : rowMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
+            Rectangle {
+                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                width: 3
+                color: Theme.accent
+                visible: isSelected
+            }
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
                 IconImage { width: 20; height: 20; source: entry && entry.icon ? Quickshell.iconPath(entry.icon || "") : ""; asynchronous: true; visible: entry && entry.icon; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
-                Text { visible: true; text: entry.name || entry.id || "—"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.textPrimary : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight
+                Text { visible: true; text: entry.name || entry.id || "—"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.accent : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
@@ -78,7 +88,7 @@ Item {
                         root.showContextMenu(entry, mouse, rowMouse)
                     } else {
                         bodyRoot.selectedIndex = index
-                        if (entry && entry.execute) { try { Theme.triggerLaunchOsd(entry.name || "", entry.icon || "") } catch (e) { } entry.execute(); bodyRoot.scope.dismissed() }
+                        if (entry && entry.execute) { entry.execute(); bodyRoot.scope.dismissed() }
                     }
                 }
             }
@@ -129,7 +139,7 @@ Item {
         Rectangle {
             antialiasing: Theme.shapesAa
             id: menuInner
-            anchors.fill: parent; anchors.margins: 1; radius: 0; color: Theme.bg; border.color: Theme.accent; border.width: 1; clip: true
+            anchors.fill: parent; anchors.margins: 1; radius: 0; color: Theme.bg; border.color: Theme.panelBorderColor; border.width: 1; clip: true
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 4; spacing: 1
                 RowLayout {
@@ -146,11 +156,17 @@ Item {
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     Layout.fillWidth: true; Layout.preferredHeight: 30; radius: 0
-                    color: root.contextMenuSelectedIndex === 0 ? (Theme.withAlpha(Theme.accent, 0.25)) : openMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
+                    color: root.contextMenuSelectedIndex === 0 ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : openMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
+                    Rectangle {
+                        anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                        width: 3
+                        color: Theme.accent
+                        visible: root.contextMenuSelectedIndex === 0
+                    }
                     RowLayout { anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8; Text { text: "↗"; font.pixelSize: Theme.fs(12); color: Theme.textMuted
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
-                        } Text { text: "Öffnen"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textPrimary; Layout.fillWidth: true
+                        } Text { text: "Öffnen"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: root.contextMenuSelectedIndex === 0 ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                         } }
@@ -161,8 +177,14 @@ Item {
                     delegate: Rectangle {
                         required property var modelData; required property int index; property var action: modelData
                         Layout.fillWidth: true; Layout.preferredHeight: 30; radius: 0
-                        color: root.contextMenuSelectedIndex === index + 1 ? (Theme.withAlpha(Theme.accent, 0.25)) : actMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
-                        RowLayout { anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8; IconImage { Layout.preferredWidth: 14; Layout.preferredHeight: 14; source: action && action.icon ? Quickshell.iconPath(action.icon) : ""; visible: action && action.icon; asynchronous: true; implicitSize: Qt.size(28, 28); mipmap: Theme.imageMipmap } Text { text: action ? (action.name || action.id) : ""; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
+                        color: root.contextMenuSelectedIndex === index + 1 ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : actMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
+                        Rectangle {
+                            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                            width: 3
+                            color: Theme.accent
+                            visible: root.contextMenuSelectedIndex === index + 1
+                        }
+                        RowLayout { anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8; IconImage { Layout.preferredWidth: 14; Layout.preferredHeight: 14; source: action && action.icon ? Quickshell.iconPath(action.icon) : ""; visible: action && action.icon; asynchronous: true; implicitSize: Qt.size(28, 28); mipmap: Theme.imageMipmap } Text { text: action ? (action.name || action.id) : ""; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: root.contextMenuSelectedIndex === index + 1 ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             } }

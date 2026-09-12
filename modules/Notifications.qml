@@ -188,7 +188,7 @@ Scope {
                 }
             }
         }
-        border.color: isCritical ? Theme.errorColor : (Theme.accent)
+        border.color: isCritical ? Theme.errorColor : Theme.panelBorderColor
         border.width: 2
         radius: 0
         clip: true
@@ -196,11 +196,10 @@ Scope {
         opacity: delegateRoot.targetOpacity * delegateRoot.dragFade
         transformOrigin: delegateRoot.slideDir < 0 ? Item.Left : Item.Right
 
-        property real entranceScale: 0.92
+        property real entranceScale: delegateRoot.targetScale
         readonly property real slideX: baseSlideX + dragProxy.x
         property real baseSlideX: delegateRoot.baseSlideX
         property real baseSlideY: delegateRoot.baseSlideY
-        Binding { target: card; property: "entranceScale"; value: delegateRoot.targetScale }
         transform: Translate { x: card.slideX; y: card.baseSlideY }
 
         HoverHandler { id: hover }
@@ -263,6 +262,7 @@ Scope {
                         sourceSize.height: 80
                         fillMode: Image.PreserveAspectFit
                         asynchronous: true
+                        cache: true
                         smooth: true
                         visible: !iconSlot.iconFailed && iconSlot.slotSource !== ""
                         onStatusChanged: if (status === Image.Error) iconSlot.iconFailed = true
@@ -312,13 +312,10 @@ Scope {
                         wrapMode: Text.WordWrap
                         maximumLineCount: 3
                         elide: Text.ElideRight
-                        textFormat: {
-                            let b = delegateRoot.cachedBody
-                            if (!b || b.length === 0) return Text.PlainText
-                            if (b.includes("<") && b.includes(">")) return Text.RichText
-                            return Text.PlainText
-                        }
-                        onLinkActivated: link => Qt.openUrlExternally(link)
+                        // STABILITY: untrusted notification bodies must not
+                        // parse as markup (was RichText when body contained
+                        // angle brackets — layout crash/XSS vector).
+                        textFormat: Text.PlainText
                     }
                 }
             }

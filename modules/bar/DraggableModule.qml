@@ -136,6 +136,8 @@ Item {
         property bool suppressClick: false
         property real pressedX: 0
         property real pressedY: 0
+        property real _lastHoverX: -1000
+        property real _lastHoverY: -1000
         readonly property real dragThreshold: 12
 
         onPressed: mouse => {
@@ -147,6 +149,13 @@ Item {
         }
         onPositionChanged: mouse => {
             if (!(mouse.buttons & Qt.LeftButton)) {
+                // PERF: hover scan does mapFromItem + child loop per pixel.
+                // Skip sub-3px jitter moves (same delegate still hovered).
+                let dx = mouse.x - slotPointer._lastHoverX
+                let dy = mouse.y - slotPointer._lastHoverY
+                if (dx * dx + dy * dy < 9) return
+                slotPointer._lastHoverX = mouse.x
+                slotPointer._lastHoverY = mouse.y
                 let bp = moduleLoader.mapFromItem(slotPointer, mouse.x, mouse.y)
                 moduleLoader.hoverAt(bp.x, bp.y)
                 return

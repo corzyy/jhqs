@@ -1,14 +1,14 @@
 {
     "center": [
-        "clock",
         "activewindow",
+        "clock",
         "weather"
     ],
     "fourfifths": [
     ],
     "hidden": [
         "activewindow",
-        "vitals"
+        "network"
     ],
     "left": [
         "launcher",
@@ -16,10 +16,11 @@
     ],
     "right": [
         "systemtray",
-        "network",
         "bluetooth",
+        "network",
         "volume",
-        "updates"
+        "updates",
+        "vitals"
     ],
     "twofifths": [
     ],

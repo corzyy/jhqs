@@ -36,9 +36,11 @@ jhqs/
 │   ├── TopBar.qml         — bar shell (delegates to services + modules/bar/*)
 │   ├── bar/               — bar atoms: Workspaces, Clock, Launcher, UpdatesIndicator, WeatherWidget,
 │   │                         ActiveWindow, SystemTray (Quattro drawer)
-│   ├── CalendarMenu.qml + CalendarModel.js (header/grid/footer are inline
-│   │                             CalHeader/CalGrid/CalFooter components — merged 2026-09-10,
-│   │                             `modules/calendar/` removed)
+│   ├── panels/            — top-bar panels (shell.qml: `import "./modules/panels" as Panels`):
+│   │                         Bluetooth/Network/Volume/Vitals/Weather/SystemTray/Settings/
+│   │                         UpdateCenter panels + CalendarMenu.qml + CalendarModel.js
+│   │                         (CalHeader/CalGrid/CalFooter are inline components — merged 2026-09-10,
+│   │                         `modules/calendar/` removed; JhqsMenu stays in modules/ by design)
 │   ├── jhqsmenu/          — ThemeEngine.qml + MenuCategories.qml (merged 2026-09-10,
 │   │                             was categories/{Style,Setup,Install,Remove,System}Category.qml)
 │   │                         + views/ (ListRow+ModuleRow merged into MenuRow.qml 2026-09-10)
@@ -47,9 +49,9 @@ jhqs/
 │   ├── settings/          — SettingsControls.qml (merged 2026-09-10, was 7 files:
 │   │                             Dropdown/Row/Section/Sidebar/SliderRow/TextField/Toggle;
 │   │                             use as SettingsControls.SettingsRow) + pages/
-│   └── AppLauncher, CalendarMenu, JhqsMenu, Lockscreen, Notifications, Polkit, VolumeOSD, WeatherPanel, SystemTrayPanel
-│                             (all panels: `import "../Ui"` → BarAnchor/PanelSpring;
-│                             sliders: `import "../Ui" as Ui` → Ui.MSlider)
+│   └── JhqsMenu, Lockscreen, Notifications, Polkit, VolumeOSD (stay in modules/)
+│       + panels/* above (all panels: `import "../../Ui"` → BarAnchor/PanelSpring;
+│                             sliders: `import "../../Ui" as Ui` → Ui.MSlider)
 │
 ├── scripts/
 │   ├── check-updates.sh, volume.sh, lock-auth.sh (reads config/pin), run-update.sh,
@@ -66,6 +68,7 @@ registered per-directory via local `qmldir` files and imported as filesystem dir
 - `import "./themes"` (or `"../themes"`, `"../../themes"`, …) → `Theme`
 - `import "./services"` → `HistoryService`, `UpdateService`, `NetworkService`, `VolumeService`, `WeatherService` (+ `WeatherModel.js` helpers)
 - `import "./modules" as Modules` → `Modules.TopBar`, …
+- `import "./modules/panels" as Panels` → `Panels.WeatherPanel`, … (top-bar panels)
 - services referencing a sibling singleton use `import "."` (e.g. UpdateService → NetworkService)
 
 Rules learned the hard way:
@@ -82,7 +85,7 @@ Init pattern: `mkdir -p ~/.config/quickshell/jhqs/config; if [ ! -f … ]; then 
 jq '.key //= default' > /tmp/x.json && mv` — never raw echo over existing json.
 
 ## Migration rules (skill jhqs)
-- New popups → register in shell.qml closeAll/closeOthers + Modules.X { showX }
+- New popups → register in shell.qml closeAll/closeOthers + Panels.X { showX }
 - Colors/radius/anim → only Theme.* (never hex literal, no Easing.* raw; fixed exceptions:
   quit-hover #3a2a2e/#6b3a40, #ffffff highlight alpha, theme-preset preview dots)
 - Persistence → FileView + JsonAdapter + writeAdapter() + clamp

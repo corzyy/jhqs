@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -69,6 +70,7 @@ Item {
         return bodyRoot.scope.packageList.length + " Pakete – tippen zum Filtern"
     }
 
+    ScrollIndicator { flick: packageList }
     ListView {
         id: packageList
         anchors.top: parent.top
@@ -77,6 +79,9 @@ Item {
         anchors.bottomMargin: 0
         anchors.leftMargin: 0; anchors.rightMargin: 0
         clip: true
+        // PERF: recycle delegates (10k packages filtered per keystroke).
+        reuseItems: true
+        cacheBuffer: 240
         boundsBehavior: Flickable.StopAtBounds
         spacing: 3
         model: bodyRoot.scope.filteredPackages
@@ -93,6 +98,12 @@ Item {
             readonly property bool isChecked: entry && entry.name ? bodyRoot.scope.isPackageSelected(entry.name) : false
             color: (isChecked ? Theme.withAlpha(Theme.accent, 0.16) : isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
             border.color: "transparent"; border.width: 0
+            Rectangle {
+                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                width: 3
+                color: Theme.accent
+                visible: isSelected
+            }
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                 Rectangle {
@@ -119,7 +130,7 @@ Item {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    Text { visible: root.isCurated; text: entry.name || ""; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textPrimary; opacity: 0.52; Layout.fillWidth: true; elide: Text.ElideRight
+                    Text { visible: root.isCurated; text: ((entry.repo || "") !== "" ? entry.repo + " • " : "") + (entry.name || ""); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textPrimary; opacity: 0.52; Layout.fillWidth: true; elide: Text.ElideRight
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }

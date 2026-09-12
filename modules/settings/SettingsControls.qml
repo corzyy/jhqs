@@ -26,9 +26,10 @@ QtObject {
             antialiasing: Theme.shapesAa
             id: btn
             width: parent.width; height: 36
-            radius: 0
-            color: (ddMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.withAlpha(Theme.textPrimary, 0.04))
-            border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1
+            radius: Theme.cornerRadiusSmall
+            color: (ddMouse.containsMouse || root.open ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.withAlpha(Theme.textPrimary, 0.04))
+            border.color: root.open ? Theme.accent : Theme.divider
+            border.width: root.open ? 2 : 1
             Row {
                 anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                 spacing: 8
@@ -77,12 +78,18 @@ QtObject {
                     required property var modelData
                     required property int index
                     readonly property bool isCurrent: modelData + "" === root.current
-                    width: list.width; height: 32
-                    radius: 0
-                    color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16) : optMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                        : isCurrent ? Theme.bgSelected : "transparent"
-                    border.color: isCurrent ? (Theme.accent) : "transparent"
+                    width: list.width; height: 36
+                    radius: Theme.cornerRadiusSmall
+                    color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
+                        : optMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
+                    border.color: isCurrent ? Theme.accent : "transparent"
                     border.width: 1
+                    Rectangle {
+                        anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                        width: 3
+                        color: Theme.accent
+                        visible: isCurrent
+                    }
                     Text {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
@@ -108,13 +115,21 @@ QtObject {
         property bool selected: false
         default property alias control: slot.children
         width: parent ? parent.width : 300
-        height: subtitle.length > 0 ? 52 : 40
-        radius: 0
-        color: (selected || rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent")
+        height: subtitle.length > 0 ? 54 : 44
+        radius: Theme.cornerRadiusSmall
+        color: (selected ? Theme.withAlpha(Theme.textPrimary, 0.08)
+            : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
         border.color: "transparent"
         border.width: 0
 
         MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+
+        Rectangle {
+            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+            width: 3
+            color: Theme.accent
+            visible: root.selected
+        }
 
         Row {
             anchors.fill: parent
@@ -128,9 +143,9 @@ QtObject {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                     text: root.title
-                    font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12)
-                    font.weight: root.selected ? Font.Bold : Font.Medium
-                    color: Theme.textPrimary
+                    font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
+                    font.weight: root.selected ? Font.DemiBold : Font.Medium
+                    color: root.selected ? Theme.accent : Theme.textPrimary
                     elide: Text.ElideRight; width: parent.width
                 }
                 Text {
@@ -157,32 +172,39 @@ QtObject {
         id: root
         property string title: ""
         default property alias content: body.children
-        spacing: 6
+        spacing: 4
         width: parent ? parent.width : 300
 
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
             visible: root.title.length > 0
-            text: root.title.toUpperCase()
-            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10)
-            font.weight: Font.Bold; font.letterSpacing: 1.2
-            color: Theme.textSecondary
+            text: root.title
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13)
+            font.weight: Font.DemiBold; font.letterSpacing: 0
+            color: Theme.textPrimary
+            width: parent.width; leftPadding: 12; topPadding: 6
+        }
+        Rectangle {
+            antialiasing: Theme.shapesAa
+            visible: root.title.length > 0
+            width: parent.width - 14; x: 7; height: 1
+            color: Theme.divider; opacity: 0.5
         }
         Rectangle {
             antialiasing: Theme.shapesAa
             id: card
             width: parent.width
-            implicitHeight: body.implicitHeight + (0)
-            radius: 0
-            color: "transparent"
-            border.color: "transparent"
-            border.width: 0
+            implicitHeight: body.implicitHeight + 12
+            radius: Theme.cornerRadiusSmall
+            color: Theme.cardBg
+            border.color: Theme.divider
+            border.width: 1
             Column {
                 id: body
                 anchors.fill: parent
-                anchors.margins: 0
-                spacing: 6
+                anchors.margins: 6
+                spacing: 2
             }
         }
     }
@@ -194,19 +216,17 @@ QtObject {
         property string query: ""
         signal select(string name)
         signal queryChanged2(string text)
-        width: 190
-        spacing: 8
+        width: 200
+        spacing: 6
 
         property var sections: [
             {id: "global", title: "Global", icon: "󰔎"},
-            {id: "theming", title: "Theming", icon: "󰔿"},
-            {id: "hypr", title: "Hyprland", icon: "󰖲"},
+            {id: "mango", title: "Mango", icon: "󰖳"},
             {id: "bar", title: "Top Bar", icon: "󰍹"},
-            {id: "modules", title: "Modules", icon: "󰐱"},
+            {id: "vitals", title: "Vitals", icon: "󰻠"},
             {id: "workspaces", title: "Workspaces", icon: ""},
-            {id: "notif", title: "Notifications", icon: "󰂚"},
-            {id: "osd", title: "OSD", icon: "󰍉"},
-            {id: "search", title: "Search", icon: "󰈞"}
+            {id: "calendar", title: "Calendar", icon: "󰃭"},
+            {id: "notif", title: "Notifications", icon: "󰂚"}
         ]
         readonly property bool searching: (query || "").trim().length > 0
         property var filtered: {
@@ -218,12 +238,12 @@ QtObject {
         Rectangle {
             antialiasing: Theme.shapesAa
             width: parent.width; height: 36
-            radius: 0
+            radius: Theme.cornerRadiusSmall
             color: Theme.withAlpha(Theme.textPrimary, 0.04)
-            border.color: searchInput.activeFocus ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
-            border.width: 1
+            border.color: searchInput.activeFocus ? Theme.accent : Theme.divider
+            border.width: searchInput.activeFocus ? 2 : 1
             Row {
-                anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 6
+                anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
                 Text { text: "󰍉"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); color: Theme.textMuted; anchors.verticalCenter: parent.verticalCenter
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
@@ -235,6 +255,7 @@ QtObject {
                     text: root.query
                     font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
                     color: Theme.textPrimary
+                    selectionColor: Theme.accent
                     clip: true
                     onTextChanged: root.queryChanged2(text)
                     Keys.onPressed: e => { if (e.key === Qt.Key_Escape) { root.queryChanged2(""); e.accepted = true } }
@@ -244,7 +265,7 @@ QtObject {
 
         Flickable {
             width: parent.width
-            height: Math.max(120, parent.height - 44)
+            height: Math.max(120, parent.height - 42)
             clip: true
             contentHeight: navCol.height
             contentWidth: width
@@ -253,7 +274,7 @@ QtObject {
             Column {
                 id: navCol
                 width: parent.width
-                spacing: 4
+                spacing: 3
                 Component {
                     id: rowDelegate
                     Rectangle {
@@ -261,19 +282,24 @@ QtObject {
                         required property var modelData
                         required property int index
                         readonly property bool isCurrent: modelData.id === root.current
-                        width: navCol.width; height: 38
-                        radius: 0
-                        color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16) : isCurrent ? Theme.bgSelected
-                            : navMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
-                        border.color: isCurrent ? (Theme.accent) : "transparent"
-                        border.width: 1
+                        width: navCol.width; height: 50
+                        radius: Theme.cornerRadius
+                        color: isCurrent ? Theme.withAlpha(Theme.textPrimary, 0.08)
+                            : navMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
+                        border.color: "transparent"; border.width: 0
+                        Rectangle {
+                            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                            width: 3
+                            color: Theme.accent
+                            visible: isCurrent
+                        }
                         Row {
-                            anchors.fill: parent; anchors.leftMargin: 10; spacing: 10
-                            Text { text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(15); color: isCurrent ? Theme.textPrimary : Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter
+                            anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                            Text { text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isCurrent ? Theme.accent : Theme.textPrimary; anchors.verticalCenter: parent.verticalCenter; width: 36; horizontalAlignment: Text.AlignHCenter
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             }
-                            Text { text: modelData.title; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); font.weight: isCurrent ? Font.Bold : Font.Medium; color: isCurrent ? Theme.textPrimary : Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter
+                            Text { text: modelData.title; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.Medium; color: isCurrent ? Theme.accent : Theme.textPrimary; anchors.verticalCenter: parent.verticalCenter
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             }
@@ -316,27 +342,31 @@ QtObject {
 
         Row {
             width: parent.width
-            height: 20
+            height: 18
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
                 text: root.label
-                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Medium
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium
                 color: Theme.textSecondary
                 width: parent.width - 70; elide: Text.ElideRight
             }
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                text: (root.stepSize < 1 ? Number(root.value).toFixed(root.dispDecimals()) : Math.round(root.value)) + (root.unit.length > 0 ? root.unit : "")
-                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
-                color: Theme.textSecondary
+                // liveValue (not root.value): while dragging, the committed
+                // value only lands on release, but the handle — and this
+                // number — must track the finger.
+                text: (root.stepSize < 1 ? Number(sliderBody.liveValue).toFixed(root.dispDecimals()) : Math.round(sliderBody.liveValue)) + (root.unit.length > 0 ? root.unit : "")
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11)
+                color: Theme.textMuted
                 width: 70; horizontalAlignment: Text.AlignRight
             }
         }
         Item {
+            id: sliderBody
             width: parent.width
-            height: 22
+            height: 24
             property real liveValue: root.value
             property real extValue: root.value
             onExtValueChanged: if (!omMouse.dragging) liveValue = extValue
@@ -348,26 +378,33 @@ QtObject {
                 id: omTrack
                 anchors.left: parent.left; anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                height: 4
-                radius: 2
-                color: Theme.withAlpha(Theme.textPrimary, 0.18)
+                height: 10
+                radius: Math.min(Theme.cornerRadiusSmall, height / 2)
+                color: Theme.surface_container_highest
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
                 anchors.left: omTrack.left
                 anchors.verticalCenter: omTrack.verticalCenter
-                height: 4
-                radius: 2
+                height: 10
+                radius: Math.min(Theme.cornerRadiusSmall, height / 2)
                 width: omTrack.width * parent.progress
-                color: Theme.textPrimary
+                color: Theme.accent
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
-                width: 14; height: 14
-                radius: 7
-                color: Theme.textPrimary
-                border.color: Theme.bg
-                border.width: 2
+                width: 26; height: 26
+                radius: width / 2
+                anchors.verticalCenter: omTrack.verticalCenter
+                x: Math.max(-6, Math.min(omTrack.width - width + 6, omTrack.width * parent.progress - width / 2))
+                color: omMouse.dragging ? Theme.withAlpha(Theme.accent, 0.12)
+                    : omMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.08) : "transparent"
+            }
+            Rectangle {
+                antialiasing: Theme.shapesAa
+                width: 4; height: 18
+                radius: 2
+                color: Theme.accent
                 anchors.verticalCenter: omTrack.verticalCenter
                 x: Math.max(0, Math.min(omTrack.width - width, omTrack.width * parent.progress - width / 2))
             }
@@ -426,16 +463,17 @@ QtObject {
             visible: root.label.length > 0
             text: root.label
             font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Medium
+            font.letterSpacing: 0
             color: Theme.textSecondary
             width: parent.width; elide: Text.ElideRight
         }
         Rectangle {
             antialiasing: Theme.shapesAa
             width: parent.width; height: 36
-            radius: 0
+            radius: Theme.cornerRadiusSmall
             color: (fieldMouse.containsMouse || fieldInput.activeFocus ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.withAlpha(Theme.textPrimary, 0.04))
-            border.color: fieldInput.activeFocus ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.25))
-            border.width: 1
+            border.color: fieldInput.activeFocus ? Theme.accent : Theme.divider
+            border.width: fieldInput.activeFocus ? 2 : 1
             Text {
                 anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                 verticalAlignment: Text.AlignVCenter
@@ -449,8 +487,9 @@ QtObject {
                 id: fieldInput
                 anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                 verticalAlignment: TextInput.AlignVCenter
-                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12)
+                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13)
                 color: Theme.textPrimary
+                selectionColor: Theme.accent
                 clip: true
                 onAccepted: { root.applied(text); focus = false }
             }
@@ -475,19 +514,22 @@ QtObject {
                 anchors.centerIn: parent
                 width: 42; height: 22
                 radius: 0
-                color: root.on && root.enabled ? Theme.withAlpha(Theme.textPrimary, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.04)
-                border.color: root.on && root.enabled ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
-                border.width: root.on && root.enabled ? 0 : 1
+                color: !root.enabled ? Theme.withAlpha(Theme.textPrimary, 0.04)
+                    : root.on ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.12)
+                border.color: root.enabled && !root.on && toggleMouse.containsMouse ? Theme.accent : "transparent"
+                border.width: root.enabled && !root.on && toggleMouse.containsMouse ? 1 : 0
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     width: 16; height: 16
                     radius: 0
                     x: root.on ? parent.width - width - 3 : 3
                     anchors.verticalCenter: parent.verticalCenter
-                    color: root.on && root.enabled ? Theme.textPrimary : Theme.textSecondary
+                    color: !root.enabled ? Theme.textMuted
+                        : root.on ? Theme.onAccent : Theme.textSecondary
                 }
             }
             MouseArea {
+                id: toggleMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ForbiddenCursor

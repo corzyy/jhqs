@@ -27,7 +27,9 @@ Singleton {
             property bool showLabel: true
         }
     }
-    Timer { interval: 1500; running: true; repeat: false; onTriggered: locationFile.reload() }
+    // PERF: removed 1500ms boot reload Timer — it doubled boot fetches
+    // (triggeredOnStart refresh + reload->onLoaded->locationQuery->refresh
+    // = 6 curls in 2s). FileView onLoaded already fires once at startup.
 
     function setUnit(u: string): string {
         let v = (u || "").trim().toLowerCase()
@@ -61,8 +63,9 @@ Singleton {
         if (savingLocation) savingLocationQueryStarted = true
         forecastRetries = 0
         dailyForecastRetries = 0
-        forecastProc.running = false
-        dailyForecastProc.running = false
+        // STABILITY: don't abort in-flight curls (killing them mid-parse
+        // caused empty-retry storms). Let them finish; just ensure one
+        // follow-up refresh is queued.
         Qt.callLater(refresh)
     }
 
@@ -86,7 +89,7 @@ Singleton {
     readonly property var forecastDays: buildForecastDays()
     readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
     readonly property bool useImperial: WeatherModel.shouldUseImperial(locationFile.adapter.unit, Qt.locale().name, reportCountry)
-    readonly property int refreshMinutes: Math.max(1, parseInt(locationFile.adapter.refreshMinutes, 10) || 15)
+    readonly property int refreshMinutes: Math.max(1, Math.min(120, parseInt(locationFile.adapter.refreshMinutes, 10) || 15))
     readonly property bool showLabel: locationFile.adapter.showLabel !== false
     function setShowLabel(v: bool): void {
         let nv = !!v
@@ -188,8 +191,6 @@ Singleton {
             savingLocationQueryStarted = true
             forecastRetries = 0
             dailyForecastRetries = 0
-            forecastProc.running = false
-            dailyForecastProc.running = false
             Qt.callLater(refresh)
         }
     }
@@ -322,8 +323,18 @@ Singleton {
     Timer {
         id: refreshTimer
         interval: root.refreshMinutes * 60 * 1000
-        running: true; repeat: true; triggeredOnStart: true
+        // PERF: no thundering-herd at boot — FileView onLoaded already
+        // triggers the first refresh via locationQuery. Start periodic only.
+        running: true; repeat: true; triggeredOnStart: false
         onTriggered: root.refresh()
+    }
+    // First fetch delayed 5s so shell startup isn't blocked by 3 curls.
+    Timer {
+        id: startupFetchTimer
+        interval: 5000; running: true; repeat: false
+        onTriggered: {
+            if (!root.hasData) root.refresh()
+        }
     }
     Timer { id: netBackTimer; interval: 8000; repeat: false; onTriggered: root.refresh() }
     Connections {

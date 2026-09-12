@@ -4,9 +4,9 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
-import "../themes"
-import "../services"
-import "../Ui"
+import "../../themes"
+import "../../services"
+import "../../Ui"
 
 Scope {
     id: scope
@@ -18,12 +18,25 @@ Scope {
         if (showNetwork) {
             _winVisible = true
             hideTimer.stop()
-            NetworkService.refreshLink()
-            NetworkService.refreshLists()
-            NetworkService.refreshStats()
-            NetworkService.refreshDns()
-            NetworkService.rescan()
+            // PERF: stagger 5 proc spawns (was synchronous jank on open).
+            staggerRefresh(0)
         } else hideTimer.restart()
+    }
+    // PERF: stagger link/lists/stats/dns/rescan 120ms apart so opening the
+    // panel doesn't fork 5x nmcli at once on the GUI thread's event loop.
+    Timer {
+        id: staggerTimer
+        interval: 120; repeat: false
+        property int step: 0
+        onTriggered: staggerRefresh(step)
+    }
+    function staggerRefresh(step: int): void {
+        staggerTimer.step = step
+        if (step === 0) { NetworkService.refreshLink(); staggerTimer.step = 1; staggerTimer.restart() }
+        else if (step === 1) { NetworkService.refreshLists(); staggerTimer.step = 2; staggerTimer.restart() }
+        else if (step === 2) { NetworkService.refreshStats(); staggerTimer.step = 3; staggerTimer.restart() }
+        else if (step === 3) { NetworkService.refreshDns(); staggerTimer.step = 4; staggerTimer.restart() }
+        else if (step === 4) { NetworkService.rescan() }
     }
     readonly property string barPos: Theme.barPosition
     readonly property int screenGap: 6
@@ -141,6 +154,22 @@ Scope {
     component WifiRow: Column {
         id: wifiCol
         required property var net
+        // PERF: per-delegate cache — wifiIconFor() + status closure re-ran for
+        // all N rows on any list/busy change. Evaluate once per delegate.
+        readonly property string _icon: {
+            let sig = wifiCol.net.signal || 0
+            if (sig >= 75) return "󰤨"
+            if (sig >= 55) return "󰤥"
+            if (sig >= 35) return "󰤢"
+            if (sig > 0) return "󰤟"
+            return "󰤯"
+        }
+        readonly property string _statusText: {
+            if (scope.busySsid === wifiCol.net.ssid) return "Connecting…"
+            if (wifiCol.net.active) return "Connected"
+            return ""
+        }
+        readonly property bool _secured: wifiCol.net.security !== "--" && wifiCol.net.security !== ""
         spacing: 0
         Rectangle {
             antialiasing: Theme.shapesAa
@@ -154,7 +183,7 @@ Scope {
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: NetworkService.wifiIconFor(wifiCol.net.signal)
+                    text: wifiCol._icon
                     color: wifiCol.net.active ? Theme.textPrimary : Theme.textSecondary
                     font.family: Theme.iconFontFamily
                     font.pixelSize: Theme.fs(16)
@@ -181,11 +210,7 @@ Scope {
                         renderType: Theme.textRenderType
                         visible: text !== ""
                         width: parent.width
-                        text: {
-                            if (scope.busySsid === wifiCol.net.ssid) return "Connecting…"
-                            if (wifiCol.net.active) return "Connected"
-                            return ""
-                        }
+                        text: wifiCol._statusText
                         color: Theme.textPrimary
                         font.family: Theme.iconFontFamily
                         font.pixelSize: Theme.fs(11)
@@ -195,8 +220,7 @@ Scope {
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    visible: secured || (forgetHover.containsMouse && !wifiCol.net.active)
-                    readonly property bool secured: wifiCol.net.security !== "--" && wifiCol.net.security !== ""
+                    visible: wifiCol._secured || (forgetHover.containsMouse && !wifiCol.net.active)
                     text: (forgetHover.containsMouse && !wifiCol.net.active) ? "󰅙" : ""
                     color: (forgetHover.containsMouse && !wifiCol.net.active) ? Theme.errorColor : Theme.textSecondary
                     font.family: Theme.iconFontFamily
@@ -227,10 +251,21 @@ Scope {
                 }
             }
         }
-        Rectangle {
+        // PERF: password editor instantiated per network row (N TextInputs in
+        // focus chain + N onCompleted focus checks). Loader-gate to open row.
+        Loader {
+            active: scope.pwSsid === wifiCol.net.ssid
             visible: scope.pwSsid === wifiCol.net.ssid
             width: wifiCol.width
             height: visible ? 40 : 0
+            asynchronous: true
+            sourceComponent: pwEditorComp
+        }
+        Component {
+            id: pwEditorComp
+            Rectangle {
+            width: wifiCol.width
+            height: 40
             clip: true
             color: "transparent"
             Row {
@@ -254,7 +289,7 @@ Scope {
                         scope.pwSsid = ""
                         NetworkService.connectWifi(wifiCol.net.ssid, text)
                     }
-                    Component.onCompleted: if (scope.pwSsid === wifiCol.net.ssid) forceActiveFocus()
+                    Component.onCompleted: forceActiveFocus()
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -275,7 +310,8 @@ Scope {
                     }
                 }
             }
-        }
+            } // Rectangle (pwEditorComp)
+        } // Component pwEditorComp
     }
 
     Variants {
@@ -327,7 +363,7 @@ Scope {
                 x: netAnchor.panelX
                 y: netAnchor.panelY
                 color: Theme.bg
-                border.color: Theme.accent
+                border.color: Theme.panelBorderColor
                 border.width: 2
                 radius: 0
                 clip: true
@@ -423,20 +459,26 @@ Scope {
                         columnSpacing: 20
                         rowSpacing: 4
                         Repeater {
-                            model: [
-                                { label: "IP Address", value: NetworkService.ipAddr !== "" ? NetworkService.ipAddr : "--" },
-                                { label: "Gateway", value: NetworkService.gateway !== "" ? NetworkService.gateway : "--" },
-                                { label: "Received", value: NetworkService.rxBytes },
-                                { label: "Sent", value: NetworkService.txBytes },
-                                { label: "Ping", value: NetworkService.pingMs !== "" ? NetworkService.pingMs : "--" },
-                                { label: "Signal", value: NetworkService.activeType === "wifi" ? NetworkService.signal + "%" : (NetworkService.activeType === "ethernet" ? "Wired" : "--") }
-                            ]
+                            // PERF: static model (was array literal rebuilt on
+                            // every rx/tx/ping/signal tick, recreating 6 delegates
+                            // every 5s).
+                            model: ["IP Address", "Gateway", "Received", "Sent", "Ping", "Signal"]
                             delegate: Column {
                                 required property var modelData
+                                required property int index
+                                // PERF: index-based value (no per-tick object alloc).
+                                readonly property string cellValue: {
+                                    if (index === 0) return NetworkService.ipAddr !== "" ? NetworkService.ipAddr : "--"
+                                    if (index === 1) return NetworkService.gateway !== "" ? NetworkService.gateway : "--"
+                                    if (index === 2) return NetworkService.rxBytes
+                                    if (index === 3) return NetworkService.txBytes
+                                    if (index === 4) return NetworkService.pingMs !== "" ? NetworkService.pingMs : "--"
+                                    return NetworkService.activeType === "wifi" ? NetworkService.signal + "%" : (NetworkService.activeType === "ethernet" ? "Wired" : "--")
+                                }
                                 spacing: 1
                                 Layout.fillWidth: true
                                 Text {
-                                    text: modelData.label
+                                    text: modelData
                                     color: Theme.textSecondary
                                     font.family: Theme.iconFontFamily
                                     font.pixelSize: Theme.fs(10)
@@ -444,7 +486,7 @@ Scope {
                                     renderType: Theme.textRenderType
                                 }
                                 Text {
-                                    text: modelData.value
+                                    text: cellValue
                                     color: Theme.textPrimary
                                     font.family: Theme.iconFontFamily
                                     font.pixelSize: Theme.fs(12)

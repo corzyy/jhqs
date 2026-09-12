@@ -24,11 +24,10 @@ Scope {
         if (showMenu) { _winVisible = true; menuHideTimer.stop() } else menuHideTimer.restart()
     }
 
-    Process { id: sessionLockProc; command: ["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1 &"] }
-    Process { id: sessionLogoutProc; command: ["hyprctl", "dispatch", "exit"] }
-    Process { id: sessionSuspendProc; command: ["systemctl", "suspend"] }
-    Process { id: sessionRebootProc; command: ["systemctl", "reboot"] }
-    Process { id: sessionPoweroffProc; command: ["systemctl", "poweroff"] }
+    // NOTE: session actions intentionally use Quickshell.execDetached in
+    // doSessionAction() — never Process.running here. This Scope lives inside
+    // a Loader that is destroyed on dismissed(), which would kill a freshly
+    // started Process before it can exec.
     property bool showWebApp: false
     property string webAppMode: "install"
     property var webAppList: []
@@ -109,9 +108,9 @@ Scope {
         }
         onExited: (code) => jhqsMenuScope.finishWebAppOp(code)
     }
-    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium ~/.config/hypr/configs/monitors.lua 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim ~/.config/hypr/configs/monitors.lua; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupBindsProc; command: ["bash", "-c", "codium ~/.config/hypr/configs/binds 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim ~/.config/hypr/configs/binds/system.lua; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupAutostartProc; command: ["bash", "-c", "codium ~/.config/hypr/configs/autostart.lua 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim ~/.config/hypr/configs/autostart.lua; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
+    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium ~/.config/mango/configs/monitors.conf 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim ~/.config/mango/configs/monitors.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
+    Process { id: setupBindsProc; command: ["bash", "-c", "codium ~/.config/mango/configs/binds-system.conf 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim ~/.config/mango/configs/binds-system.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
+    Process { id: setupAutostartProc; command: ["bash", "-c", "codium ~/.config/mango/configs/autostart.conf 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim ~/.config/mango/configs/autostart.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupKittyProc; command: ["bash", "-c", "codium ~/.config/kitty/kitty.conf 2>/dev/null || kitty --class setup-kitty --title \"Kitty Config\" bash -c 'nvim ~/.config/kitty/kitty.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupFishProc; command: ["bash", "-c", "kitty --class setup-fish --title \"Fish Config\" bash -c 'nvim ~/.config/fish/config.fish; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupAppearanceProc; command: ["bash", "-c", "nwg-look 2>/dev/null || codium ~/.config/gtk-3.0/settings.ini 2>/dev/null || kitty --class setup-gtk --title \"GTK Appearance\" bash -c 'echo \"nwg-look nicht gefunden\"; echo \"GTK Settings: ~/.config/gtk-3.0/settings.ini\"; cat ~/.config/gtk-3.0/settings.ini 2>/dev/null; read -n1 -s' &"] }
@@ -200,7 +199,7 @@ Scope {
     property bool fontRescanning: false
     Process {
         id: fontListProc
-        command: ["bash", "-c", "fc-list : family 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | grep -i -E 'JetBrains ?Mono|Geist ?Mono' | sort -u | head -n 800"]
+        command: ["bash", "-c", "fc-list : family 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | grep -i -E 'JetBrains ?Mono|Geist ?Mono|Inter' | sort -u | head -n 800"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
@@ -613,7 +612,7 @@ Scope {
         webAppListProc.running = true
     }
     property var filteredWebApps: {
-        let q = qLower()
+        let q = _qLower()
         if (!showWebApp || webAppMode !== "remove") return []
         if (q === "") return webAppList
         return webAppList.filter(w => {
@@ -729,18 +728,9 @@ Scope {
         if (!installNotifyProc.running) installNotifyProc.running = true
     }
     JHQ.ThemeEngine { id: themeEngine }
-    property string _pendingMonetPath: ""
-    Timer {
-        id: monetDelayTimer
-        interval: 1500; repeat: false
-        onTriggered: {
-            if (jhqsMenuScope._pendingMonetPath !== "") {
-                let p = jhqsMenuScope._pendingMonetPath
-                jhqsMenuScope._pendingMonetPath = ""
-                themeEngine.applyMonetFromPath(p)
-            }
-        }
-    }
+    // No debounce timer: wallpaper clicks apply immediately. Coalescing of
+    // rapid clicks happens in ThemeEngine.enqueueThemeApply (a busy worker
+    // keeps only the latest pending path, intermediate ones are skipped).
     readonly property string currentEngine: themeEngine.currentEngine
     readonly property bool themeBusy: themeEngine.themeBusy
     readonly property var matugenTypes: themeEngine.matugenTypes
@@ -755,16 +745,43 @@ Scope {
         try { if (bodyRootRef) bodyRootRef.filterText = txt } catch(e) { }
     }
     function qLower(): string { return filterText.toLowerCase().trim() }
-    function isSearchableCategory(title: string): bool {
-        let t = (title || "").toLowerCase()
-        if (t === "apps") return Theme.searchAppsEnabled
-        if (t === "style") return Theme.searchStyleEnabled
-        if (t === "setup") return Theme.searchSetupEnabled
-        if (t === "install") return Theme.searchInstallEnabled
-        if (t === "remove") return Theme.searchRemoveEnabled
-        if (t === "about") return Theme.searchAboutEnabled
-        if (t === "system") return Theme.searchSystemEnabled
+    // PERF: debounced query for the 7 heavyweight list filters (apps, packages,
+    // fonts, wallpapers, webapps). Per-keystroke filtering re-ran triple-scan +
+    // localeCompare sorts + 10k-line package filter on every character. Chrome
+    // (menus, counts, empty states) still reads filterText immediately; heavy
+    // lists settle 120ms after typing stops.
+    property string _q: ""
+    function _qLower(): string { return _q.toLowerCase().trim() }
+    Timer {
+        id: filterDebounce
+        interval: 120; repeat: false
+        onTriggered: jhqsMenuScope._q = jhqsMenuScope.filterText
+    }
+    // STABILITY: clamp selection when the debounced list lands (it can shrink
+    // 120ms after the keystroke that reset selectedIndex=0 on stale count).
+    on_QChanged: {
+        try {
+            if (selectedIndex >= totalCount) selectedIndex = Math.max(0, totalCount - 1)
+            if (bodyRootRef && bodyRootRef.selectedIndex >= totalCount) bodyRootRef.selectedIndex = Math.max(0, totalCount - 1)
+        } catch (e) { }
+    }
+    function queryWords(): var {
+        let q = qLower()
+        if (q === "") return []
+        return q.split(/\s+/).filter(w => w.length > 0)
+    }
+    // Multi-word match: every query word must occur (any order).
+    function matchesAll(hayLower: string, words: var): bool {
+        for (let i = 0; i < words.length; i++) if ((hayLower || "").indexOf(words[i]) === -1) return false
         return true
+    }
+    // Match tier for best-first section ordering: 0 exact, 1 prefix, 2 all-words.
+    function matchTier(primary: string, full: string, q: string, words: var): int {
+        let p = (primary || "").toLowerCase(), f = (full || "").toLowerCase()
+        if (p === q) return 0
+        if (q.length > 0 && p.startsWith(q)) return 1
+        if (matchesAll(f, words)) return 2
+        return -1
     }
     function clearSearch() {
         filterText = ""; selectedIndex = 0; syncQueryInput("")
@@ -778,7 +795,7 @@ Scope {
         for (let i = 0; i < menuModel.length; i++) {
             let e = menuModel[i]
             if (!e || !e.title) continue
-            if (e.title.toLowerCase() === q && (e.submenu || e.title === "Apps") && isSearchableCategory(e.title)) { m = e; break }
+            if (e.title.toLowerCase() === q && (e.submenu || e.title === "Apps")) { m = e; break }
         }
         if (!m) return
         if (m.title === "Apps") { showNewAppMenu = true; clearSearch() }
@@ -788,13 +805,13 @@ Scope {
         else if (m.title === "Remove") { showRemove = true; clearSearch() }
         else if (m.title === "System") { showSession = true; directSystemOpen = false; clearSearch() }
     }
-    function resetAllSubmenus() { showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false; showInstall = false; showRemove = false; showSession = false; showSetup = false; showModules = false; showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false }
+    function resetAllSubmenus() { showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false; showInstall = false; showRemove = false; showSession = false; showSetup = false; showModules = false; modulesSubview = "root"; showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false }
     function handleEsc(): bool {
         if (showWallpaperSettings) { showWallpaperSettings = false; clearSearch(); return true }
         if (showWallpaper) { showWallpaper = false; showStyle = true; clearSearch(); return true }
         if (showThemes) { showThemes = false; showStyle = true; clearSearch(); return true }
         if (showFont) { showFont = false; showStyle = true; clearSearch(); return true }
-        if (showModules) { showModules = false; showStyle = true; clearSearch(); return true }
+        if (showModules) { showModules = false; modulesSubview = "root"; showStyle = true; clearSearch(); return true }
         if (showNewAppMenu) { showNewAppMenu = false; clearSearch(); return true }
         if (showPackages) {
             if (packageOpActive) { leavePackageOp(); return true }
@@ -821,6 +838,16 @@ Scope {
             if (showNewAppMenu) { let e = filteredNewApps[si]; return "newapp:" + (e ? e.name || e.id : "none") + " idx=" + si }
             if (showPackages) { let p = filteredPackages[si]; return "package:" + (p ? p.name : "none") + " idx=" + si }
             if (showWebApp) { return "webapp:" + webAppMode + " count=" + filteredWebApps.length + " idx=" + si }
+            let q = qLower()
+            let inSub = showStyle || showInstall || showRemove || showSession || showSetup
+            if (q !== "" && !inSub) {
+                let r = searchRows[si]
+                if (!r) return "none idx=" + si
+                if (r.row === "app") { let e = r.entry; return "app:" + (e ? e.name || e.id : "none") + " idx=" + si }
+                if (r.row === "menu") return "menu:" + (r.entry ? r.entry.title : "none") + " idx=" + si
+                if (r.row === "cat") return "cat:" + r.category + "->" + (r.entry ? r.entry.title : "none") + " idx=" + si
+                return "none idx=" + si
+            }
             if (si < filteredApps.length) { let e = filteredApps[si]; return "app:" + (e ? e.name || e.id : "none") + " idx=" + si }
             if (si < filteredApps.length + filteredMenu.length) return "menu:" + filteredMenu[si - filteredApps.length].title + " idx=" + si
             let f = flattenedCategoryOptions[si - filteredApps.length - filteredMenu.length]
@@ -882,7 +909,7 @@ Scope {
         } catch (e) { }
         return out
     }
-    onFilterTextChanged: { tryAutoExpandCategory(); scheduleAurSearch() }
+    onFilterTextChanged: { tryAutoExpandCategory(); scheduleAurSearch(); filterDebounce.restart() }
     JHQ.MenuCategories { id: menuCategories }
     readonly property var styleMenu: menuCategories.styleMenu
     readonly property var themeOptions: menuCategories.themeOptions
@@ -901,6 +928,26 @@ Scope {
     ]
     property var queryInputRef: null
     property var bodyRootRef: null
+    // Deep-link targets into the Modules view: exposed to top-level search
+    // as virtual Style-category entries ("Module enable" / "Module remove").
+    property var moduleSubviewOptions: [
+        {title: "Module enable", icon: "󰐕", modulesSubview: "add"},
+        {title: "Module remove", icon: "󰐖", modulesSubview: "remove"}
+    ]
+    property string modulesSubview: "root"
+    function moduleSubviewHaystack(entry): string {
+        let s = ("" + (entry.title || "") + " " + (entry.modulesSubview || "")).toLowerCase()
+        s += entry.modulesSubview === "remove" ? " delete entfernen" : " add hinzufügen hinzufuegen"
+        return s + " module modules modul"
+    }
+    function openModules(sub) {
+        modulesSubview = (sub === "remove") ? "remove" : ((sub === "root") ? "root" : "add")
+        showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false
+        showInstall = false; showRemove = false; showSession = false; showSetup = false
+        showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false
+        showModules = true
+        clearSearch()
+    }
     property bool showStyle: false
     property bool showWallpaper: false
     property bool showThemes: false
@@ -917,7 +964,7 @@ Scope {
     readonly property bool canGoBack: isInSubmenu
 
     property bool __triggerInitDone: false
-    Component.onCompleted: __triggerInitDone = true
+    Component.onCompleted: { __triggerInitDone = true; _q = filterText }
     property int systemTrigger: 0
     onSystemTriggerChanged: { if (!__triggerInitDone) return; if (systemTrigger > 0) openSystem() }
     property var wallpaperFiles: []
@@ -959,7 +1006,7 @@ Scope {
     property var filteredWallpapers: {
         if (!showWallpaper) return []
         let files = engineWallpapers
-        let q = qLower()
+        let q = _qLower()
         if (q === "") return files
         return files.filter(p => p.toLowerCase().split("/").pop().includes(q))
     }
@@ -990,8 +1037,8 @@ Scope {
                 }
             }
         } catch(e) { }
-        // Only show JetBrains Mono and Geist Mono
-        let allowed = ["jetbrainsmono", "geistmono"]
+        // Only show JetBrains Mono, Geist Mono and Inter
+        let allowed = ["jetbrainsmono", "geistmono", "inter"]
         all = all.filter(f => {
             try {
                 let n = ("" + f).toLowerCase().replace(/[\s_\-]+/g, "")
@@ -1004,18 +1051,19 @@ Scope {
     }
     property var filteredFonts: {
         if (!showFont) return []
-        let q = qLower()
+        let q = _qLower()
         let all = fontAllFamilies
         if (q === "") return all
         return all.filter(f => ("" + f).toLowerCase().includes(q)).slice(0, 100)
     }
     // Merge weight variants (Regular/Medium/Bold/...) into one group per typeface,
-    // e.g. "JetBrains Mono" + "Geist Mono". Only the Regular (400) cut is kept.
+    // e.g. "JetBrains Mono" + "Geist Mono" + "Inter". Only the Regular (400) cut is kept.
     function fontGroupTitleFor(family: string): string {
         try {
             let n = ("" + family).toLowerCase().replace(/[\s_\-]+/g, "")
             if (n.includes("jetbrainsmono")) return "JetBrains Mono"
             if (n.includes("geistmono")) return "Geist Mono"
+            if (n.startsWith("inter")) return "Inter"
         } catch(e) { }
         return ("" + family).trim()
     }
@@ -1054,7 +1102,7 @@ Scope {
                 let rest = f.slice(g.length).trim().replace(/^[-_\s]+/, "")
                 return rest === "" ? "Regular" : rest
             }
-            let rest2 = f.replace(/^(JetBrains\s?Mono|Geist\s?Mono|GeistMono|JetBrainsMono)\s*/i, "").trim()
+            let rest2 = f.replace(/^(JetBrains\s?Mono|Geist\s?Mono|GeistMono|JetBrainsMono|Inter(\s?(Display|Variable))?)\s*/i, "").trim()
             return rest2 === "" ? "Regular" : rest2
         } catch(e) { return ("" + variant).trim() }
     }
@@ -1081,8 +1129,8 @@ Scope {
             if (map[g].indexOf(fam) === -1) map[g].push(fam)
         }
         order.sort((a, b) => {
-            let ra = a === "JetBrains Mono" ? 0 : a === "Geist Mono" ? 1 : 2
-            let rb = b === "JetBrains Mono" ? 0 : b === "Geist Mono" ? 1 : 2
+            let ra = a === "JetBrains Mono" ? 0 : a === "Geist Mono" ? 1 : a === "Inter" ? 2 : 3
+            let rb = b === "JetBrains Mono" ? 0 : b === "Geist Mono" ? 1 : b === "Inter" ? 2 : 3
             if (ra !== rb) return ra - rb
             return ("" + a).toLowerCase() < ("" + b).toLowerCase() ? -1 : 1
         })
@@ -1111,7 +1159,7 @@ Scope {
     }
     property var filteredFontGroups: {
         if (!showFont) return []
-        let q = qLower()
+        let q = _qLower()
         let groups = fontGrouped
         if (q === "") return groups
         return groups.filter(g => {
@@ -1125,7 +1173,7 @@ Scope {
     }
     property var filteredNewApps: {
         if (!showNewAppMenu) return []
-        let q = qLower()
+        let q = _qLower()
         if (q === "") {
             let out = []
             for (let i = 0; i < _appSearchIndex.length && out.length < 50; i++) out.push(_appSearchIndex[i].e)
@@ -1147,9 +1195,10 @@ Scope {
         { repo: "extra", name: "prismlauncher", version: "", displayName: "Prism Launcher", aur: false }
     ]
     readonly property var browserCatalog: [
-        { repo: "aur", name: "brave-bin", version: "", displayName: "Brave", aur: true },
-        { repo: "aur", name: "zen-browser-bin", version: "", displayName: "Zen Browser", aur: true },
-        { repo: "aur", name: "helium-browser-bin", version: "", displayName: "Helium Browser", aur: false },
+        { repo: "extra", name: "firefox", version: "", displayName: "Firefox", aur: false },
+        { repo: "cachyos", name: "brave-origin-bin", version: "", displayName: "Brave Origin", aur: false },
+        { repo: "cachyos", name: "zen-browser-bin", version: "", displayName: "Zen Browser", aur: false },
+        { repo: "cachyos", name: "helium-browser-bin", version: "", displayName: "Helium Browser", aur: false },
         { repo: "extra", name: "chromium", version: "", displayName: "Chromium", aur: false }
     ]
     function curatedCatalog() { return packageMode === "browser" ? browserCatalog : gamingCatalog }
@@ -1199,7 +1248,7 @@ Scope {
     property int installedPackageCount: packageList.filter(p => p && p.installed && isRemovablePackage(p.name)).length
     property var filteredPackages: {
         if (!showPackages) return []
-        let q = qLower()
+        let q = _qLower()
         if (packageMode === "gaming" || packageMode === "browser") {
             let gbase = curatedListWithInstalled()
             if (q === "") return gbase
@@ -1376,21 +1425,30 @@ Scope {
     function escShellArg(path: string): string {
         return path.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"").replace(/\$/g, "\\$").replace(/`/g, "\\`")
     }
-    function setWallpaper(path, preview) {
-        if (!path || path.length === 0) return
-        if (path.includes("\n") || path.includes("\r")) return
-        let esc = escShellArg(path)
+    // Display-only wallpaper switch (swaybg + current-file pointers), used by
+    // setWallpaper and by design-snapshot restores. Never triggers theming.
+    function setWallpaperDisplay(path) {
+        if (!path || path.length === 0) return false
+        if (path.includes("\n") || path.includes("\r")) return false
         let mode = wallpaperModes.indexOf(wallpaperMode) !== -1 ? wallpaperMode : "fill"
-        let wpCmd = "pkill -x swaybg 2>/dev/null || true; "
-        wpCmd += "if command -v swaybg >/dev/null 2>&1; then setsid nohup swaybg -i \"" + esc + "\" -m " + mode + " >/dev/null 2>&1 < /dev/null & disown; "
-        wpCmd += "else echo \"[jhqs] swaybg fehlt — Wallpaper unverändert\" >&2; fi; "
-        wpCmd += "mkdir -p ~/.cache/swaybg ~/.cache/awww ~/.config/quickshell/jhqs/config 2>/dev/null; echo -n \"" + esc + "\" > ~/.cache/swaybg/current 2>/dev/null; echo -n \"" + esc + "\" > ~/.cache/awww/current 2>/dev/null; echo -n \"" + esc + "\" > ~/.config/quickshell/jhqs/config/current_wallpaper.txt 2>/dev/null; echo done"
-        Quickshell.execDetached(["bash", "-c", wpCmd])
+        // Path travels as argv ($1): filenames with quotes/$/`/spaces are safe.
+        // Start-then-reap: the new swaybg maps first, old instances are killed
+        // only after the new one proves alive — no black flash, and a broken
+        // image never kills the working wallpaper. printf (not echo -n) so
+        // backslashes survive. awww/current is kept for shell.qml's guard.
+        let wpCmd = "WALL=\"$1\"; MODE=\"$2\";"
+        wpCmd += "if command -v swaybg >/dev/null 2>&1 && [ -f \"$WALL\" ]; then nohup swaybg -i \"$WALL\" -m \"$MODE\" >/dev/null 2>&1 < /dev/null & NEW=$!; sleep 0.5;"
+        wpCmd += " if kill -0 \"$NEW\" 2>/dev/null; then for p in $(pgrep -x swaybg 2>/dev/null); do [ \"$p\" = \"$NEW\" ] || kill \"$p\" 2>/dev/null || true; done;"
+        wpCmd += " else echo \"[jhqs] swaybg start failed, keeping current wallpaper\" >&2; fi; "
+        wpCmd += "else echo \"[jhqs] swaybg fehlt oder Wallpaper ungültig — Wallpaper unverändert\" >&2; fi; "
+        wpCmd += "mkdir -p ~/.cache/swaybg ~/.cache/awww ~/.config/quickshell/jhqs/config 2>/dev/null; printf '%s' \"$WALL\" > ~/.cache/swaybg/current 2>/dev/null; printf '%s' \"$WALL\" > ~/.cache/awww/current 2>/dev/null; printf '%s' \"$WALL\" > ~/.config/quickshell/jhqs/config/current_wallpaper.txt 2>/dev/null"
+        Quickshell.execDetached(["bash", "-c", wpCmd, "jhqs-wallpaper", path, mode])
+        return true
+    }
+    function setWallpaper(path, preview) {
+        if (!setWallpaperDisplay(path)) return
         if (currentEngine === "wallpaper") {
-            themeEngine.abortMonet()
-            _pendingMonetPath = esc
-            monetDelayTimer.interval = 800
-            monetDelayTimer.restart()
+            themeEngine.applyMonetFromPath(path)
         }
         if (!preview) dismissed()
     }
@@ -1413,7 +1471,20 @@ Scope {
         wallpaperListProc.running = true
     }
     function openSystem() {
-        showSession = true; showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false; showInstall = false; showRemove = false; showSetup = false; showModules = false; showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = true
+        // Idempotent deep-link: always land on a clean System list, never on
+        // a stale filter/selection from a previous submenu.
+        try {
+            showStyle = false; showWallpaper = false; showWallpaperSettings = false
+            showThemes = false; showFont = false; showInstall = false
+            showRemove = false; showSetup = false; showModules = false
+            showNewAppMenu = false; showPackages = false; showWebApp = false
+            showSession = true
+            directSystemOpen = true
+        } catch (e) {
+            console.log("[JhqsMenu] openSystem err", e)
+            showSession = true
+            directSystemOpen = true
+        }
         clearSearch()
     }
 
@@ -1422,9 +1493,8 @@ Scope {
         if (showWallpaper || showThemes || showFont || showNewAppMenu || showPackages || showWebApp) return []
         let active = null
         if (showStyle) active = styleMenu; else if (showInstall) active = installMenu; else if (showRemove) active = removeMenu; else if (showSession) active = sessionMenu; else if (showSetup) active = setupMenu
-        if (active) return q === "" ? active : active.filter(m => m.title.toLowerCase().includes(q))
-        let base = q === "" ? menuModel : menuModel.filter(m => m.title.toLowerCase().includes(q))
-        if (q !== "") base = base.filter(m => isSearchableCategory(m.title))
+        if (active) return q === "" ? active : active.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
+        let base = q === "" ? menuModel : menuModel.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
         if (q !== "" && base.length > 1) {
             let sysRows = base.filter(m => m.title === "System")
             if (sysRows.length > 0 && sysRows.length < base.length) return base.filter(m => m.title !== "System").concat(sysRows)
@@ -1434,13 +1504,19 @@ Scope {
     property var filteredCategorySections: {
         if (isInSubmenu) return []
         let q = qLower(); if (q === "") return []
+        let words = queryWords()
         let sections = []
         for (let i = 0; i < menuModel.length; i++) {
             let m = menuModel[i]
-            if (!isSearchableCategory(m.title)) continue
             if (!m.submenu || m.submenu.length === 0) continue
-            let matched = m.submenu.filter(e => e.title.toLowerCase().includes(q))
-            if (matched.length === 0 && m.title.toLowerCase().includes(q)) matched = m.submenu.slice()
+            let matched = m.submenu.filter(e => matchesAll(e.title.toLowerCase(), words))
+            if (matched.length === 0 && matchesAll(m.title.toLowerCase(), words)) matched = m.submenu.slice()
+            if (m.title === "Style") {
+                for (let k = 0; k < moduleSubviewOptions.length; k++) {
+                    let ve = moduleSubviewOptions[k]
+                    if (matchesAll(moduleSubviewHaystack(ve), words)) matched = matched.concat([ve])
+                }
+            }
             if (matched.length > 0) sections.push({ category: m.title, options: matched })
         }
         if (sections.length > 1) {
@@ -1456,33 +1532,123 @@ Scope {
         return out
     }
     property var filteredApps: {
-        if (isInSubmenu || !Theme.searchAppsEnabled) return []
-        let q = qLower(); if (q === "") return []
+        if (isInSubmenu) return []
+        let q = _qLower(); if (q === "") return []
+        let words = queryWords()
         let r = []
         for (let i = 0; i < _appSearchIndex.length; i++) {
             let row = _appSearchIndex[i]
-            if (row.n.includes(q)) r.push(row.e)
+            if (matchTier(row.e.name, row.n, q, words) >= 0) r.push(row.e)
         }
-        r.sort((a,b)=>{ let an=(a.name||"").toLowerCase(), bn=(b.name||"").toLowerCase(); if((an===q)!==(bn===q)) return an===q?-1:1; if(an.startsWith(q)!==bn.startsWith(q)) return an.startsWith(q)?-1:1; return an.length-bn.length })
-        return r.slice(0,8)
+        // No ranking: plain alphabetical order.
+        r.sort((a, b) => ((a.name || "").toLowerCase()).localeCompare(((b.name || "").toLowerCase())))
+        return r.slice(0, 8)
     }
-    property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFontGroups.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : filteredApps.length + filteredMenu.length + categoryOptionsCount
+    // Best-first section order for top-level search: the section containing
+    // the best-matching item comes first (ties keep apps/menu/categories).
+    property var searchGroupOrder: {
+        let q = qLower(); if (q === "") return ["apps", "menu", "cats"]
+        let words = queryWords()
+        function best(items, getTitle): int {
+            let b = 99
+            for (let i = 0; i < items.length; i++) {
+                let t = matchTier(getTitle(items[i]), getTitle(items[i]), q, words)
+                if (t >= 0 && t < b) b = t
+            }
+            return b
+        }
+        let s = [
+            { k: "apps", s: best(filteredApps, e => (e.name || "")), n: filteredApps.length },
+            { k: "menu", s: best(filteredMenu, m => (m.title || "")), n: filteredMenu.length },
+            { k: "cats", s: best(flattenedCategoryOptions, f => (f.entry.title || "")), n: categoryOptionsCount }
+        ]
+        let rank = { apps: 0, menu: 1, cats: 2 }
+        s.sort((a, b) => (a.s - b.s) || (rank[a.k] - rank[b.k]))
+        let out = []
+        for (let i = 0; i < s.length; i++) if (s[i].n > 0) out.push(s[i].k)
+        return out
+    }
+    // Flat ordered search model for the list view. Submenu roots and the
+    // empty query keep the single menu group; top-level search follows
+    // searchGroupOrder. `section` drives ListView section headers ("" = none).
+    property var searchRows: {
+        let q = qLower()
+        if (q === "" || showStyle || showInstall || showRemove || showSession || showSetup) {
+            let items = filteredMenu
+            let out = []
+            for (let i = 0; i < items.length; i++) out.push({ row: "menu", section: "", entry: items[i] })
+            return out
+        }
+        let groups = searchGroupOrder
+        let out = []
+        for (let g = 0; g < groups.length; g++) {
+            if (groups[g] === "apps") {
+                let apps = filteredApps
+                for (let i = 0; i < apps.length; i++) out.push({ row: "app", section: "Anwendungen", entry: apps[i] })
+            } else if (groups[g] === "menu") {
+                let ms = filteredMenu
+                for (let i = 0; i < ms.length; i++) out.push({ row: "menu", section: "", entry: ms[i] })
+            } else {
+                let secs = filteredCategorySections
+                for (let i = 0; i < secs.length; i++) {
+                    for (let j = 0; j < secs[i].options.length; j++) out.push({ row: "cat", section: secs[i].category, category: secs[i].category, entry: secs[i].options[j] })
+                }
+            }
+        }
+        return out
+    }
+    property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFontGroups.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : searchRows.length
     property int selectedIndex: 0
+    // Stability: filtering (e.g. typing inside System) shrinks the list while
+    // selectedIndex keeps its old value. Clamp immediately so Enter/mouse can
+    // never index out of range (previously a silent no-op / TypeError).
+    onTotalCountChanged: {
+        if (totalCount <= 0) {
+            if (selectedIndex !== 0) selectedIndex = 0
+        } else if (selectedIndex > totalCount - 1) {
+            selectedIndex = totalCount - 1
+        } else if (selectedIndex < 0) {
+            selectedIndex = 0
+        }
+    }
 
     function runProc(p) { if (p && !p.running) p.running = true }
     function openAbout() { Quickshell.execDetached(["bash", "-c", "kitty --class about-fastfetch --title About bash -c 'fastfetch; sleep 0.5; read -n1 -s' &"]) }
     // Session actions must use execDetached (not Process.running) because the
     // menu Loader is destroyed on dismissed(), which would kill a freshly
     // started Process before it can exec.
-    function doSessionAction(t: string): void {
-        if (t === "Sperren") Quickshell.execDetached(["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1"])
-        else if (t === "Abmelden") Quickshell.execDetached(["bash", "-c", "hyprctl dispatch exit >/dev/null 2>&1 || uwsm stop >/dev/null 2>&1 || true"])
-        else if (t === "Ruhezustand") Quickshell.execDetached(["systemctl", "suspend"])
-        else if (t === "Neustarten") Quickshell.execDetached(["systemctl", "reboot"])
-        else if (t === "Herunterfahren") Quickshell.execDetached(["systemctl", "poweroff"])
+    // Returns true when a known action was dispatched, false otherwise (caller
+    // keeps the menu open so an unknown title can never silently close it).
+    function doSessionAction(t: string): bool {
+        let title = ("" + (t || "")).trim()
+        if (title === "") return false
+        try {
+            if (title === "Sperren") {
+                Quickshell.execDetached(["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1 || loginctl lock-session >/dev/null 2>&1 || true"])
+                return true
+            } else if (title === "Abmelden") {
+                Quickshell.execDetached(["bash", "-c", "mmsg -q >/dev/null 2>&1 || uwsm stop >/dev/null 2>&1 || loginctl terminate-user \"$USER\" >/dev/null 2>&1 || true"])
+                return true
+            } else if (title === "Ruhezustand") {
+                Quickshell.execDetached(["bash", "-c", "systemctl suspend >/dev/null 2>&1 || loginctl suspend >/dev/null 2>&1 || true"])
+                return true
+            } else if (title === "Neustarten") {
+                Quickshell.execDetached(["bash", "-c", "systemctl reboot >/dev/null 2>&1 || loginctl reboot >/dev/null 2>&1 || true"])
+                return true
+            } else if (title === "Herunterfahren") {
+                Quickshell.execDetached(["bash", "-c", "systemctl poweroff >/dev/null 2>&1 || loginctl poweroff >/dev/null 2>&1 || true"])
+                return true
+            }
+        } catch (e) {
+            console.log("[JhqsMenu] doSessionAction err", title, e)
+            return false
+        }
+        console.log("[JhqsMenu] doSessionAction unknown title", title)
+        return false
     }
 
     function executeCategoryOption(category, entry) {
+        if (!entry || !entry.title) return
         let t = entry.title
         if (category === "Install") {
             if (t === "Flatpak") { openPackages("FlatpakInstall"); return }
@@ -1499,13 +1665,14 @@ Scope {
             else if (t === "AUR") { openPackages("AurRemove"); return }
             dismissed()
         } else if (category === "System") {
-            doSessionAction(t)
-            dismissed()
+            if (entry && doSessionAction(entry.title)) dismissed()
+            return
         } else if (category === "Style") {
             if (t === "Wallpaper") { showStyle=false; showWallpaper=true; refreshWallpapers(); clearSearch(); return }
             if (t === "Themes") { showStyle=false; showThemes=true; clearSearch(); return }
             if (t === "Font") { showStyle=false; showFont=true; fontExpanded=""; refreshFonts(); clearSearch(); return }
-            if (t === "Modules") { showStyle=false; showModules=true; clearSearch(); return }
+            if (t === "Modules") { openModules("root"); return }
+            if (entry && entry.modulesSubview) { openModules(entry.modulesSubview); return }
             dismissed()
         } else if (category === "Setup") {
             if (t === "Settings") { openSettings("global"); return }
@@ -1517,11 +1684,26 @@ Scope {
         } else { dismissed() }
     }
 
+    // Top-level menu rows (menuModel entries), shared by mouse, keyboard and search.
+    // Only handles root titles — submenu rows must go through activateCurrent().
+    function activateRootMenuRow(m): void {
+        if (!m || !m.title) return
+        if (m.title === "Apps") { showNewAppMenu = true; clearSearch() }
+        else if (m.title === "About") { openAbout(); dismissed() }
+        else if (m.title === "System") { showSession = true; directSystemOpen = false; clearSearch() }
+        else if (m.title === "Install") { showInstall = true; clearSearch() }
+        else if (m.title === "Remove") { showRemove = true; clearSearch() }
+        else if (m.title === "Style") { showStyle = true; clearSearch(); refreshWallpapers() }
+        else if (m.title === "Setup") { showSetup = true; clearSearch() }
+    }
+    function launchAppEntry(e): void {
+        if (e && e.execute) { e.execute(); dismissed() }
+    }
     function activateCurrent() {
         if (showWallpaper) { let p = filteredWallpapers[selectedIndex]; if (p) setWallpaper(p); return }
         if (showThemes) { let t = filteredThemes[selectedIndex]; if (t) setThemeEngine(t.id); return }
         if (showFont) { let g = filteredFontGroups[selectedIndex]; if (g) setSystemFont(g.preview || g.title); return }
-        if (showNewAppMenu) { let e = filteredNewApps[selectedIndex]; if (e && e.execute) { try { Theme.triggerLaunchOsd(e.name || "", e.icon || "") } catch (err) { } e.execute(); dismissed() } return }
+        if (showNewAppMenu) { let e = filteredNewApps[selectedIndex]; if (e && e.execute) { e.execute(); dismissed() } return }
         if (showPackages) {
             if (packageOpActive) { if (!packageOpRunning) dismissed(); return }
             let sel = packageSelected.length > 0 ? packageSelected.slice() : []
@@ -1529,20 +1711,24 @@ Scope {
             if (sel.length > 0) startPackageOp(packageMode, sel)
             return
         }
-        let m = filteredMenu[selectedIndex]
+        // Submenu rows (Style/Install/Remove/System/Setup): index into the
+        // filtered submenu list. Guarded so an out-of-range index (e.g. list
+        // shrank while filtering) is a no-op instead of a TypeError, and an
+        // unknown title never closes the menu silently.
         if (showStyle || showInstall || showRemove || showSession || showSetup) {
-            if (!m) return
+            let m = filteredMenu[selectedIndex]
+            if (!m || !m.title) return
             if (showStyle) {
                 if (m.title === "Wallpaper") { showStyle=false; showWallpaper=true; refreshWallpapers(); clearSearch() }
                 else if (m.title === "Themes") { showStyle=false; showThemes=true; clearSearch() }
                 else if (m.title === "Font") { showStyle=false; showFont=true; fontExpanded=""; refreshFonts(); clearSearch() }
-                else if (m.title === "Modules") { showStyle=false; showModules=true; clearSearch() }
+                else if (m.title === "Modules") { openModules("root") }
                 else dismissed()
                 return
             }
             if (showInstall) { if (m.title==="Flatpak") { openPackages("FlatpakInstall"); return } else if (m.title==="Web App") { openWebApp("install"); return } else if (m.title==="Package") { openPackages("Install"); return } else if (m.title==="AUR") { openPackages("AurInstall"); return } else if (m.title==="Gaming") { openPackages("GamingInstall"); return } else if (m.title==="Browser") { openPackages("BrowserInstall"); return } dismissed(); return }
             if (showRemove) { if (m.title==="Flatpak") { openPackages("FlatpakRemove"); return } else if (m.title==="Web App") { openWebApp("remove"); return } else if (m.title==="Package") { openPackages("Remove"); return } else if (m.title==="AUR") { openPackages("AurRemove"); return } dismissed(); return }
-            if (showSession) { doSessionAction(m.title); dismissed(); return }
+            if (showSession) { if (doSessionAction(m.title)) dismissed(); return }
             if (showSetup) {
                 if (m.title==="Settings") { openSettings("global"); return }
                 else if (m.title==="Monitors") runProc(setupMonitorsProc)
@@ -1553,18 +1739,20 @@ Scope {
             }
         }
         if (totalCount === 0) return
+        let q = qLower()
+        let inSub = showStyle || showInstall || showRemove || showSession || showSetup
+        if (q !== "" && !inSub) {
+            let r = searchRows[selectedIndex]
+            if (!r) return
+            if (r.row === "app") { launchAppEntry(r.entry); return }
+            if (r.row === "menu") { activateRootMenuRow(r.entry); return }
+            if (r.row === "cat") { if (r.entry) executeCategoryOption(r.category, r.entry); return }
+            return
+        }
         if (selectedIndex < filteredApps.length) {
-            let e = filteredApps[selectedIndex]
-            if (e && e.execute) { try { Theme.triggerLaunchOsd(e.name || "", e.icon || "") } catch (err) { } e.execute(); dismissed() }
+            launchAppEntry(filteredApps[selectedIndex])
         } else if (selectedIndex < filteredApps.length + filteredMenu.length) {
-            let e = filteredMenu[selectedIndex - filteredApps.length]
-            if (e.title==="Apps") { showNewAppMenu=true; clearSearch() }
-            else if (e.title==="About") { openAbout(); dismissed() }
-            else if (e.title==="System") { showSession=true; directSystemOpen=false; clearSearch() }
-            else if (e.title==="Install") { showInstall=true; clearSearch() }
-            else if (e.title==="Remove") { showRemove=true; clearSearch() }
-            else if (e.title==="Style") { showStyle=true; clearSearch(); refreshWallpapers() }
-            else if (e.title==="Setup") { showSetup=true; clearSearch() }
+            activateRootMenuRow(filteredMenu[selectedIndex - filteredApps.length])
         } else if (selectedIndex < filteredApps.length + filteredMenu.length + categoryOptionsCount) {
             let flat = flattenedCategoryOptions[selectedIndex - filteredApps.length - filteredMenu.length]
             if (flat) executeCategoryOption(flat.category, flat.entry)
@@ -1657,19 +1845,21 @@ Scope {
                         let n = jhqsMenuScope.menuModel ? jhqsMenuScope.menuModel.length : 8
                         if (n < 1) n = 1
                         let content = n * rowH + Math.max(0, n - 1) * rowGap
-                        let overhead = (18 + 34 + 6 + 18)
+                        let overhead = (18 + 34 + 7 + 18)
                         return overhead + content + 2
                     }
                     implicitWidth: jhqsMenuScope.showWallpaper ? 760 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? Theme.sharedMenuWidth : 300
                     implicitHeight: jhqsMenuScope.showWallpaper ? 820 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? Theme.sharedMenuHeight : catDynH
-                    Behavior on implicitWidth { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                    Behavior on implicitHeight { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                    // PERF: layout Behaviors ran on every view switch even with
+                    // animations off or menu hidden. Gate them.
+                    Behavior on implicitWidth { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                    Behavior on implicitHeight { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: panel
                         anchors.fill: parent
-                        radius: Theme.cornerRadius; color: Theme.bg; border.color: Theme.accent; border.width: 2; clip: true
-                        Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
+                        radius: Theme.cornerRadius; color: Theme.bg; border.color: Theme.panelBorderColor; border.width: 1; clip: true
+                        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
                     }
                     Item {
                         id: menuBody
@@ -1809,11 +1999,23 @@ Scope {
                             }
                         }
 
-                            Item {
-                            id: contentStage
-                                anchors.top: searchRow.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                                anchors.topMargin: 6; anchors.leftMargin: 18; anchors.rightMargin: 18; anchors.bottomMargin: 18
-                            property bool isListView: !bodyRoot.scope.showWallpaper && !bodyRoot.scope.showThemes && !bodyRoot.scope.showFont && !bodyRoot.scope.showModules && !bodyRoot.scope.showNewAppMenu && !bodyRoot.scope.showPackages && !bodyRoot.scope.showWebApp
+                    Item {
+                        id: headerDivider
+                        anchors.top: searchRow.bottom; anchors.left: parent.left; anchors.right: parent.right
+                        anchors.leftMargin: 18; anchors.rightMargin: 18
+                        height: 7
+                        Rectangle {
+                            anchors.left: parent.left; anchors.right: parent.right
+                            y: 3; height: 1
+                            color: bodyRoot.filterText.length > 0 ? Theme.accent : Theme.divider; opacity: 0.5
+                        }
+                    }
+
+                    Item {
+                        id: contentStage
+                        anchors.top: headerDivider.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                        anchors.topMargin: 0; anchors.leftMargin: 18; anchors.rightMargin: 18; anchors.bottomMargin: 18
+                        property bool isListView: !bodyRoot.scope.showWallpaper && !bodyRoot.scope.showThemes && !bodyRoot.scope.showFont && !bodyRoot.scope.showModules && !bodyRoot.scope.showNewAppMenu && !bodyRoot.scope.showPackages && !bodyRoot.scope.showWebApp
 
                             Views.RootListView {
                                 scope: jhqsMenuScope

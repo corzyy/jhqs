@@ -41,10 +41,15 @@ Scope {
     }
     Timer {
         id: agentWatchdog
-        interval: 8000; repeat: true; running: !polkitScope.agentRegistered && !polkitScope.agentActive
+        // STABILITY: back off after 3 failed re-registers (was D-Bus
+        // re-register loop every 8s forever, spamming the bus + logs).
+        property int failures: 0
+        interval: failures >= 3 ? 30000 : 8000
+        repeat: true; running: !polkitScope.agentRegistered && !polkitScope.agentActive
         onTriggered: {
             try { Theme.setPolkitReady(polkitScope.agentRegistered) } catch (e) { }
-            if (polkitScope.agentRegistered || polkitScope.agentActive) return
+            if (polkitScope.agentRegistered || polkitScope.agentActive) { failures = 0; return }
+            failures++
             console.log("[jhqs][polkit] no agent registered — retrying listener registration")
             polkitScope.recreateAgent()
         }
@@ -235,7 +240,7 @@ Scope {
                     implicitHeight: mainCol.implicitHeight + 24
                     radius: 0
                     color: Theme.bg
-                    border.color: Theme.accent
+                    border.color: Theme.panelBorderColor
                     border.width: 2
                     clip: true
                     transform: Translate { x: dialogWrapper.shakeX }
@@ -275,7 +280,9 @@ Scope {
                                     anchors.centerIn: parent
                                     width: 22; height: 22
                                     asynchronous: true
-                                    implicitSize: Qt.size(44, 44)
+                                    // PERF: 22px decode (was 44px = 4x pixels for
+                                    // a 22px display).
+                                    implicitSize: Qt.size(22, 22)
                                     source: {
                                         if (!polkitScope.flow) return ""
                                         let n = polkitScope.flow.iconName

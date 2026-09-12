@@ -6,33 +6,35 @@ import Quickshell.Io
 Item {
     id: engine
 
-    Process { id: themeEngineInitProc; command: ["bash", "-c", "echo"] }
-    Timer {
-        id: themeEngineInitTimer
-        interval: 650; running: true; repeat: false
-        onTriggered: {
-            if (!themeEngineInitProc.running) {
-                themeEngineInitProc.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/jhqs/themes; if [ ! -f ~/.config/quickshell/jhqs/themes/theme_engine.json ]; then echo '{\"engine\":\"wallpaper\"}' > ~/.config/quickshell/jhqs/themes/theme_engine.json; fi; jq '.engine //= \"wallpaper\"' ~/.config/quickshell/jhqs/themes/theme_engine.json > /tmp/th_engine.json 2>/dev/null && mv /tmp/th_engine.json ~/.config/quickshell/jhqs/themes/theme_engine.json; echo init_done"]
-                themeEngineInitProc.running = true
-            }
-        }
-    }
+    // PERF: mkdir+jq init used to run 650ms after EVERY menu open (ThemeEngine
+    // lives in the menu Loader, re-created per open). Adapter defaults already
+    // cover a missing file; the file is created on first writeAdapter. No boot
+    // fork needed.
     FileView {
         id: themeEngineFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/themes/theme_engine.json"
-        watchChanges: true; onFileChanged: reload(); blockLoading: true; printErrors: false
+        watchChanges: true; onFileChanged: engineReloadDebounce.restart(); blockLoading: true; printErrors: false
         adapter: JsonAdapter { property string engine: "wallpaper" }
+    }
+    Timer {
+        id: engineReloadDebounce
+        interval: 250; repeat: false
+        onTriggered: {
+            try { themeEngineFile.reload() } catch (e) { }
+            try { matugenSettingsFile.reload() } catch (e2) { }
+            try { currentWallpaperFile.reload() } catch (e3) { }
+        }
     }
     readonly property string currentEngine: {
         let e = themeEngineFile.adapter.engine
-        if (e === "everforest" || e === "tokyonight" || e === "petrichor" || e === "monochrome" || e === "catppuccin") return e
+        if (e === "everforest" || e === "tokyonight" || e === "petrichor" || e === "monochrome" || e === "catppuccin" || e === "gruvbox") return e
         return "wallpaper"
     }
 
     FileView {
         id: matugenSettingsFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/themes/matugen_settings.json"
-        watchChanges: true; onFileChanged: reload(); blockLoading: true; printErrors: false
+        watchChanges: true; onFileChanged: engineReloadDebounce.restart(); blockLoading: true; printErrors: false
         adapter: JsonAdapter { property string type: "scheme-tonal-spot"; property string mode: "dark"; property real contrast: 0.0 }
     }
     readonly property var matugenTypes: ["scheme-tonal-spot", "scheme-content", "scheme-expressive", "scheme-fidelity", "scheme-fruit-salad", "scheme-monochrome", "scheme-neutral", "scheme-rainbow", "scheme-vibrant", "scheme-smart"]
@@ -42,6 +44,7 @@ Item {
 
     property bool themeBusy: false
     property string _pendingSpec: ""
+    property bool _pendingSilent: false
     Process {
         id: themeSerialProc
         command: ["bash", "-c", "echo"]
@@ -49,17 +52,19 @@ Item {
     }
     Timer {
         id: themeNextTimer
-        interval: 400; repeat: false
+        // Minimal gap between a finished apply and a coalesced pending one:
+        // lets file watchers settle so the next run reads fresh inputs.
+        interval: 100; repeat: false
         onTriggered: engine.tryRunPending()
     }
-    function enqueueThemeApply(spec: string) {
-        if (themeBusy || themeSerialProc.running) { _pendingSpec = spec; return }
-        runThemeSpec(spec)
+    function enqueueThemeApply(spec: string, silent: bool) {
+        if (themeBusy || themeSerialProc.running) { _pendingSpec = spec; _pendingSilent = !!silent; return }
+        runThemeSpec(spec, !!silent)
     }
-    function runThemeSpec(spec: string) {
-        if (spec.indexOf("preset:") === 0) runPresetApply(spec.substring(7))
+    function runThemeSpec(spec: string, silent: bool) {
+        if (spec.indexOf("preset:") === 0) runPresetApply(spec.substring(7), !!silent)
         else if (spec.indexOf("monet:") === 0) runMonetApply(spec.substring(6))
-        else if (spec === "monetCurrent") runMonetApply(escShellArg(resolveWallpaper("", "")))
+        else if (spec === "monetCurrent") runMonetApply("")
         else return
         themeBusy = true
     }
@@ -67,8 +72,10 @@ Item {
         if (themeBusy || themeSerialProc.running) return
         if (_pendingSpec === "") return
         let s = _pendingSpec
+        let sl = _pendingSilent
         _pendingSpec = ""
-        runThemeSpec(s)
+        _pendingSilent = false
+        runThemeSpec(s, sl)
     }
     function finishThemeApply(code) {
         themeBusy = false
@@ -79,7 +86,7 @@ Item {
     FileView {
         id: currentWallpaperFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/current_wallpaper.txt"
-        watchChanges: true; onFileChanged: reload(); blockLoading: true; printErrors: false
+        watchChanges: true; onFileChanged: engineReloadDebounce.restart(); blockLoading: true; printErrors: false
     }
     function currentWallpaperText(): string {
         try { return currentWallpaperFile.text().trim() } catch(e) { return "" }
@@ -88,17 +95,18 @@ Item {
     Timer {
         id: themeEngineApplyTimer
         interval: 950; running: true; repeat: false
+        // Re-sync apply: ThemeEngine is re-created on every menu open (the
+        // menu lives in a Loader), so this must stay silent — otherwise a
+        // "Theme" notification pops up ~1s after opening the menu whenever
+        // it stays open past this timer (e.g. while scrolling).
         onTriggered: {
-            if (engine.currentEngine === "everforest") applyPreset("everforest")
-            else if (engine.currentEngine === "tokyonight") applyPreset("tokyonight")
-            else if (engine.currentEngine === "petrichor") applyPreset("petrichor")
-            else if (engine.currentEngine === "monochrome") applyPreset("monochrome")
-            else if (engine.currentEngine === "catppuccin") applyPreset("catppuccin")
+            if (engine.currentEngine === "everforest") applyPreset("everforest", true)
+            else if (engine.currentEngine === "tokyonight") applyPreset("tokyonight", true)
+            else if (engine.currentEngine === "petrichor") applyPreset("petrichor", true)
+            else if (engine.currentEngine === "monochrome") applyPreset("monochrome", true)
+            else if (engine.currentEngine === "catppuccin") applyPreset("catppuccin", true)
+            else if (engine.currentEngine === "gruvbox") applyPreset("gruvbox", true)
         }
-    }
-
-    function escShellArg(path: string): string {
-        return path.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"").replace(/\$/g, "\\$").replace(/`/g, "\\`")
     }
 
     function resolveWallpaper(overridePath: string, fallbackPath: string): string {
@@ -126,46 +134,74 @@ Item {
     function matugenBin(): string {
         // jhqs Application Theming: route through matugen-run.sh so template
         // toggles (theming_settings.json) + terminals-always-dark are honored.
-        return "MATUGEN_RUN=\"$HOME/.config/quickshell/jhqs/scripts/matugen-run.sh\"; if [ ! -x \"$MATUGEN_RUN\" ]; then [ -x \"$HOME/.cargo/bin/matugen\" ] && MATUGEN_RUN=\"$HOME/.cargo/bin/matugen\" || MATUGEN_RUN=\"matugen\"; fi;"
+        // Provides a "${MATUGEN[@]}" argv array: [bash matugen-run.sh] when
+        // executable, else the plain matugen binary.
+        return "RUN=\"$HOME/.config/quickshell/jhqs/scripts/matugen-run.sh\"; if [ -x \"$RUN\" ]; then MATUGEN=(bash \"$RUN\"); else [ -x \"$HOME/.cargo/bin/matugen\" ] && MATUGEN=(\"$HOME/.cargo/bin/matugen\") || MATUGEN=(matugen); fi;"
     }
 
-    function runMonetApply(escPath: string) {
+    function runMonetApply(wallPath: string) {
+        // Fast path: TYPE/MODE come straight from the QML adapter (no jq
+        // subprocesses) and WALL travels as argv $1 (no shell escaping, no
+        // find(1) directory scan). matugen-run.sh keeps the synchronous part
+        // to ~0.3s (papirus icons + gtk re-apply run detached).
+        let type = "scheme-tonal-spot", mode = "dark"
+        try {
+            let t = matugenSettingsFile.adapter.type
+            if (t && matugenTypes.indexOf(t) >= 0) type = t
+            let m = matugenSettingsFile.adapter.mode
+            if (m === "light" || m === "dark") mode = m
+        } catch (e) {}
+        let wall = (wallPath && wallPath.length > 0) ? wallPath : ""
+        if (wall === "") wall = resolveWallpaper("", "")
         let cmd = matugenBin()
-        cmd += " WALL=\"" + escPath + "\";"
+        cmd += "WALL=\"$1\"; TYPE=\"$2\"; MODE=\"$3\";"
         cmd += " [ -f \"$WALL\" ] || WALL=\"$(cat ~/.cache/swaybg/current 2>/dev/null | tr -d '\\r\\n')\";"
-        cmd += " [ -f \"$WALL\" ] || WALL=\"$(cat ~/.cache/awww/current 2>/dev/null | tr -d '\\r\\n')\";"
-        cmd += " if [ ! -f \"$WALL\" ]; then for d in \"$HOME/Bilder/wallpapers\" \"$HOME/Pictures/wallpapers\" \"$HOME/Wallpapers\" \"${XDG_PICTURES_DIR:-$HOME/Pictures}/wallpapers\" \"$HOME/wallpapers\"; do if [ -d \"$d\" ]; then WALL=\"$(find \"$d\" -mindepth 1 -maxdepth 2 -type f \\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.bmp' -o -iname '*.gif' -o -iname '*.tiff' \\) 2>/dev/null | sort | head -1)\"; [ -f \"$WALL\" ] && break; fi; done; fi;"
-        cmd += " TYPE=$(jq -r '.type // \"scheme-tonal-spot\"' \"$HOME/.config/quickshell/jhqs/themes/matugen_settings.json\" 2>/dev/null); MODE=$(jq -r '.mode // \"dark\"' \"$HOME/.config/quickshell/jhqs/themes/matugen_settings.json\" 2>/dev/null);"
-        cmd += " if ! echo \"$TYPE\" | grep -q \"^scheme-\"; then TYPE=\"scheme-tonal-spot\"; fi; if [ \"$MODE\" != \"dark\" ] && [ \"$MODE\" != \"light\" ]; then MODE=\"dark\"; fi;"
-        cmd += " if [ -f \"$WALL\" ]; then if [ -x \"$MATUGEN_RUN\" ] && [ \"$(basename \"$MATUGEN_RUN\")\" = \"matugen-run.sh\" ]; then bash \"$MATUGEN_RUN\" image \"$WALL\" -t \"$TYPE\" -m \"$MODE\" --prefer saturation 2>&1 | logger -t matugen; else \"$MATUGEN_RUN\" image \"$WALL\" -t \"$TYPE\" -m \"$MODE\" --prefer saturation 2>&1 | logger -t matugen; fi; sed -i -E 's/^color_theme *= *\".*\"/color_theme = \"matugen\"/; s/^theme_background *= *.*/theme_background = False/' ~/.config/btop/btop.conf 2>/dev/null; bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"$MODE\" 2>&1 | logger -t gtk; hyprctl eval 'package.loaded[\"matugen-colors\"]=nil; pcall(require, \"matugen-colors\")' 2>&1 | logger -t hyprctl; notify-send -u low \"Monet\" \"Farbschema $TYPE • $MODE\" 2>/dev/null || true;"
+        cmd += " [ -f \"$WALL\" ] || WALL=\"$(cat ~/.config/quickshell/jhqs/config/current_wallpaper.txt 2>/dev/null | tr -d '\\r\\n')\";"
+        cmd += " case \"$TYPE\" in scheme-*) ;; *) TYPE=\"scheme-tonal-spot\";; esac; [ \"$MODE\" = \"light\" ] || MODE=\"dark\";"
+        cmd += " if [ -f \"$WALL\" ]; then"
+        cmd += " \"${MATUGEN[@]}\" image \"$WALL\" -t \"$TYPE\" -m \"$MODE\" --prefer saturation 2>&1 | logger -t matugen;"
+        // btop/kitty/gtk reloads are matugen post_hooks — no duplicate sed here.
+        // GTK settings.ini/css catch-up runs detached: the serial proc
+        // returns as soon as matugen is done (~0.3s).
+        cmd += " (bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"$MODE\" 2>&1 | logger -t gtk) >/dev/null 2>&1 < /dev/null &"
+        cmd += " notify-send -u low \"Monet\" \"Farbschema $TYPE • $MODE\" 2>/dev/null || true;"
         cmd += " else echo \"[ThemeEngine] no wallpaper found, Monet skipped\" | logger -t monet; notify-send -u critical \"Monet\" \"Kein Wallpaper gefunden — Farben unverändert\" 2>/dev/null || true; fi; echo done"
-        if (themeSerialProc.running) { _pendingSpec = "monet:" + escPath; return }
-        themeSerialProc.command = ["bash", "-c", cmd]
+        if (themeSerialProc.running) { _pendingSpec = "monet:" + wall; return }
+        themeSerialProc.command = ["bash", "-c", cmd, "jhqs-monet", wall, type, mode]
         themeSerialProc.running = true
     }
 
-    function runPresetApply(id: string) {
+    function runPresetApply(id: string, silent: bool) {
         let mode = "dark"
         try { let m = matugenSettingsFile.adapter.mode; if (m === "light" || m === "dark") mode = m } catch(e) { mode = "dark" }
-        let nameMap = { everforest: "everforest-soft", tokyonight: "tokyonight", petrichor: "petrichor", monochrome: "monochrome", catppuccin: "catppuccin-mocha" }
+        let nameMap = { everforest: "everforest-soft", tokyonight: "tokyonight", petrichor: "petrichor", monochrome: "monochrome", catppuccin: "catppuccin-mocha", gruvbox: "gruvbox" }
         let key = nameMap[id] || id
+        // SRC/DST/RENDER travel as argv ($1..$3): no quote-escaping bugs with
+        // exotic $HOME values. The shell colors update instantly via the
+        // atomic DST swap; the slow per-app render runs detached.
         let src = Quickshell.env("HOME") + "/.config/quickshell/jhqs/themes/" + key + "-" + mode + ".json"
         let dst = Quickshell.env("HOME") + "/.config/quickshell/jhqs/themes/matugen.json"
         let render = Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/render-everforest.py"
         let label = id.charAt(0).toUpperCase() + id.slice(1)
-        let cmd = "SRC=\"" + src.replace(/\"/g,"\\\"") + "\"; DST=\"" + dst.replace(/\"/g,"\\\"") + "\"; RENDER=\"" + render.replace(/\"/g,"\\\"") + "\"; TMP=\"$DST.tmp.$$\";"
-        cmd += " if [ -f \"$SRC\" ]; then cp -f \"$SRC\" \"$TMP\" 2>&1 | logger -t " + id + " && mv -f \"$TMP\" \"$DST\" 2>&1 | logger -t " + id + "; rm -f \"$TMP\"; python3 \"$RENDER\" " + mode + " \"$SRC\" 2>&1 | logger -t " + id + "; echo \"[" + label + "] " + mode + " applied from $SRC (all apps)\" | logger -t " + id + ";"
-        cmd += " else echo \"[" + label + "] source missing $SRC\" | logger -t " + id + "; fi; bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"" + mode + "\" 2>&1 | logger -t gtk; hyprctl eval 'package.loaded[\"matugen-colors\"]=nil; pcall(require, \"matugen-colors\")' 2>&1 | logger -t hyprctl; notify-send -u low \"Theme\" \"" + label + " (" + mode + ") — alle Programme aktualisiert\" 2>/dev/null || true; echo done"
-        if (themeSerialProc.running) { _pendingSpec = "preset:" + id; return }
-        themeSerialProc.command = ["bash", "-c", cmd]
+        label = label.replace(/[^A-Za-z0-9 -]/g, "")
+        if (label.length === 0) label = "Theme"
+        let cmd = "SRC=\"$1\"; DST=\"$2\"; RENDER=\"$3\"; MODE=\"$4\"; SILENT=\"$5\"; TAG=\"" + id.replace(/[^a-z0-9-]/g, "") + "\"; LBL=\"" + label + "\";"
+        cmd += " if [ -f \"$SRC\" ]; then if cmp -s \"$SRC\" \"$DST\" 2>/dev/null; then echo \"[$LBL] $MODE already active, skip\" | logger -t \"$TAG\";"
+        cmd += " else TMP=\"$DST.tmp.$$\"; cp -f \"$SRC\" \"$TMP\" && mv -f \"$TMP\" \"$DST\"; rm -f \"$TMP\";"
+        cmd += " (python3 \"$RENDER\" \"$MODE\" \"$SRC\" 2>&1 | logger -t \"$TAG\"; bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"$MODE\" 2>&1 | logger -t gtk) >/dev/null 2>&1 < /dev/null &"
+        cmd += " echo \"[$LBL] $MODE applied from $SRC (shell instant, apps in background)\" | logger -t \"$TAG\"; fi;"
+        cmd += " else echo \"[$LBL] source missing $SRC\" | logger -t \"$TAG\"; fi;"
+        cmd += " if [ \"$SILENT\" != \"1\" ]; then notify-send -u low \"Theme\" \"$LBL (" + mode + ")\" 2>/dev/null || true; fi; echo done"
+        if (themeSerialProc.running) { _pendingSpec = "preset:" + id; _pendingSilent = !!silent; return }
+        themeSerialProc.command = ["bash", "-c", cmd, "jhqs-preset", src, dst, render, mode, silent ? "1" : "0"]
         themeSerialProc.running = true
     }
 
-    function applyPreset(id: string) { enqueueThemeApply("preset:" + id) }
+    function applyPreset(id: string, silent: bool) { enqueueThemeApply("preset:" + id, !!silent) }
 
     function setThemeEngine(id: string) {
         let nid = "wallpaper"
-        if (id === "everforest" || id === "tokyonight" || id === "petrichor" || id === "monochrome" || id === "catppuccin") nid = id
+        if (id === "everforest" || id === "tokyonight" || id === "petrichor" || id === "monochrome" || id === "catppuccin" || id === "gruvbox") nid = id
         if (themeEngineFile.adapter.engine === nid) {
             applyEngine(nid)
             return
@@ -180,12 +216,12 @@ Item {
     }
 
     function abortMonet() { if (_pendingSpec.indexOf("monet:") === 0 || _pendingSpec === "monetCurrent") _pendingSpec = "" }
-    function applyMonetFromPath(escPath: string) {
-        enqueueThemeApply("monet:" + escPath)
+    function applyMonetFromPath(rawPath: string) {
+        enqueueThemeApply("monet:" + (rawPath || ""))
     }
 
     function applyThemeFromWallpaper(overridePath: string, fallbackPath: string) {
         let wallpaper = resolveWallpaper(overridePath, fallbackPath)
-        enqueueThemeApply("monet:" + escShellArg(wallpaper))
+        enqueueThemeApply("monet:" + wallpaper)
     }
 }

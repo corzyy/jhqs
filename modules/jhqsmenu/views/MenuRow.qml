@@ -46,6 +46,14 @@ Rectangle {
     color: active ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : rowMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
     border.color: "transparent"; border.width: 0
 
+    // Sharp cursor bar (0px design language): marks the selected row.
+    Rectangle {
+        anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+        width: 3
+        color: Theme.accent
+        visible: root.active
+    }
+
     RowLayout {
         id: rowLayout
         anchors.fill: parent

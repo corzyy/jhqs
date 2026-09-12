@@ -14,7 +14,6 @@ QtObject {
     readonly property real barOpacity: Themes.Theme.barOpacity
 
     readonly property bool animationsEnabled: Themes.Theme.animationsEnabled
-    readonly property real animationScale: Themes.Theme.animationScale
     readonly property int animFast: Themes.Theme.animFast
     readonly property int animNormal: Themes.Theme.animNormal
     readonly property int animSlow: Themes.Theme.animSlow

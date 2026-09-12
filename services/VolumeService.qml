@@ -18,12 +18,15 @@ Singleton {
         id: volumeFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/volume.json"
         watchChanges: true; blockLoading: true; printErrors: false
-        onFileChanged: {
-            try { reload() } catch (e) { }
-        }
+        onFileChanged: volumeReloadDebounce.restart()
         adapter: JsonAdapter {
             property bool showPct: false
         }
+    }
+    Timer {
+        id: volumeReloadDebounce
+        interval: 250; repeat: false
+        onTriggered: { try { volumeFile.reload() } catch (e) { } }
     }
     readonly property bool showPct: volumeFile.adapter.showPct === true
     function setShowPct(v: bool): void {
@@ -54,8 +57,12 @@ Singleton {
     // CPU/RAM: fallback shell probe used to run every 1s forever, even when
     // PipeWire signals already drive pct/isMuted. Gate it to !sinkReady and
     // slow to 5s so the steady state is zero forks on a working PipeWire box.
+    // STABILITY: back off to 15s after 3 consecutive empty probes (broken
+    // PipeWire shouldn't fork forever at 5s).
+    property int _probeFails: 0
     Timer {
-        interval: 5000
+        id: fallbackProbeTimer
+        interval: _probeFails >= 3 ? 15000 : 5000
         running: !root.sinkReady
         repeat: true
         triggeredOnStart: true
@@ -67,8 +74,18 @@ Singleton {
     Process { id: volMuteToggle; command: ["/usr/bin/wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] }
     Process { id: volSetProc; command: ["bash", "-c", "echo"] }
 
-    function stepUp(): void { volUp.running = true; Theme.triggerVolumeOsd() }
-    function stepDown(): void { volDown.running = true; Theme.triggerVolumeOsd() }
+    function stepUp(): void {
+        // STABILITY: guard key-hold storms (20/s). Coalesce — intermediate
+        // steps are obsolete the moment a newer one arrives.
+        if (volUp.running) return
+        volUp.running = true
+        Theme.triggerVolumeOsd()
+    }
+    function stepDown(): void {
+        if (volDown.running) return
+        volDown.running = true
+        Theme.triggerVolumeOsd()
+    }
     function toggleMute(): void {
         try {
             if (sinkReady) { sink.audio.muted = !sink.audio.muted; return }
@@ -80,7 +97,22 @@ Singleton {
         try {
             if (sinkReady) { sink.audio.volume = v2; if (sink.audio.muted && v2 > 0) sink.audio.muted = false; return }
         } catch (e) {}
-        volSetProc.command = ["bash", "-c", "/usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ " + Math.round(v2 * 100) + "% 2>/dev/null; /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null; echo done"]
-        if (!volSetProc.running) volSetProc.running = true
+        // PERF: throttle fallback slider path (30ms) — each tick forks 2x wpctl.
+        _pendingVol = v2
+        if (!volThrottle.running) { volThrottle.start(); flushFallbackVol() }
+    }
+    property real _pendingVol: -1
+    Timer {
+        id: volThrottle
+        interval: 80; repeat: false
+        onTriggered: flushFallbackVol()
+    }
+    function flushFallbackVol(): void {
+        if (_pendingVol < 0) return
+        if (volSetProc.running) { volThrottle.restart(); return }
+        let v2 = _pendingVol
+        _pendingVol = -1
+        volSetProc.command = ["/usr/bin/wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", Math.round(v2 * 100) + "%"]
+        volSetProc.running = true
     }
 }

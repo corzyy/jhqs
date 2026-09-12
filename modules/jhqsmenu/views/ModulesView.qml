@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -39,9 +40,11 @@ Item {
     }
     function matchesModule(e, q) {
         if (q === "") return true
-        let t = ("" + (e.title || "")).toLowerCase()
-        let mid = ("" + (e.id || "")).toLowerCase()
-        return t.includes(q) || mid.includes(q)
+        let words = q.split(/\s+/).filter(w => w.length > 0)
+        if (words.length === 0) return true
+        let hay = ((("" + (e.title || "")) + " " + ("" + (e.id || "")))).toLowerCase()
+        for (let i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false
+        return true
     }
     property var filteredAddList: {
         let q = query
@@ -62,11 +65,29 @@ Item {
     property var rootModel: {
         let a = addList.length, r = removeList.length
         return [
-            {title: "Modul hinzufügen", icon: "󰐕", sub: a === 0 ? "alle aktiv" : a + " verfügbar"},
-            {title: "Modul entfernen", icon: "󰐖", sub: r === 0 ? "keine aktiv" : r + " aktiv"}
+            {id: "add", title: "Module enable", icon: "󰐕", sub: a === 0 ? "alle aktiv" : a + " verfügbar"},
+            {id: "remove", title: "Module remove", icon: "󰐖", sub: r === 0 ? "keine aktiv" : r + " aktiv"}
         ]
     }
-    property int navCount: subview === "add" ? filteredAddList.length : subview === "remove" ? filteredRemoveList.length : 2
+    function matchesRoot(e, q) {
+        if (q === "") return true
+        let words = q.split(/\s+/).filter(w => w.length > 0)
+        if (words.length === 0) return true
+        // Word-based AND match (any order), like the top-level menu search.
+        let eid = ("" + (e.id || "")).toLowerCase()
+        let hay = ((("" + (e.title || "")) + " " + eid)).toLowerCase()
+        // Aliases so both views stay discoverable (EN + legacy DE + module/modul)
+        hay += eid === "remove" ? " delete entfernen" : " add hinzufügen hinzufuegen"
+        hay += " module modules modul"
+        for (let i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false
+        return true
+    }
+    property var filteredRootModel: {
+        let q = query
+        if (q === "") return rootModel
+        return rootModel.filter(e => matchesRoot(e, q))
+    }
+    property int navCount: subview === "add" ? filteredAddList.length : subview === "remove" ? filteredRemoveList.length : filteredRootModel.length
     onNavCountChanged: { if (selectedIndex >= navCount) selectedIndex = Math.max(0, navCount - 1) }
     function sectionLabel(id: string): string {
         let s = Theme.barSectionOf(id)
@@ -80,7 +101,7 @@ Item {
     function openSubview(v: string) { subview = v; selectedIndex = 0; status = ""; Qt.callLater(() => listFlick.ensureVisible(0)) }
     function goBack() {
         if (subview !== "root") openSubview("root")
-        else { bodyRoot.scope.showModules = false; bodyRoot.scope.showStyle = true; bodyRoot.scope.clearSearch() }
+        else { bodyRoot.scope.modulesSubview = "root"; bodyRoot.scope.showModules = false; bodyRoot.scope.showStyle = true; bodyRoot.scope.clearSearch() }
     }
     function moveSelection(delta: int) {
         if (navCount <= 0) return
@@ -89,7 +110,8 @@ Item {
     }
     function activateSelected() {
         if (subview === "root") {
-            openSubview(selectedIndex === 1 ? "remove" : "add")
+            let e = filteredRootModel[selectedIndex]
+            if (e) openSubview(e.id === "remove" ? "remove" : "add")
             return
         }
         if (subview === "add") {
@@ -118,7 +140,12 @@ Item {
     Connections {
         target: bodyRoot.scope
         function onShowModulesChanged() {
-            if (bodyRoot.scope.showModules) { root.subview = "root"; root.selectedIndex = 0; root.status = "" }
+            if (bodyRoot.scope.showModules) {
+                let req = bodyRoot.scope.modulesSubview
+                root.subview = (req === "add" || req === "remove") ? req : "root"
+                root.selectedIndex = 0
+                root.status = ""
+            }
         }
         function onFilterTextChanged() {
             root.selectedIndex = 0
@@ -126,6 +153,7 @@ Item {
         }
     }
 
+    ScrollIndicator { flick: listFlick }
     Flickable {
         id: listFlick
         anchors.fill: parent
@@ -153,12 +181,38 @@ Item {
             spacing: 3
             Repeater {
                 id: rootRepeater
-                model: root.subview === "root" ? root.rootModel : []
+                model: root.subview === "root" ? root.filteredRootModel : []
                 delegate: MenuRow {
                     selected: root.selectedIndex === index
                     glyph: "›"
                     sub: modelData.sub
                     onActivated: idx => { root.selectedIndex = idx; listFlick.ensureVisible(idx); root.activateSelected() }
+                }
+            }
+            ColumnLayout {
+                visible: root.subview === "root" && root.filteredRootModel.length === 0
+                Layout.fillWidth: true
+                spacing: 8
+                Layout.topMargin: 24
+                Text {
+                    text: "󰐱"
+                    font.family: Theme.iconFontFamily
+                    font.pixelSize: Theme.fs(28)
+                    color: Theme.textMuted
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    text: root.query !== "" ? "Keine Treffer für “" + bodyRoot.scope.filterText.trim() + "”" : "Keine Module"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(13)
+                    color: Theme.textMuted
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
                 }
             }
             ColumnLayout {

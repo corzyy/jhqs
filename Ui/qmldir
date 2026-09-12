@@ -1,3 +1,4 @@
 BarAnchor 1.0 BarAnchor.qml
 PanelSpring 1.0 PanelSpring.qml
 MSlider 1.0 MSlider.qml
+ScrollIndicator 1.0 ScrollIndicator.qml

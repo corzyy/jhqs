@@ -2,8 +2,8 @@
     "hasCoords": false,
     "latitude": 0,
     "longitude": 0,
-    "name": "",
+    "name": "Bonn",
     "refreshMinutes": 15,
-    "showLabel": true,
-    "unit": ""
+    "showLabel": false,
+    "unit": "metric"
 }

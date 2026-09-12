@@ -10,6 +10,154 @@ Column {
     spacing: 10
 
     SettingsControls.SettingsSection {
+        title: "Layout"
+        Column {
+            width: parent.width
+            spacing: 6
+            Text {
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+                text: "Notifications Side"
+                font.family: Theme.iconFontFamily
+                font.pixelSize: Theme.fs(12)
+                font.weight: Font.Medium
+                font.letterSpacing: 0
+                color: Theme.textSecondary
+            }
+            Row {
+                width: parent.width
+                spacing: 8
+                Repeater {
+                    model: [
+                        { id: "left", label: "Left" },
+                        { id: "right", label: "Right" }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property string sideId: modelData.id
+                        readonly property bool isCurrent: (Theme.calendarNotifLeft ? "left" : "right") === sideId
+                        // First mini-pane shows notifications when sideId is left.
+                        readonly property bool notifFirst: sideId === "left"
+                        width: (parent.width - 8) / 2
+                        height: 88
+                        radius: Theme.cornerRadiusSmall
+                        antialiasing: Theme.shapesAa
+                        color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
+                            : sideMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
+                            : (Theme.withAlpha(Theme.textPrimary, 0.04))
+                        border.color: isCurrent ? Theme.accent : Theme.divider
+                        border.width: isCurrent ? 2 : 1
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Rectangle {
+                                antialiasing: Theme.shapesAa
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: 66
+                                height: 38
+                                radius: 2
+                                color: "transparent"
+                                border.color: isCurrent ? Theme.accent : Theme.divider
+                                border.width: 1
+                                Row {
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    spacing: 4
+                                    Rectangle {
+                                        antialiasing: Theme.shapesAa
+                                        width: (parent.width - 4) / 2
+                                        height: parent.height
+                                        color: Theme.withAlpha(Theme.textPrimary, 0.06)
+                                        Column {
+                                            anchors.centerIn: parent
+                                            spacing: 3
+                                            visible: notifFirst
+                                            Repeater {
+                                                model: [14, 10, 12]
+                                                delegate: Rectangle {
+                                                    required property var modelData
+                                                    antialiasing: Theme.shapesAa
+                                                    width: modelData
+                                                    height: 2
+                                                    color: Theme.textMuted
+                                                }
+                                            }
+                                        }
+                                        Grid {
+                                            anchors.centerIn: parent
+                                            columns: 3
+                                            spacing: 2
+                                            visible: !notifFirst
+                                            Repeater {
+                                                model: [0, 0, 0, 0, 1, 0]
+                                                delegate: Rectangle {
+                                                    required property var modelData
+                                                    antialiasing: Theme.shapesAa
+                                                    width: 4
+                                                    height: 4
+                                                    color: modelData === 1 ? Theme.accent : Theme.textMuted
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Rectangle {
+                                        antialiasing: Theme.shapesAa
+                                        width: (parent.width - 4) / 2
+                                        height: parent.height
+                                        color: Theme.withAlpha(Theme.textPrimary, 0.06)
+                                        Column {
+                                            anchors.centerIn: parent
+                                            spacing: 3
+                                            visible: !notifFirst
+                                            Repeater {
+                                                model: [12, 14, 10]
+                                                delegate: Rectangle {
+                                                    required property var modelData
+                                                    antialiasing: Theme.shapesAa
+                                                    width: modelData
+                                                    height: 2
+                                                    color: Theme.textMuted
+                                                }
+                                            }
+                                        }
+                                        Grid {
+                                            anchors.centerIn: parent
+                                            columns: 3
+                                            spacing: 2
+                                            visible: notifFirst
+                                            Repeater {
+                                                model: [0, 0, 0, 0, 1, 0]
+                                                delegate: Rectangle {
+                                                    required property var modelData
+                                                    antialiasing: Theme.shapesAa
+                                                    width: 4
+                                                    height: 4
+                                                    color: modelData === 1 ? Theme.accent : Theme.textMuted
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Text {
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: modelData.label
+                                font.family: Theme.iconFontFamily
+                                font.pixelSize: Theme.fs(11)
+                                font.weight: isCurrent ? Font.Medium : Font.Normal
+                                color: isCurrent ? Theme.textPrimary : Theme.textSecondary
+                            }
+                        }
+                        MouseArea { id: sideMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setCalendarNotifSide(sideId) }
+                    }
+                }
+            }
+        }
+    }
+
+    SettingsControls.SettingsSection {
         title: "Calendar"
         SettingsControls.SettingsDropdown {
             label: "Week Starts"

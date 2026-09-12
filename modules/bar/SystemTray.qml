@@ -15,12 +15,21 @@ Item {
     readonly property int extent: 26
     readonly property int iconPx: 16
     readonly property int chevronPx: 26
-    readonly property int drawerDur: Math.max(1, Math.round(600 * 1))
+    // PERF: 600ms layout animation drove implicitWidth/Height + x/y every
+    // frame. 150ms is visually identical for a 26px reveal, 4x fewer frames.
+    readonly property int drawerDur: Theme.animationsEnabled ? 150 : 1
 
     property bool hoverExpand: false
     property bool touchExpand: false
     readonly property bool expanded: hoverExpand || touchExpand
     property real revealProgress: expanded ? 1 : 0
+    Behavior on revealProgress {
+        enabled: Theme.animationsEnabled
+        NumberAnimation {
+            duration: root.drawerDur
+            easing.type: Easing.OutCubic
+        }
+    }
 
     property var hoveredItem: null
 
@@ -82,44 +91,54 @@ Item {
     }
     function click(button: int, x: real, y: real): void {
         if (root.vertical) {
-            let blockH = root.drawerBlockH
-            if (y < blockH && root.rawItems.length > 0) {
-                if (y < root.chevronPx) {
-                    if (button === Qt.RightButton) root.requestManage()
-                    else if (button === Qt.LeftButton) root.touchExpand = !root.expanded
+            let revealH = Math.round(root.revealExtent)
+            let pinnedH = root.pinnedItems.length * root.extent
+            if (root.rawItems.length > 0) {
+                if (y < revealH) {
+                    if (root.revealProgress > 0.5) {
+                        let i = Math.floor(y / root.extent)
+                        if (i >= 0 && i < root.drawerCount) {
+                            iconClick(root.drawerItems[i], vDrawerRepeater.itemAt(i), button)
+                        }
+                    }
                     return
                 }
-                if (root.revealProgress > 0.5) {
-                    let i = Math.floor((y - root.chevronPx) / root.extent)
-                    if (i >= 0 && i < root.drawerCount) {
-                        iconClick(root.drawerItems[i], vDrawerRepeater.itemAt(i), button)
-                        return
-                    }
-                }
+            }
+            if (y >= revealH && y < revealH + pinnedH) {
+                let j = Math.floor((y - revealH) / root.extent)
+                if (j >= 0 && j < root.pinnedItems.length) iconClick(root.pinnedItems[j], vPinnedRepeater.itemAt(j), button)
                 return
             }
-            let j = Math.floor((y - blockH) / root.extent)
-            if (j >= 0 && j < root.pinnedItems.length) iconClick(root.pinnedItems[j], vPinnedRepeater.itemAt(j), button)
-            return
-        }
-        let blockW = root.drawerBlockW
-        if (x < blockW && root.rawItems.length > 0) {
-            if (x < root.chevronPx) {
+            if (root.rawItems.length > 0 && y >= revealH + pinnedH && y < revealH + pinnedH + root.chevronPx) {
                 if (button === Qt.RightButton) root.requestManage()
                 else if (button === Qt.LeftButton) root.touchExpand = !root.expanded
                 return
             }
-            if (root.revealProgress > 0.5) {
-                let i = Math.floor((x - root.chevronPx) / root.extent)
-                if (i >= 0 && i < root.drawerCount) {
-                    iconClick(root.drawerItems[i], hDrawerRepeater.itemAt(i), button)
-                    return
-                }
-            }
             return
         }
-        let j = Math.floor((x - blockW) / root.extent)
-        if (j >= 0 && j < root.pinnedItems.length) iconClick(root.pinnedItems[j], hPinnedRepeater.itemAt(j), button)
+        let revealW = Math.round(root.revealExtent)
+        let pinnedW = root.pinnedItems.length * root.extent
+        if (root.rawItems.length > 0) {
+            if (x < revealW) {
+                if (root.revealProgress > 0.5) {
+                    let i = Math.floor(x / root.extent)
+                    if (i >= 0 && i < root.drawerCount) {
+                        iconClick(root.drawerItems[i], hDrawerRepeater.itemAt(i), button)
+                    }
+                }
+                return
+            }
+        }
+        if (x >= revealW && x < revealW + pinnedW) {
+            let j = Math.floor((x - revealW) / root.extent)
+            if (j >= 0 && j < root.pinnedItems.length) iconClick(root.pinnedItems[j], hPinnedRepeater.itemAt(j), button)
+            return
+        }
+        if (root.rawItems.length > 0 && x >= revealW + pinnedW && x < revealW + pinnedW + root.chevronPx) {
+            if (button === Qt.RightButton) root.requestManage()
+            else if (button === Qt.LeftButton) root.touchExpand = !root.expanded
+            return
+        }
     }
     function wheel(dy: real): bool {
         if (root.hoveredItem) {
@@ -138,46 +157,30 @@ Item {
         id: hWrap
         visible: !root.vertical
         anchors.fill: parent
+        // Order left->right: [drawer programs][pinned tray][chevron arrow].
+        // Chevron sits at the trailing (right) edge so its screen position
+        // stays fixed while the drawer grows leftwards; pinned stays fixed
+        // in the middle for the same reason (bar is right-anchored).
         Item {
-            id: hDrawerArea
-            x: 0; y: Math.round((hWrap.height - root.extent) / 2)
-            width: root.drawerBlockW
+            x: 0
+            y: Math.round((hWrap.height - root.extent) / 2)
+            width: Math.round(root.revealExtent)
             height: root.extent
+            clip: true
             visible: root.rawItems.length > 0
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
+            Row {
                 x: 0
                 y: 0
-                width: root.chevronPx
-                height: root.extent
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                text: root.expanded ? "›" : "‹"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fs(12)
-                color: Theme.textSecondary
-            }
-            Item {
-                x: root.chevronPx
-                y: 0
-                width: Math.round(root.revealExtent)
-                height: root.extent
-                clip: true
-                Row {
-                    x: 0
-                    y: 0
-                    spacing: 0
-                    Repeater {
-                        id: hDrawerRepeater
-                        model: root.drawerItems
-                        delegate: TraySlot { vertical: false; slotIndex: index }
-                    }
+                spacing: 0
+                Repeater {
+                    id: hDrawerRepeater
+                    model: root.drawerItems
+                    delegate: TraySlot { vertical: false; slotIndex: index }
                 }
             }
         }
         Row {
-            x: root.drawerBlockW
+            x: Math.round(root.revealExtent)
             y: Math.round((hWrap.height - root.extent) / 2)
             spacing: 0
             Repeater {
@@ -186,60 +189,74 @@ Item {
                 delegate: TraySlot { vertical: false; slotIndex: index }
             }
         }
+        Text {
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+            x: Math.round(root.revealExtent) + root.pinnedItems.length * root.extent
+            y: Math.round((hWrap.height - root.extent) / 2)
+            width: root.chevronPx
+            height: root.extent
+            visible: root.rawItems.length > 0
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            text: root.expanded ? "›" : "‹"
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fs(12)
+            color: Theme.textSecondary
+        }
     }
 
     Item {
         id: vWrap
         visible: root.vertical
         anchors.fill: parent
+        // Order top->bottom: [drawer programs][pinned tray][chevron arrow].
+        // Chevron sits at the trailing (bottom) edge so its screen position
+        // stays fixed while the drawer grows upwards; pinned stays fixed
+        // in the middle (bar bottom section is bottom-anchored).
         Item {
-            id: vDrawerArea
-            x: Math.round((vWrap.width - root.extent) / 2); y: 0
+            x: Math.round((vWrap.width - root.extent) / 2)
+            y: 0
             width: root.extent
-            height: root.drawerBlockH
+            height: Math.round(root.revealExtent)
+            clip: true
             visible: root.rawItems.length > 0
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
+            Column {
                 x: 0
                 y: 0
-                width: root.extent
-                height: root.chevronPx
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                text: root.expanded ? "›" : "‹"
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fs(12)
-                rotation: 90
-                color: Theme.textSecondary
-            }
-            Item {
-                x: 0
-                y: root.chevronPx
-                width: root.extent
-                height: Math.round(root.revealExtent)
-                clip: true
-                Column {
-                    x: 0
-                    y: 0
-                    spacing: 0
-                    Repeater {
-                        id: vDrawerRepeater
-                        model: root.drawerItems
-                        delegate: TraySlot { vertical: true; slotIndex: index }
-                    }
+                spacing: 0
+                Repeater {
+                    id: vDrawerRepeater
+                    model: root.drawerItems
+                    delegate: TraySlot { vertical: true; slotIndex: index }
                 }
             }
         }
         Column {
             x: Math.round((vWrap.width - root.extent) / 2)
-            y: root.drawerBlockH
+            y: Math.round(root.revealExtent)
             spacing: 0
             Repeater {
                 id: vPinnedRepeater
                 model: root.pinnedItems
                 delegate: TraySlot { vertical: true; slotIndex: index }
             }
+        }
+        Text {
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+            x: Math.round((vWrap.width - root.extent) / 2)
+            y: Math.round(root.revealExtent) + root.pinnedItems.length * root.extent
+            width: root.extent
+            height: root.chevronPx
+            visible: root.rawItems.length > 0
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            text: root.expanded ? "›" : "‹"
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fs(12)
+            rotation: 90
+            color: Theme.textSecondary
         }
     }
 
@@ -251,6 +268,13 @@ Item {
         width: root.extent
         height: root.extent
         opacity: 1
+        // PERF: cache per-delegate so iconIsSymbolic() string split isn't
+        // re-run on every revealProgress frame for every icon.
+        readonly property string iconSrc: String(traySlot.modelData.icon || "")
+        readonly property bool symbolic: {
+            let n = iconSrc.split("?")[0]
+            return n.slice(-9) === "-symbolic"
+        }
         function openMenu(): void { slotMenuAnchor.open() }
         Item {
             anchors.centerIn: parent
@@ -262,20 +286,31 @@ Item {
                 id: slotImg
                 anchors.fill: parent
                 fillMode: Image.PreserveAspectFit
-                sourceSize.width: Math.round(root.iconPx * Screen.devicePixelRatio)
-                sourceSize.height: Math.round(root.iconPx * Screen.devicePixelRatio)
-                source: String(traySlot.modelData.icon || "")
+                // PERF: fixed 32px decode (was DPR-scaled, refetching all
+                // icons on DPR change for 16px display).
+                sourceSize.width: 32
+                sourceSize.height: 32
+                source: traySlot.symbolic ? "" : traySlot.iconSrc
                 asynchronous: true
                 cache: true
-                visible: !root.iconIsSymbolic(traySlot.modelData.icon)
-                onStatusChanged: if (status === Image.Error) source = ""
+                visible: !traySlot.symbolic
+                onStatusChanged: if (status === Image.Error && source !== "") source = ""
             }
-            MultiEffect {
+            // PERF: MultiEffect is an offscreen pass per icon. Loader-gate so
+            // only symbolic icons pay for it.
+            Loader {
                 anchors.fill: parent
-                source: slotImg
-                visible: root.iconIsSymbolic(traySlot.modelData.icon)
-                colorization: 1.0
-                colorizationColor: Theme.textPrimary
+                active: traySlot.symbolic
+                asynchronous: true
+                sourceComponent: symbolFx
+            }
+            Component {
+                id: symbolFx
+                MultiEffect {
+                    source: slotImg
+                    colorization: 1.0
+                    colorizationColor: Theme.textPrimary
+                }
             }
         }
         HoverHandler {

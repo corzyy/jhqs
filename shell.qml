@@ -8,6 +8,7 @@ import QtQuick
 import Quickshell.Io
 import Quickshell.Services.Notifications
 import "./modules" as Modules
+import "./modules/panels" as Panels
 
 ShellRoot {
     id: root
@@ -48,20 +49,20 @@ ShellRoot {
         actionIconsSupported: true
         inlineReplySupported: true
         onNotification: notification => {
-            HistoryService.add({
-                id: notification.id,
-                appName: notification.appName,
-                summary: notification.summary,
-                body: notification.body,
-                appIcon: notification.appIcon,
-                image: notification.image,
-                urgency: notification.urgency,
-                time: new Date(),
-                actions: notification.actions,
-                hasInlineReply: notification.hasInlineReply,
-                inlineReplyPlaceholder: notification.inlineReplyPlaceholder,
-                resident: notification.resident
-            })
+            // CRASH FIX: snapshot only plain types. Never store
+            // notification.actions (QObjects) — dangling actions crash
+            // CalendarMenu Repeaters in QV4::fromData on open.
+            // HistoryService.add() sanitizes again as defense-in-depth.
+            try {
+                HistoryService.add({
+                    id: Number(notification.id),
+                    appName: String(notification.appName || "Notification"),
+                    summary: String(notification.summary || ""),
+                    body: String(notification.body || ""),
+                    urgency: Number(notification.urgency),
+                    time: Date.now()
+                })
+            } catch (e) { }
             if (Theme.dndEnabled) return
             notification.tracked = true
             expireOldTrackedNotifications()
@@ -69,16 +70,24 @@ ShellRoot {
     }
 
     function expireOldTrackedNotifications() {
-        try {
-            const m = notifServer.trackedNotifications
-            const vals = m ? m.values : []
-            if (!vals || vals.length <= 5) return
-            const extra = vals.length - 5
-            for (let i = 0; i < extra; i++) {
-                try { vals[i].expire() } catch (e) { }
-            }
-        } catch (e) { }
+        // PERF: coalesce burst expiry — 20 toasts used to alloc values[] +
+        // expire per notification. One deferred pass per burst instead.
+        if (_expireScheduled) return
+        _expireScheduled = true
+        Qt.callLater(() => {
+            _expireScheduled = false
+            try {
+                const m = notifServer.trackedNotifications
+                const vals = m ? m.values : []
+                if (!vals || vals.length <= 5) return
+                const extra = vals.length - 5
+                for (let i = 0; i < extra; i++) {
+                    try { vals[i].expire() } catch (e) { }
+                }
+            } catch (e) { }
+        })
     }
+    property bool _expireScheduled: false
 
     QtObject {
         id: panel
@@ -178,23 +187,30 @@ ShellRoot {
 
         // CPU: table-driven close — replaces if/else chain so
         // closePanel is O(1) and cannot drift out of sync with panel enum.
+        // PERF: switch instead of per-signal object alloc + 10 prop reads.
         onClosePanel: moduleId => {
-            const map = {
-                "launcher": root.menuVisible,
-                "clock": root.calendarVisible,
-                "weather": root.weatherVisible,
-                "network": root.networkVisible, "volume": root.volumeVisible,
-                "bluetooth": root.bluetoothVisible, "vitals": root.vitalsVisible,
-                "systemtray": root.systemTrayVisible, "updates": root.updatesVisible,
-                "settings": root.settingsVisible
+            let isOpen = false
+            switch (moduleId) {
+            case "launcher": isOpen = root.menuVisible; break
+            case "clock": isOpen = root.calendarVisible; break
+            case "weather": isOpen = root.weatherVisible; break
+            case "network": isOpen = root.networkVisible; break
+            case "volume": isOpen = root.volumeVisible; break
+            case "bluetooth": isOpen = root.bluetoothVisible; break
+            case "vitals": isOpen = root.vitalsVisible; break
+            case "systemtray": isOpen = root.systemTrayVisible; break
+            case "updates": isOpen = root.updatesVisible; break
+            case "settings": isOpen = root.settingsVisible; break
+            default: isOpen = false
             }
-            if (map[moduleId]) root.closeAll()
+            if (isOpen) root.closeAll()
         }
     }
 
     function openSettings(section: string): void {
         let s = (section || "global").trim() || "global"
-        let valid = ["global", "theming", "hypr", "bar", "modules", "workspaces", "notif", "osd", "search"]
+        if (s === "modules") s = "vitals"
+        let valid = ["global", "mango", "bar", "vitals", "workspaces", "calendar", "notif"]
         if (valid.indexOf(s) === -1) s = "global"
         settingsSection = s
         if (settingsLoader.item) settingsLoader.item.section = s
@@ -317,8 +333,9 @@ ShellRoot {
     Loader { id: calLoader; active: root.calendarVisible; asynchronous: true; sourceComponent: calComp }
     Component {
         id: calComp
-        Modules.CalendarMenu {
+        Panels.CalendarMenu {
             showCalendar: root.calendarVisible
+            notifServer: root.notifServer
             onDismissed: root.closeAll()
         }
     }
@@ -326,7 +343,7 @@ ShellRoot {
     Loader { id: weatherLoader; active: root.weatherVisible; asynchronous: true; sourceComponent: weatherComp }
     Component {
         id: weatherComp
-        Modules.WeatherPanel {
+        Panels.WeatherPanel {
             showWeather: root.weatherVisible
             onDismissed: root.closeAll()
         }
@@ -335,7 +352,7 @@ ShellRoot {
     Loader { id: trayLoader; active: root.systemTrayVisible; asynchronous: true; sourceComponent: trayComp }
     Component {
         id: trayComp
-        Modules.SystemTrayPanel {
+        Panels.SystemTrayPanel {
             showTray: root.systemTrayVisible
             onDismissed: root.closeAll()
         }
@@ -344,7 +361,7 @@ ShellRoot {
     Loader { id: netLoader; active: root.networkVisible; asynchronous: true; sourceComponent: netComp }
     Component {
         id: netComp
-        Modules.NetworkPanel {
+        Panels.NetworkPanel {
             showNetwork: root.networkVisible
             onDismissed: root.closeAll()
         }
@@ -353,7 +370,7 @@ ShellRoot {
     Loader { id: volLoader; active: root.volumeVisible; asynchronous: true; sourceComponent: volComp }
     Component {
         id: volComp
-        Modules.VolumePanel {
+        Panels.VolumePanel {
             showVolume: root.volumeVisible
             onDismissed: root.closeAll()
         }
@@ -362,7 +379,7 @@ ShellRoot {
     Loader { id: btLoader; active: root.bluetoothVisible; asynchronous: true; sourceComponent: btPanelComp }
     Component {
         id: btPanelComp
-        Modules.BluetoothPanel {
+        Panels.BluetoothPanel {
             showBluetooth: root.bluetoothVisible
             onDismissed: root.closeAll()
         }
@@ -371,7 +388,7 @@ ShellRoot {
     Loader { id: updLoader; active: root.updatesVisible; asynchronous: true; sourceComponent: updPanelComp }
     Component {
         id: updPanelComp
-        Modules.UpdateCenterPanel {
+        Panels.UpdateCenterPanel {
             showUpdates: root.updatesVisible
             onDismissed: root.closeAll()
         }
@@ -380,7 +397,7 @@ ShellRoot {
     Loader { id: vitalsLoader; active: root.vitalsVisible; asynchronous: true; sourceComponent: vitalsPanelComp }
     Component {
         id: vitalsPanelComp
-        Modules.VitalsPanel {
+        Panels.VitalsPanel {
             showVitals: root.vitalsVisible
             onDismissed: root.closeAll()
         }
@@ -395,22 +412,21 @@ ShellRoot {
     }
     Component {
         id: settingsComp
-        Modules.SettingsPanel {
+        Panels.SettingsPanel {
             showSettings: root.settingsVisible
             Component.onCompleted: section = root.settingsSection
             onDismissed: root.closeAll()
         }
     }
 
-    // NOTE: VolumeOSD/LaunchOSD/Lockscreen/Polkit stay resident on purpose:
-    // they are trigger listeners (Theme.volumeOsdTrigger/launchOsdTrigger,
+    // NOTE: VolumeOSD/Lockscreen/Polkit stay resident on purpose:
+    // they are trigger listeners (Theme.volumeOsdTrigger,
     // lock IPC, polkit agent). Gating them on a visible flag would break
     // the trigger itself. Their windows already render nothing when hidden
     // (_winVisible=false -> visible:false), so steady-state cost is one
     // Scope + timers, not a scene tree. Real RAM wins are the 14 panel
     // Loaders above, which ARE correctly gated.
     Modules.VolumeOSD { }
-    Modules.LaunchOSD { }
     Modules.Lockscreen { }
 
     Modules.Polkit { }

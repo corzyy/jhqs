@@ -3,21 +3,19 @@
 
 Ported from DankMaterialShell's ThemeColorsTab functionality
 (Applications / Cursor / Icon / Matugen Templates / System App Theming),
-adapted to jhqs: matugen runs directly, Hyprland-only, qt via qt*ct.
+adapted to jhqs: matugen runs directly, qt via qt*ct.
 
 Usage: theming-apply.py <domain> <key=value>...
 Domains: icon | cursor | gtk | qt | template | portal | terminals
 """
 import json
+import os
 import pathlib
 import re
 import subprocess
 import sys
 
 HOME = pathlib.Path.home()
-HYPR_CFGS = HOME / ".config/hypr/configs"
-ENV_LUA = HYPR_CFGS / "env.lua"
-AUTOSTART_LUA = HYPR_CFGS / "autostart.lua"
 JHQS_CFG = HOME / ".config/quickshell/jhqs/config"
 JHQS_SCRIPTS = HOME / ".config/quickshell/jhqs/scripts"
 THEMING_JSON = JHQS_CFG / "theming_settings.json"
@@ -123,29 +121,6 @@ def icon(pairs: dict) -> None:
 
 
 # --------------------------------------------------------------- cursor ---
-def _upsert_lua_env(key: str, value: str) -> None:
-    try:
-        txt = ENV_LUA.read_text() if ENV_LUA.exists() else ""
-    except OSError:
-        txt = ""
-    pat = r'hl\.env\("' + re.escape(key) + r'",\s*"[^"]*"\)'
-    repl = f'hl.env("{key}", "{value}")'
-    txt2, n = re.subn(pat, repl, txt)
-    if n == 0:
-        txt2 = txt2.rstrip() + f'\n{repl}\n'
-    atomic_write(ENV_LUA, txt2)
-
-
-def _upsert_setcursor(theme: str, size: int) -> None:
-    try:
-        txt = AUTOSTART_LUA.read_text() if AUTOSTART_LUA.exists() else ""
-    except OSError:
-        txt = ""
-    repl = f'hl.exec_cmd("hyprctl setcursor {theme} {size}")'
-    txt2, n = re.subn(r'hl\.exec_cmd\("hyprctl setcursor [^"]*"\)', repl, txt)
-    if n == 0:
-        txt2 = txt2.rstrip() + "\n  " + repl + "\n"
-    atomic_write(AUTOSTART_LUA, txt2)
 
 
 def cursor(pairs: dict) -> None:
@@ -160,11 +135,6 @@ def cursor(pairs: dict) -> None:
     atomic_write(THEMING_JSON, json.dumps(t, indent=4, sort_keys=True) + "\n")
     if theme == "System Default" or not theme:
         return
-    _upsert_lua_env("XCURSOR_THEME", theme)
-    _upsert_lua_env("XCURSOR_SIZE", str(size))
-    _upsert_lua_env("HYPRCURSOR_THEME", theme)
-    _upsert_lua_env("HYPRCURSOR_SIZE", str(size))
-    _upsert_setcursor(theme, size)
     _set_ini_key(GTK3_INI, "gtk-cursor-theme-name", theme)
     _set_ini_key(GTK4_INI, "gtk-cursor-theme-name", theme)
     _set_ini_key(GTK3_INI, "gtk-cursor-theme-size", str(size))
@@ -181,7 +151,6 @@ def cursor(pairs: dict) -> None:
     except OSError:
         pass
     sh("xrdb -merge ~/.Xresources")
-    sh(f"hyprctl setcursor '{theme}' {size}")
     sh(f"notify-send -u low 'Theming' 'Cursor: {theme} {size}px' 2>/dev/null")
 
 
@@ -223,21 +192,25 @@ def terminals(pairs: dict) -> None:
         return
     # Re-render terminal outputs with the dark variant when the shell is light,
     # mirroring DMS "Terminals - Always use Dark Theme" (.default -> .dark).
+    # matugen-run.sh does the dark kitty replay itself (detached), so a plain
+    # light apply here is enough to converge everything.
     if matugen_mode() != "light":
         return
     wall = sh_out("cat ~/.config/quickshell/jhqs/config/current_wallpaper.txt 2>/dev/null | tr -d '\\r\\n'")
     if not wall:
         wall = sh_out("cat ~/.cache/swaybg/current 2>/dev/null | tr -d '\\r\\n'")
-    if not wall:
+    if not wall or "\n" in wall:
         return
     mtype = read_json(MATUGEN_SETTINGS).get("type", "scheme-tonal-spot")
-    tmp = pathlib.Path("/tmp/jhqs-matugen-terminals.toml")
-    main = MATUGEN_CONFIG.read_text() if MATUGEN_CONFIG.exists() else ""
-    blocks = _extract_blocks(main, {"kitty"})
-    if not blocks:
-        return
-    tmp.write_text('[config]\nprefer = "saturation"\n\n' + blocks)
-    sh(f"matugen image \"{wall}\" -t '{mtype}' -m dark -c '{tmp}'")
+    if not re.fullmatch(r"scheme-[a-z-]+", mtype or ""):
+        mtype = "scheme-tonal-spot"
+    runner = JHQS_SCRIPTS / "matugen-run.sh"
+    if runner.exists() and os.access(runner, os.X_OK):
+        subprocess.run(["bash", str(runner), "image", wall,
+                        "-t", mtype, "-m", "light", "--prefer", "saturation"],
+                       check=False)
+    else:
+        sh(f"matugen image \"{wall}\" -t '{mtype}' -m light --prefer saturation")
 
 
 # -------------------------------------------------------------- template --

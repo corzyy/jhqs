@@ -5,9 +5,9 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../themes"
-import "../services"
-import "../Ui"
+import "../../themes"
+import "../../services"
+import "../../Ui"
 
 Scope {
     id: scope
@@ -26,20 +26,22 @@ Scope {
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
 
-    readonly property real outVol: VolumeService.pct / 100
+    readonly property real outVol: (VolumeService.pct || 0) / 100
     readonly property bool outMuted: VolumeService.isMuted
     readonly property bool anyAudible: !outMuted && VolumeService.pct > 0
-    function moodLabel(): string {
-        if (outMuted) return "Muted"
-        let p = VolumeService.pct
-        if (p === 0) return "Silenced"
-        if (p >= 100) return "Concert hall"
-        if (p >= 85) return "Party mode"
-        if (p >= 70) return "Cranked up"
-        if (p >= 50) return "Steady groove"
-        if (p >= 30) return "Easy listening"
-        if (p >= 15) return "Murmur"
-        return "Whisper"
+    // PERF: moodLabel() ran on every pct/mute tick inside a text binding.
+    // Cache as a property so only the string updates, not a function call.
+    readonly property string moodText: {
+        if (outMuted) return "MUTED"
+        let p = VolumeService.pct || 0
+        if (p === 0) return "SILENCED"
+        if (p >= 100) return "CONCERT HALL"
+        if (p >= 85) return "PARTY MODE"
+        if (p >= 70) return "CRANKED UP"
+        if (p >= 50) return "STEADY GROOVE"
+        if (p >= 30) return "EASY LISTENING"
+        if (p >= 15) return "MURMUR"
+        return "WHISPER"
     }
 
     property var audioSinks: []
@@ -49,6 +51,19 @@ Scope {
     property real inVol: 0
     property bool inMuted: false
     property var audioStreams: []
+    // PERF: compare-before-assign — rebuilding arrays each 5s tick tore down
+    // all sink/source/stream delegates even when nothing changed.
+    function sameAudioNodes(a: var, b: var): bool {
+        try {
+            if (!a || !b || a.length !== b.length) return false
+            for (let i = 0; i < a.length; i++) {
+                let x = a[i], y = b[i]
+                if (!x || !y || x.name !== y.name || (x.desc || "") !== (y.desc || "")
+                    || (x.vol || "") !== (y.vol || "") || !!x.muted !== !!y.muted) return false
+            }
+            return true
+        } catch (e) { return false }
+    }
     Process {
         id: sinksProc
         command: ["bash", "-c", "def=$(pactl get-default-sink 2>/dev/null); pactl list sinks 2>/dev/null | awk 'BEGIN{n=\"\";d=\"\";v=0;m=\"no\"} /^[ \\t]*Name:/{n=$2} /^[ \\t]*Description:/{sub(/^[ \\t]*Description: /,\" \");d=$0} /front-left.*\\/.*%/{for(i=1;i<=NF;i++) if($i ~ /%$/) {v=$i; break}} /^[ \\t]*Mute:/{m=$2} /^$/{if(n!=\"\"){print n\"|\"d\"|\"v\"|\"m; n=\"\";d=\"\";v=0;m=\"no\"}} END{if(n!=\"\")print n\"|\"d\"|\"v\"|\"m}'; echo \"DEF:$def\""]
@@ -62,7 +77,7 @@ Scope {
                     if (p.length < 2 || (p[0] || "").trim().length === 0) continue
                     sinks.push({ name: (p[0] || "").trim(), desc: (p[1] || "").trim() || (p[0] || "").trim(), vol: (p[2] || "").trim(), muted: ((p[3] || "no").trim().toLowerCase() === "yes") })
                 }
-                scope.audioSinks = sinks
+                if (!sameAudioNodes(scope.audioSinks, sinks)) scope.audioSinks = sinks
             }
         }
     }
@@ -86,7 +101,7 @@ Scope {
                     if (p.length < 2 || (p[0] || "").trim().length === 0) continue
                     srcs.push({ name: (p[0] || "").trim(), desc: (p[1] || "").trim() || (p[0] || "").trim() })
                 }
-                scope.audioSources = srcs
+                if (!sameAudioNodes(scope.audioSources, srcs)) scope.audioSources = srcs
             }
         }
     }
@@ -96,7 +111,7 @@ Scope {
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
-                if (out.length === 0) { scope.audioStreams = []; return }
+                if (out.length === 0) { if (scope.audioStreams.length !== 0) scope.audioStreams = []; return }
                 let arr = []
                 for (let l of out.split("\n")) {
                     let p = l.trim().split("|")
@@ -112,15 +127,52 @@ Scope {
                         muted: ((p[4] || "no").trim().toLowerCase() === "yes")
                     })
                 }
-                scope.audioStreams = arr
+                // Streams carry vol (int) — compare manually including vol.
+                let cur = scope.audioStreams
+                let same = cur.length === arr.length
+                if (same) {
+                    for (let i = 0; i < arr.length; i++) {
+                        let a = arr[i], b = cur[i]
+                        if (!b || a.index !== b.index || a.name !== b.name
+                            || a.vol !== b.vol || !!a.muted !== !!b.muted) { same = false; break }
+                    }
+                }
+                if (!same) scope.audioStreams = arr
             }
         }
     }
-    Process { id: audioActProc; command: ["bash", "-c", "echo"] }
+    Process {
+        id: audioActProc
+        command: ["bash", "-c", "echo"]
+        onExited: pumpAudioAct()
+    }
+    property var _audioActPending: null
+    // STABILITY: queue instead of drop. Old code overwrote command while
+    // running — 2nd click while pactl ran was silently lost.
     function audioAct(cmd: string): void {
+        if (audioActProc.running) { _audioActPending = cmd; return }
         audioActProc.command = ["bash", "-c", cmd]
-        if (!audioActProc.running) audioActProc.running = true
-        Qt.callLater(refreshAudio)
+        audioActProc.running = true
+        refreshDebounce.restart()
+    }
+    function pumpAudioAct(): void {
+        if (_audioActPending === null || _audioActPending === undefined) {
+            refreshDebounce.restart()
+            return
+        }
+        let c = _audioActPending
+        _audioActPending = null
+        if (audioActProc.running) { _audioActPending = c; return }
+        audioActProc.command = ["bash", "-c", c]
+        audioActProc.running = true
+        refreshDebounce.restart()
+    }
+    // PERF: one refresh pass per action burst (was Qt.callLater per click +
+    // 5s timer, spawning 3x pactl+awk per click).
+    Timer {
+        id: refreshDebounce
+        interval: 500; repeat: false
+        onTriggered: refreshAudio()
     }
     function refreshAudio() {
         if (!sinksProc.running) sinksProc.running = true
@@ -130,14 +182,50 @@ Scope {
     Timer { id: audioTimer; interval: 5000; running: scope.showVolume; repeat: true; triggeredOnStart: false; onTriggered: refreshAudio() }
     function setDefaultSink(name: string): void { audioAct("pactl set-default-sink \"" + name.replace(/"/g, "\\\"") + "\" 2>/dev/null; echo done") }
     function setDefaultSource(name: string): void { audioAct("pactl set-default-source \"" + name.replace(/"/g, "\\\"") + "\" 2>/dev/null; echo done") }
+    // PERF: slider onMoved fires per pixel — each used to fork pactl.
+    // Throttle to latest value per 100ms; release always lands via flush.
+    property real _pendingInputVol: -1
+    Timer {
+        id: inputVolThrottle
+        interval: 100; repeat: false
+        onTriggered: flushInputVol()
+    }
     function setInputVolume(v: real): void {
-        let pct = Math.max(0, Math.min(150, Math.round(v * 100)))
+        _pendingInputVol = Math.max(0, Math.min(1.5, v))
+        if (!inputVolThrottle.running) { inputVolThrottle.start(); flushInputVol() }
+    }
+    function flushInputVol(): void {
+        if (_pendingInputVol < 0) return
+        if (audioActProc.running) { inputVolThrottle.restart(); return }
+        let pct = Math.max(0, Math.min(150, Math.round(_pendingInputVol * 100)))
+        _pendingInputVol = -1
         audioAct("pactl set-source-volume @DEFAULT_SOURCE@ " + pct + "% 2>/dev/null; pactl set-source-mute @DEFAULT_SOURCE@ 0 2>/dev/null; echo done")
     }
     function toggleInputMute(): void { audioAct("pactl set-source-mute @DEFAULT_SOURCE@ toggle 2>/dev/null; echo done") }
+    property var _pendingStreamVols: ({})
+    Timer {
+        id: streamVolThrottle
+        interval: 100; repeat: false
+        onTriggered: flushStreamVols()
+    }
     function setStreamVolume(idx: int, v: real): void {
-        let pct = Math.max(0, Math.min(150, Math.round(v * 100)))
-        audioAct("pactl set-sink-input-volume " + idx + " " + pct + "% 2>/dev/null; echo done")
+        _pendingStreamVols[idx] = Math.max(0, Math.min(1.5, v))
+        if (!streamVolThrottle.running) { streamVolThrottle.start(); flushStreamVols() }
+    }
+    function flushStreamVols(): void {
+        let keys = []
+        try { for (let k in _pendingStreamVols) keys.push(k) } catch (e) {}
+        if (keys.length === 0) return
+        if (audioActProc.running) { streamVolThrottle.restart(); return }
+        // Batch all pending streams in one shell call.
+        let cmd = ""
+        for (let i = 0; i < keys.length; i++) {
+            let pct = Math.max(0, Math.min(150, Math.round(_pendingStreamVols[keys[i]] * 100)))
+            cmd += "pactl set-sink-input-volume " + keys[i] + " " + pct + "% 2>/dev/null;"
+        }
+        _pendingStreamVols = ({})
+        audioAct(cmd + " echo done")
+        if (Object.keys(_pendingStreamVols).length > 0) streamVolThrottle.restart()
     }
     function toggleStreamMute(idx: int): void { audioAct("pactl set-sink-input-mute " + idx + " toggle 2>/dev/null; echo done") }
     function sinkGlyph(desc: string): string {
@@ -210,24 +298,30 @@ Scope {
             id: slTrack
             anchors.left: parent.left; anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            height: 4
-            radius: 2
-            color: Theme.withAlpha(Theme.textPrimary, 0.18)
+            height: 10
+            radius: Math.min(Theme.cornerRadiusSmall, height / 2)
+            color: Theme.surface_container_highest
         }
         Rectangle {
             anchors.left: slTrack.left
             anchors.verticalCenter: slTrack.verticalCenter
-            height: 4
-            radius: 2
+            height: 10
+            radius: Math.min(Theme.cornerRadiusSmall, height / 2)
             width: slTrack.width * slRoot.progress
-            color: Theme.textPrimary
+            color: Theme.accent
         }
         Rectangle {
-            width: 14; height: 14
-            radius: 7
-            color: Theme.textPrimary
-            border.color: Theme.bg
-            border.width: 2
+            width: 26; height: 26
+            radius: width / 2
+            anchors.verticalCenter: slTrack.verticalCenter
+            x: Math.max(-6, Math.min(slTrack.width - width + 6, slTrack.width * slRoot.progress - width / 2))
+            color: slRoot.dragging ? Theme.withAlpha(Theme.accent, 0.12)
+                : slMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.08) : "transparent"
+        }
+        Rectangle {
+            width: 4; height: 18
+            radius: 2
+            color: Theme.accent
             anchors.verticalCenter: slTrack.verticalCenter
             x: Math.max(0, Math.min(slTrack.width - width, slTrack.width * slRoot.progress - width / 2))
         }
@@ -364,7 +458,7 @@ Scope {
                 x: volAnchor.panelX
                 y: volAnchor.panelY
                 color: Theme.bg
-                border.color: Theme.accent
+                border.color: Theme.panelBorderColor
                 border.width: 2
                 radius: 0
                 clip: true
@@ -441,7 +535,7 @@ Scope {
                                 }
                                 Text {
                                     width: parent.width
-                                    text: scope.moodLabel().toUpperCase()
+                                    text: scope.moodText
                                     color: Theme.textSecondary
                                     font.family: Theme.iconFontFamily
                                     font.pixelSize: Theme.fs(10)

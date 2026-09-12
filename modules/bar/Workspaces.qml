@@ -2,27 +2,97 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Hyprland
+import Quickshell.Widgets
 import "../../themes"
+import "../../services"
 
 Item {
     id: root
-    // NOTE: monitor removed — never read.
+    property var monitor: null
+    // Follow the focused monitor (single DP-1 bar mirrors whichever screen
+    // is active). `monitor` is kept for interface compat but the display
+    // intentionally tracks focusedMonitor, not the bar's own screen.
+    readonly property string screenName: {
+        try {
+            let f = MangoService.focusedMonitor
+            if (f && ("" + f).length > 0) return "" + f
+        } catch (e) {}
+        try {
+            if (monitor && monitor.name) return "" + monitor.name
+            if (typeof monitor === "string" && ("" + monitor).length > 0) return "" + monitor
+        } catch (e2) {}
+        return "DP-1"
+    }
     property bool vertical: false
     implicitWidth: vertical ? 24 : hRow.implicitWidth
     implicitHeight: vertical ? vCol.implicitHeight : hRow.implicitHeight
 
+    // Mango-only: tags come from MangoService (mmsg). Unknown compositors
+    // show the placeholder dash below.
+    readonly property bool useMango: MangoService.isMango
     property var sortedWorkspaces: {
-        if (!Hyprland.workspaces) return []
-        let v = Hyprland.workspaces.values
-        return v ? v.slice().sort((a,b)=>a.id-b.id) : []
+        if (useMango) {
+            try {
+                // Follow the focused monitor: single DP-1 bar mirrors
+                // whichever screen is active, so switching tags on another
+                // monitor updates the module too.
+                let monMap = MangoService.monitors
+                let focMon = MangoService.focusedMonitor
+                let dyn = false
+                try { dyn = MangoService.mangoDynamicTags } catch (e) {}
+                let tl = []
+                try { tl = MangoService.tagsFor(root.screenName) } catch (e2) { tl = MangoService.tags }
+                if (!tl || tl.length === 0) {
+                    // Fallback: fixed tagCount so the bar never blanks while
+                    // the first mmsg poll is still in flight.
+                    let n = 10
+                    try { n = MangoService.tagCountFor(root.screenName) || MangoService.tagCount || 10 } catch (e3) {}
+                    n = Math.max(1, Math.min(20, n))
+                    // If we know the focused screen's active tag, echo it;
+                    // otherwise fall back to tag 1 so something highlights.
+                    let guess = 1
+                    try {
+                        let ft = MangoService.tags
+                        for (let gi = 0; gi < (ft || []).length; gi++) {
+                            if (ft[gi] && ft[gi].active) { guess = ft[gi].index; break }
+                        }
+                    } catch (e4) {}
+                    let out = []
+                    for (let i = 1; i <= n; i++)
+                        out.push({ id: i, name: "" + i, focused: i === guess, active: i === guess, occupied: false, clients: 0 })
+                    return out
+                }
+                let out2 = []
+                for (let i = 0; i < tl.length; i++) {
+                    let tg = tl[i]
+                    // Dynamic mode: only active / urgent / occupied /
+                    // pinned (no_hide) tags — the rest appears on demand.
+                    let keep = !!tg.active || !!tg.urgent || ((tg.clients || 0) > 0)
+                    if (!keep) { try { keep = MangoService.isPinned(tg.index) } catch (e2) {} }
+                    if (dyn && !keep) continue
+                    out2.push({
+                        id: tg.index,
+                        name: "" + tg.index,
+                        focused: !!tg.active,
+                        active: !!tg.active,
+                        occupied: (tg.clients || 0) > 0,
+                        clients: tg.clients || 0
+                    })
+                }
+                out2.sort((a, b) => a.id - b.id)
+                return out2
+            } catch (e) { return [] }
+        }
+        return []
     }
     readonly property bool isM3: Theme.workspaceStyle === "m3"
     readonly property bool isDefault2: Theme.workspaceStyle === "default2"
     readonly property real uiScale: Theme.workspaceScale
     property int hoveredIndex: -1
+    // PERF: cache anim flag — hoverScaleFor() runs per delegate per hover move.
+    readonly property bool _animHover: Theme.animationsEnabled && !isDefault2
     function hoverScaleFor(idx: int): real {
-        if (!Theme.animationsEnabled || isDefault2) return 1.0
+        if (!_animHover) return 1.0
         if (hoveredIndex < 0) return 1.0
         return idx === hoveredIndex ? 1.08 : 1.0
     }
@@ -33,38 +103,19 @@ Item {
             if (!ch || ch.ws === undefined || ch.index === undefined || !ch.visible) continue
             let lp = ch.mapFromItem(root, px, py)
             if (lp.x >= 0 && lp.x <= ch.width && lp.y >= 0 && lp.y <= ch.height) {
-                hoveredIndex = ch.index
+                if (hoveredIndex !== ch.index) hoveredIndex = ch.index
                 return
             }
         }
+        if (hoveredIndex !== -1) hoveredIndex = -1
+    }
+    function clearHover(): void {
         hoveredIndex = -1
     }
-    function clearHover(): void { hoveredIndex = -1 }
-    property var occupiedWsIds: {
-        let s = { }
-        try {
-            if (!Hyprland.toplevels) return s
-            let tls = Hyprland.toplevels.values
-            let list = tls ? (typeof tls === "function" ? tls() : tls) : null
-            if (list) for (let i = 0; i < list.length; i++) {
-                try { let id = list[i] && list[i].workspace && list[i].workspace.id; if (id !== undefined) s[id] = true } catch (e2) { }
-            }
-        } catch (e) { }
-        return s
-    }
     function isOccupied(ws): bool { if (!ws) return false
-        let w = ws.windows
-        if (w) {
-            if (Array.isArray(w)) return w.length > 0
-            if (w.values !== undefined) {
-                let vals = typeof w.values === "function" ? w.values() : w.values
-                if (vals && vals.length > 0) return true
-            } else if (typeof w.length === "number") {
-                return w.length > 0
-            }
-        }
-        try { if (root.occupiedWsIds[ws.id]) return true } catch (e) { }
-        return ws.active || ws.focused
+        try { if (ws.occupied !== undefined) return !!ws.occupied } catch (e) {}
+        try { if (ws.clients !== undefined) return (ws.clients || 0) > 0 } catch (e2) {}
+        return !!ws.active || !!ws.focused
     }
     function activateAt(px: real, py: real): bool {
         let container = vertical ? vCol : hRow
@@ -74,12 +125,18 @@ Item {
             let lp = ch.mapFromItem(root, px, py)
             if (lp.x >= 0 && lp.x <= ch.width && lp.y >= 0 && lp.y <= ch.height) {
                 let ws = ch.ws
-                if (ws && ws.activate) ws.activate()
-                else if (ws) Hyprland.dispatch("workspace " + ws.name)
+                MangoService.activateTag(ws.id, root.screenName)
                 return true
             }
         }
         return false
+    }
+
+    function enterWs(idx: int, anchorItem: Item, ws: var): void {
+        hoveredIndex = idx
+    }
+    function leaveWs(idx: int): void {
+        if (hoveredIndex === idx) hoveredIndex = -1
     }
 
     RowLayout {
@@ -88,13 +145,17 @@ Item {
         visible: !root.vertical
         spacing: root.isDefault2 ? 0 : Theme.workspaceSpacing
         Repeater {
-            model: root.sortedWorkspaces
+            // PERF: hidden orientation keeps zero delegates (was 2x Repeaters
+            // on the same model, hidden one still bound + hover-scanned).
+            model: root.vertical ? [] : root.sortedWorkspaces
             delegate: Item {
                 id: hDelegate
                 required property var modelData
                 required property int index
                 property var ws: modelData
-                property bool occupied: root.isOccupied(ws)
+                // PERF: direct prop read (was root.isOccupied(ws) function call
+                // per delegate per poll + per hover).
+                property bool occupied: ws && (ws.occupied !== undefined ? !!ws.occupied : ((ws.clients || 0) > 0))
                 implicitWidth: ((root.isM3 ? (ws.focused ? 28 : occupied ? 14 : 8) + 2 : 20) + (root.isDefault2 ? 0 : Theme.workspaceSpacing)) * root.uiScale; implicitHeight: 24 * root.uiScale
                 opacity: root.isM3 ? 1.0 : (occupied || ws.focused ? 1.0 : 0.5)
                 scale: root.hoverScaleFor(index)
@@ -154,15 +215,15 @@ Item {
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton
                     z: 10
-                    onEntered: root.hoveredIndex = hDelegate.index
-                    onExited: if (root.hoveredIndex === hDelegate.index) root.hoveredIndex = -1
+                    onEntered: root.enterWs(hDelegate.index, hDelegate, ws)
+                    onExited: root.leaveWs(hDelegate.index)
                     onClicked: mouse => {
                         mouse.accepted = true
-                        if (ws && ws.activate) ws.activate()
-                        else Hyprland.dispatch("workspace " + ws.name)
+                        MangoService.activateTag(ws.id, root.screenName)
                     }
                     onWheel: wheel => {
-                        Hyprland.dispatch(wheel.angleDelta.y > 0 ? "workspace m-1" : "workspace m+1")
+                        if (wheel.angleDelta.y > 0) MangoService.prevTag(root.screenName)
+                        else MangoService.nextTag(root.screenName)
                         wheel.accepted = true
                     }
                 }
@@ -182,13 +243,13 @@ Item {
         visible: root.vertical
         spacing: root.isDefault2 ? 0 : Theme.workspaceSpacing
         Repeater {
-            model: root.sortedWorkspaces
+            model: root.vertical ? root.sortedWorkspaces : []
             delegate: Item {
                 id: vDelegate
                 required property var modelData
                 required property int index
                 property var ws: modelData
-                property bool occupied: root.isOccupied(ws)
+                property bool occupied: ws && (ws.occupied !== undefined ? !!ws.occupied : ((ws.clients || 0) > 0))
                 implicitWidth: 24 * root.uiScale; implicitHeight: ((root.isM3 ? (ws.focused ? 28 : occupied ? 14 : 8) + 2 : 20) + (root.isDefault2 ? 0 : Theme.workspaceSpacing)) * root.uiScale
                 opacity: root.isM3 ? 1.0 : (occupied || ws.focused ? 1.0 : 0.5)
                 scale: root.hoverScaleFor(index)
@@ -248,15 +309,15 @@ Item {
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton
                     z: 10
-                    onEntered: root.hoveredIndex = vDelegate.index
-                    onExited: if (root.hoveredIndex === vDelegate.index) root.hoveredIndex = -1
+                    onEntered: root.enterWs(vDelegate.index, vDelegate, ws)
+                    onExited: root.leaveWs(vDelegate.index)
                     onClicked: mouse => {
                         mouse.accepted = true
-                        if (ws && ws.activate) ws.activate()
-                        else Hyprland.dispatch("workspace " + ws.name)
+                        MangoService.activateTag(ws.id, root.screenName)
                     }
                     onWheel: wheel => {
-                        Hyprland.dispatch(wheel.angleDelta.y > 0 ? "workspace m-1" : "workspace m+1")
+                        if (wheel.angleDelta.y > 0) MangoService.prevTag(root.screenName)
+                        else MangoService.nextTag(root.screenName)
                         wheel.accepted = true
                     }
                 }

@@ -83,7 +83,6 @@ Scope {
 
     function showVolume() {
         if (!inited) return
-        if (!Theme.osdVolumeEnabled) return
         osdVisible = true
         hideTimer.interval = 1200
         hideTimer.restart()
@@ -185,7 +184,10 @@ Scope {
     Timer { id: pollOverrideClearTimer; interval: 1200; repeat: false; onTriggered: osdScope.pollOverride = false }
     Timer {
         id: pollTimer
-        interval: 5000
+        // STABILITY: back off to 30s after 3 empty probes (was 5s forever
+        // when PipeWire is broken, forking volume.sh endlessly while hidden).
+        property int fails: 0
+        interval: fails >= 3 ? 30000 : 5000
         running: osdScope.osdVisible || !osdScope.sinkReady
         repeat: true
         triggeredOnStart: false
@@ -255,7 +257,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: osdScope._winVisible && Theme.osdVolumeEnabled && modelData.name === "DP-1"
+            visible: osdScope._winVisible && modelData.name === "DP-1"
             color: "transparent"
             exclusiveZone: 0
             mask: Region { item: quattroWrapper }
@@ -275,13 +277,15 @@ Scope {
 
                 Rectangle {
                     id: quattroCard
-                    readonly property int iconW: Math.max(16, Math.ceil(widestIconMetrics.tightBoundingRect.width))
-                    readonly property int valueW: Math.ceil(valueMetrics.advanceWidth)
+                    // PERF: fixed icon/value widths (was 3x TextMetrics with
+                    // tightBoundingRect recomputed per % tick during drag).
+                    readonly property int iconW: 24
+                    readonly property int valueW: 52
                     width: 2 + osdScope.quattroPad + iconW + osdScope.quattroIconGap + osdScope.quattroBarWidth + osdScope.quattroGap + valueW + osdScope.quattroPad + 2
                     height: 2 + osdScope.quattroPad + 20 + osdScope.quattroPad + 2
                     radius: Theme.cornerRadius
                     color: Theme.bg
-                    border.color: Theme.accent
+                    border.color: Theme.panelBorderColor
                     border.width: 2
                     antialiasing: Theme.shapesAa
 
@@ -298,8 +302,7 @@ Scope {
                             Text {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
-                                x: Math.round((quattroCard.iconW - Math.ceil(iconMetrics.tightBoundingRect.width)) / 2 - iconMetrics.tightBoundingRect.x)
-                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.centerIn: parent
                                 horizontalAlignment: Text.AlignHCenter
                                 text: osdScope.iconForQuattro(osdScope.displayPct, osdScope.displayMuted)
                                 font.family: Theme.iconFontFamily
@@ -340,25 +343,9 @@ Scope {
                         }
                     }
 
-                    TextMetrics {
-                        id: iconMetrics
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(20)
-                        text: osdScope.iconForQuattro(osdScope.displayPct, osdScope.displayMuted)
-                    }
-                    TextMetrics {
-                        id: widestIconMetrics
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(20)
-                        text: ""
-                    }
-                    TextMetrics {
-                        id: valueMetrics
-                        font.family: Theme.iconFontFamily
-                        font.bold: true
-                        font.pixelSize: Theme.fs(14)
-                        text: "Muted"
-                    }
+                    // NOTE: TextMetrics removed — fixed iconW/valueW above cover
+                    // all 4 volume glyphs at fs(20); per-tick measuring cost
+                    // more than the 2px worst-case width difference.
                 }
             }
 

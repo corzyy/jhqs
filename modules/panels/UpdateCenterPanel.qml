@@ -1,12 +1,13 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import "../themes"
-import "../services"
-import "../Ui"
+import "../../themes"
+import "../../services"
+import "../../Ui"
 
 Scope {
     id: scope
@@ -31,23 +32,52 @@ Scope {
     property string completionMarker: ""
 
     readonly property var updates: UpdateService.updates
+    readonly property int updateCount: updates.length
     readonly property bool checking: UpdateService.checking
     readonly property var lastChecked: UpdateService.lastCheckedAt
     readonly property string checkSchedule: UpdateService.checkSchedule
-    readonly property bool offerShutdownAction: UpdateService.offerShutdownAction
 
-    readonly property string headerTitle: checking ? "Checking updates…" : (updates.length > 0 ? updates.length + " updates available" : "Everything is up to date")
+    readonly property string headerTitle: checking ? "Checking updates…" : (updateCount > 0 ? updateCount + " updates available" : "Everything is up to date")
     readonly property string lastCheckedLabel: lastChecked ? "Last check: " + Qt.formatDateTime(lastChecked, "ddd d MMM · HH:mm") : "Not checked yet"
     readonly property string updateScript: Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/update.sh"
 
+    readonly property var sections: [
+        { id: "system", title: "System", action: "Update system" },
+        { id: "aur", title: "AUR", action: "Update AUR" },
+        { id: "flatpak", title: "Flatpak", action: "Update Flatpak" }
+    ]
+    readonly property var scheduleOptions: [
+        { value: "At startup only", label: "Startup" },
+        { value: "Every 30 minutes", label: "30 min" },
+        { value: "Every 2 hours", label: "2 h" },
+        { value: "Every 6 hours", label: "6 h" },
+        { value: "Every 12 hours", label: "12 h" },
+        { value: "Every 24 hours", label: "24 h" }
+    ]
+
     function refresh(): void { UpdateService.checkNow() }
 
+    // PERF: memoized per-section rows + counts. Old code ran filter() +
+    // slice() + count() (O(n) scans) in every delegate binding — a nested
+    // Repeater rebuild on any single update. One pass per updates change.
+    readonly property var _systemRows: updates.filter(function(item) { return item.source === "system" })
+    readonly property var _aurRows: updates.filter(function(item) { return item.source === "aur" })
+    readonly property var _flatpakRows: updates.filter(function(item) { return item.source === "flatpak" })
+    readonly property int _systemCount: _systemRows.length
+    readonly property int _aurCount: _aurRows.length
+    readonly property int _flatpakCount: _flatpakRows.length
+
+    // Single canonical counter lives in UpdateService — don't re-scan here.
     function count(source: string): int {
-        let total = 0
-        for (let i = 0; i < updates.length; i++) if (updates[i].source === source) total++
-        return total
+        if (source === "system") return _systemCount
+        if (source === "aur") return _aurCount
+        if (source === "flatpak") return _flatpakCount
+        return UpdateService.count(source)
     }
     function sectionRows(source: string): var {
+        if (source === "system") return _systemRows
+        if (source === "aur") return _aurRows
+        if (source === "flatpak") return _flatpakRows
         return updates.filter(function(item) { return item.source === source })
     }
     function sectionExpanded(source: string): bool {
@@ -61,13 +91,11 @@ Scope {
     }
     function visibleSectionRows(source: string): var {
         let rows = sectionRows(source)
-        if (source === "system" && !sectionExpanded(source)) return []
-        if (source === "flatpak" && rows.length > 1 && !sectionExpanded(source)) return []
         return sectionExpanded(source) ? rows : rows.slice(0, compactRowLimit)
     }
     function detailsVisible(source: string): bool {
-        if (source === "system") return count(source) > 0
-        if (source === "flatpak") return count(source) > 1
+        // System uses the small arrow button instead of the "Show all" pill.
+        if (source === "system") return false
         return count(source) > compactRowLimit
     }
     function setCheckSchedule(schedule: string): void { UpdateService.setCheckSchedule(schedule) }
@@ -75,50 +103,63 @@ Scope {
     function shellQuote(value: string): string {
         return "'" + String(value).replace(/'/g, "'\\''") + "'"
     }
+    function updateCommand(kind: string): string {
+        let target = (kind === "system" || kind === "aur" || kind === "flatpak") ? kind : "all"
+        return "bash " + shellQuote(updateScript) + " " + target
+    }
     function runInTerminal(command: string, markDone: bool, hold: bool): void {
+        // STABILITY: disable launch buttons while running (see panel body) —
+        // belt-and-suspenders: queue instead of dropping rapid double-clicks.
+        if (termProc.running) {
+            _termPending = { command: command, markDone: markDone, hold: hold }
+            return
+        }
+        runInTerminalNow(command, markDone, hold)
+    }
+    property var _termPending: null
+    function runInTerminalNow(command: string, markDone: bool, hold: bool): void {
         let full = command
         if (markDone) full += " && date +%s%N > " + shellQuote(completionPath) + " && printf '\\nUpdate OK.\\n'"
         if (hold) full += '; echo; read -n1 -s -r -p "Press any key to close…"'
         termProc.command = ["bash", "-c", "kitty --class jhqs-update --title Update bash -lc " + shellQuote(full) + " &"]
-        if (!termProc.running) termProc.running = true
+        termProc.running = true
     }
-    function systemCommand(): string {
-        return "bash " + shellQuote(updateScript) + " system"
-    }
-    function aurCommand(): string {
-        return "bash " + shellQuote(updateScript) + " aur"
-    }
-    function flatpakCommand(): string {
-        return "bash " + shellQuote(updateScript) + " flatpak"
-    }
-    function allCommand(): string { return "bash " + shellQuote(updateScript) + " all" }
     function launch(kind: string): void {
-        if (kind === "system") runInTerminal(systemCommand(), true, true)
-        else if (kind === "aur") runInTerminal(aurCommand(), true, true)
-        else if (kind === "flatpak") runInTerminal(flatpakCommand(), true, true)
-        else runInTerminal(allCommand(), true, true)
-    }
-    function updateThenShutdown(): void {
-        runInTerminal("bash " + shellQuote(updateScript) + " all -y && systemctl poweroff", false, false)
-    }
-    function shutdownAnyway(): void {
-        runInTerminal("systemctl poweroff", false, false)
+        runInTerminal(updateCommand(kind), true, true)
     }
 
-    Process { id: termProc; command: ["bash", "-c", "echo"] }
+    Process {
+        id: termProc
+        command: ["bash", "-c", "echo"]
+        onExited: {
+            if (scope._termPending !== null && scope._termPending !== undefined) {
+                let p = scope._termPending
+                scope._termPending = null
+                scope.runInTerminalNow(p.command, p.markDone, p.hold)
+            }
+        }
+    }
 
     FileView {
+        id: completionFile
         path: scope.completionPath
-        watchChanges: true
+        watchChanges: scope.showUpdates || termProc.running
         printErrors: false
-        onFileChanged: reload()
+        onFileChanged: completionDebounce.restart()
         onLoaded: {
             let marker = String(text() || "").trim()
             if (marker !== "" && marker !== scope.completionMarker) {
                 scope.completionMarker = marker
-                scope.refresh()
+                if (scope.showUpdates) scope.refresh()
             }
         }
+    }
+    // STABILITY: completion file watcher used to spawn the checker even with
+    // the panel closed. Gate + debounce.
+    Timer {
+        id: completionDebounce
+        interval: 1000; repeat: false
+        onTriggered: { try { completionFile.reload() } catch (e) { } }
     }
 
     component SectionHeader: Text {
@@ -147,7 +188,6 @@ Scope {
         color: pillMouse.containsMouse ? Theme.bgHover : (highlighted ? Theme.bgSelected : Theme.cardBg)
         border.color: highlighted ? Theme.accent : Theme.divider
         border.width: 1
-        scale: 1.0
         Text {
             id: pillLabel
             anchors.centerIn: parent
@@ -165,6 +205,35 @@ Scope {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: pillBtn.clicked()
+        }
+    }
+    component ArrowButton: Rectangle {
+        id: arrowBtn
+        required property bool expanded
+        signal clicked()
+        implicitWidth: 28
+        implicitHeight: 28
+        antialiasing: Theme.shapesAa
+        radius: Theme.cornerRadiusSmall
+        color: expanded ? Theme.bgSelected : arrowMouse.containsMouse ? Theme.bgHover : "transparent"
+        border.color: expanded ? Theme.accent : "transparent"
+        border.width: expanded ? 1 : 0
+        Text {
+            anchors.centerIn: parent
+            text: "›"
+            color: arrowMouse.containsMouse || arrowBtn.expanded ? Theme.textPrimary : Theme.textSecondary
+            font.family: Theme.iconFontFamily
+            font.pixelSize: Theme.fs(14)
+            rotation: arrowBtn.expanded ? 90 : 0
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+        }
+        MouseArea {
+            id: arrowMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: arrowBtn.clicked()
         }
     }
 
@@ -213,7 +282,7 @@ Scope {
                 x: updAnchor.panelX
                 y: updAnchor.panelY
                 color: Theme.bg
-                border.color: Theme.accent
+                border.color: Theme.panelBorderColor
                 border.width: 2
                 radius: 0
                 clip: true
@@ -247,15 +316,11 @@ Scope {
                         id: contentCol
                         width: parent.width
                         spacing: 14
-                        Item {
+                        RowLayout {
                             width: parent.width
-                            implicitHeight: Math.max(heroLabels.implicitHeight, refreshBtn.implicitHeight)
+                            spacing: 10
                             Column {
-                                id: heroLabels
-                                anchors.left: parent.left
-                                anchors.right: refreshBtn.visible ? refreshBtn.left : parent.right
-                                anchors.rightMargin: refreshBtn.visible ? 10 : 0
-                                anchors.verticalCenter: parent.verticalCenter
+                                Layout.fillWidth: true
                                 spacing: 2
                                 Text {
                                     width: parent.width
@@ -281,17 +346,34 @@ Scope {
                                 }
                             }
                             PillButton {
-                                id: refreshBtn
                                 visible: !scope.checking
                                 label: "Refresh"
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
                                 onClicked: scope.refresh()
+                            }
+                            Text {
+                                visible: scope.checking
+                                text: "Checking…"
+                                color: Theme.textSecondary
+                                font.family: Theme.iconFontFamily
+                                font.pixelSize: Theme.fs(12)
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
                             }
                         }
                         Text {
                             width: parent.width
-                            visible: scope.updates.length > 0
+                            visible: scope.updateCount === 0 && !scope.checking
+                            text: "You're all set — new updates will show up here."
+                            wrapMode: Text.WordWrap
+                            color: Theme.textSecondary
+                            font.family: Theme.iconFontFamily
+                            font.pixelSize: Theme.fs(11)
+                            antialiasing: Theme.textAa
+                            renderType: Theme.textRenderType
+                        }
+                        Text {
+                            width: parent.width
+                            visible: scope.updateCount > 0
                             text: "Nothing is installed automatically. Updates ask for your password once in the terminal."
                             wrapMode: Text.WordWrap
                             color: Theme.textSecondary
@@ -301,7 +383,7 @@ Scope {
                             renderType: Theme.textRenderType
                         }
                         Column {
-                            visible: scope.updates.length > 0 && scope.offerShutdownAction
+                            visible: scope.updateCount > 0
                             width: parent.width
                             spacing: 8
                             Hairline { width: parent.width }
@@ -311,39 +393,20 @@ Scope {
                                 width: parent.width
                                 onClicked: scope.launch("all")
                             }
-                            Row {
-                                width: parent.width
-                                spacing: 8
-                                PillButton {
-                                    label: "Update & shut down"
-                                    width: (parent.width - parent.spacing) / 2
-                                    onClicked: scope.updateThenShutdown()
-                                }
-                                PillButton {
-                                    label: "Shut down anyway"
-                                    width: (parent.width - parent.spacing) / 2
-                                    onClicked: scope.shutdownAnyway()
-                                }
-                            }
                         }
                         Repeater {
-                            model: [
-                                { id: "system", title: "System", action: "Update system" },
-                                { id: "aur", title: "AUR", action: "Update AUR" },
-                                { id: "flatpak", title: "Flatpak", action: "Update Flatpak" }
-                            ]
+                            model: scope.sections
                             delegate: Column {
                                 required property var modelData
                                 width: contentCol.width
                                 spacing: 6
                                 visible: scope.count(modelData.id) > 0
                                 Hairline { width: parent.width }
-                                Row {
+                                RowLayout {
                                     width: parent.width
                                     spacing: 8
                                     Text {
-                                        width: parent.width - updateBtn.width - (detailsBtn.visible ? detailsBtn.width + 16 : 8)
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        Layout.fillWidth: true
                                         text: modelData.title + " · " + scope.count(modelData.id)
                                         color: Theme.textPrimary
                                         font.family: Theme.iconFontFamily
@@ -353,28 +416,29 @@ Scope {
                                         antialiasing: Theme.textAa
                                         renderType: Theme.textRenderType
                                     }
+                                    ArrowButton {
+                                        visible: modelData.id === "system" && scope.count(modelData.id) > scope.compactRowLimit
+                                        expanded: scope.sectionExpanded(modelData.id)
+                                        onClicked: scope.toggleSection(modelData.id)
+                                    }
                                     PillButton {
-                                        id: updateBtn
                                         label: modelData.action
-                                        anchors.verticalCenter: parent.verticalCenter
                                         onClicked: scope.launch(modelData.id)
                                     }
                                     PillButton {
-                                        id: detailsBtn
                                         visible: scope.detailsVisible(modelData.id)
                                         label: scope.sectionExpanded(modelData.id) ? "Less" : "Show all (" + scope.count(modelData.id) + ")"
-                                        anchors.verticalCenter: parent.verticalCenter
                                         onClicked: scope.toggleSection(modelData.id)
                                     }
                                 }
                                 Repeater {
                                     model: scope.visibleSectionRows(modelData.id)
-                                    delegate: Row {
+                                    delegate: RowLayout {
                                         required property var modelData
                                         width: parent.width
                                         spacing: 10
                                         Text {
-                                            width: parent.width * 0.54
+                                            Layout.fillWidth: true
                                             text: modelData.name
                                             elide: Text.ElideRight
                                             color: Theme.textPrimary
@@ -384,7 +448,8 @@ Scope {
                                             renderType: Theme.textRenderType
                                         }
                                         Text {
-                                            width: parent.width * 0.42
+                                            Layout.preferredWidth: Math.round(parent.width * 0.38)
+                                            Layout.maximumWidth: Math.round(parent.width * 0.38)
                                             text: modelData.detail
                                             elide: Text.ElideRight
                                             horizontalAlignment: Text.AlignRight
@@ -407,14 +472,7 @@ Scope {
                                 width: parent.width
                                 spacing: 4
                                 Repeater {
-                                    model: [
-                                        { value: "At startup only", label: "Startup" },
-                                        { value: "Every 30 minutes", label: "30 min" },
-                                        { value: "Every 2 hours", label: "2 h" },
-                                        { value: "Every 6 hours", label: "6 h" },
-                                        { value: "Every 12 hours", label: "12 h" },
-                                        { value: "Every 24 hours", label: "24 h" }
-                                    ]
+                                    model: scope.scheduleOptions
                                     delegate: PillButton {
                                         required property var modelData
                                         compact: true

@@ -39,17 +39,19 @@ Singleton {
         id: settingsFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/update_center.json"
         watchChanges: true; blockLoading: true; printErrors: false
-        onFileChanged: reload()
+        onFileChanged: settingsReloadDebounce.restart()
         adapter: JsonAdapter {
             property string checkSchedule: "Every 6 hours"
             property bool offerShutdownAction: true
         }
     }
-    Process {
-        id: settingsInitProc
-        command: ["bash", "-c", "mkdir -p ~/.config/quickshell/jhqs/config; f=~/.config/quickshell/jhqs/config/update_center.json; if [ ! -f \"$f\" ]; then echo '{\"checkSchedule\":\"Every 6 hours\",\"offerShutdownAction\":true}' > \"$f\"; else jq '.checkSchedule //= \"Every 6 hours\" | .offerShutdownAction //= true' \"$f\" > /tmp/jhqs_update_center.json 2>/dev/null && mv /tmp/jhqs_update_center.json \"$f\"; fi; echo init_done"]
+    // STABILITY: coalesce editor save bursts (create+write = 2 reloads).
+    // FileView defaults already cover missing keys, so no boot mkdir+jq fork.
+    Timer {
+        id: settingsReloadDebounce
+        interval: 300; repeat: false
+        onTriggered: { try { settingsFile.reload() } catch (e) { } }
     }
-    Component.onCompleted: if (!settingsInitProc.running) settingsInitProc.running = true
 
     function setCheckSchedule(schedule: string): void {
         if (schedule === checkSchedule) return
@@ -65,9 +67,18 @@ Singleton {
     }
 
     function checkNow(): void {
-        if (updProc.running) return
-        checking = true
-        updProc.running = true
+        // PERF: coalesce boot + net-flap + pacman-touch storms. All 5 timer
+        // sources funnel here; without this 3 check-updates.sh runs queue up.
+        checkCoalesce.restart()
+    }
+    Timer {
+        id: checkCoalesce
+        interval: 2000; repeat: false
+        onTriggered: {
+            if (updProc.running) return
+            checking = true
+            updProc.running = true
+        }
     }
     function status(): string {
         return "system=" + _counts.system + " aur=" + _counts.aur + " flatpak=" + _counts.flatpak
@@ -121,10 +132,34 @@ Singleton {
             if (hasCompletedFirstCheck && !knownUpdateKeys[key]) newlyAvailable++
             parsed.push(item)
         }
-        updates = parsed
-        knownUpdateKeys = nextKeys
+        // PERF: compare-before-assign. Identical check results (the common
+        // case) must not reset panel Repeaters + _counts bindings.
+        let same = parsed.length === updates.length
+        if (same) {
+            let oldKeys = knownUpdateKeys
+            let newCount = 0, oldCount = 0
+            for (let k in nextKeys) newCount++
+            for (let k in oldKeys) oldCount++
+            same = newCount === oldCount
+            if (same) {
+                for (let k in nextKeys) {
+                    if (!oldKeys[k]) { same = false; break }
+                }
+            }
+            if (same) {
+                for (let i = 0; i < parsed.length; i++) {
+                    let a = parsed[i], b = updates[i]
+                    if (!b || a.source !== b.source || a.name !== b.name || a.detail !== b.detail) {
+                        same = false; break
+                    }
+                }
+            }
+        }
         lastCheckedAt = new Date()
         hasCompletedFirstCheck = true
+        if (same) return
+        updates = parsed
+        knownUpdateKeys = nextKeys
         if (newlyAvailable > 0) notifyNewUpdates(newlyAvailable)
     }
 

@@ -11,19 +11,50 @@ Column {
 
     SettingsControls.SettingsSection {
         title: "Appearance"
-        SettingsControls.SettingsRow {
-            title: "Accent Border"
-            SettingsControls.SettingsToggle { on: Theme.panelAccentBorder; onToggled: n => Theme.setPanelAccentBorder(n) }
+        // Preview in the same card style as the other settings previews.
+        // Click toggles the accent border.
+        Rectangle {
+            width: parent.width; height: 78
+            radius: Theme.cornerRadiusSmall
+            antialiasing: Theme.shapesAa
+            color: Theme.panelAccentBorder ? Theme.withAlpha(Theme.accent, 0.16)
+                : previewMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08)
+                : Theme.withAlpha(Theme.textPrimary, 0.04)
+            border.color: Theme.panelAccentBorder ? Theme.accent : Theme.divider
+            border.width: Theme.panelAccentBorder ? 2 : 1
+            Column {
+                anchors.centerIn: parent
+                spacing: 6
+                Rectangle {
+                    antialiasing: Theme.shapesAa
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: 64
+                    height: 30
+                    radius: 2
+                    color: Theme.bg
+                    border.color: Theme.panelBorderColor
+                    border.width: 2
+                    Column {
+                        anchors.fill: parent
+                        anchors.margins: 5
+                        spacing: 3
+                        Rectangle { width: 20; height: 4; radius: 2; color: Theme.withAlpha(Theme.textPrimary, 0.35); antialiasing: Theme.shapesAa }
+                        Rectangle { width: parent.width; height: 1; color: Theme.divider }
+                        Rectangle { width: parent.width * 0.7; height: 4; radius: 2; color: Theme.withAlpha(Theme.textPrimary, 0.14); antialiasing: Theme.shapesAa }
+                    }
+                }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Accent Border"
+                    font.family: Theme.iconFontFamily
+                    font.pixelSize: Theme.fs(11)
+                    color: Theme.textSecondary
+                }
+            }
+            MouseArea { id: previewMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setPanelAccentBorder(!Theme.panelAccentBorder) }
         }
-    }
-
-    SettingsControls.SettingsSection {
-        title: "Motion"
-        SettingsControls.SettingsRow {
-            title: "Animations"
-            SettingsControls.SettingsToggle { on: Theme.animationsEnabled; onToggled: n => Theme.setAnimationsEnabled(n) }
-        }
-        SettingsControls.SettingsSliderRow { label: "Animation Scale"; from: 0.2; to: 3.0; stepSize: 0.1; unit: "x"; value: Theme.animationScale; onMoved: v => Theme.setAnimationScale(v); onApplied: v => Theme.setAnimationScale(v) }
     }
 
     SettingsControls.SettingsSection {
@@ -33,35 +64,6 @@ Column {
         SettingsControls.SettingsRow {
             title: "Bold Text"
             SettingsControls.SettingsToggle { on: Theme.textBold; onToggled: n => Theme.setTextBold(n) }
-        }
-    }
-
-    SettingsControls.SettingsSection {
-        title: "Antialiasing"
-        SettingsControls.SettingsRow {
-            title: "Shapes & Corners"
-            subtitle: "Edge smoothing on all rounded shapes and panels"
-            SettingsControls.SettingsToggle { on: Theme.shapesAa; onToggled: n => Theme.setShapesAa(n) }
-        }
-        SettingsControls.SettingsRow {
-            title: "Text"
-            subtitle: "Smooth glyph edges"
-            SettingsControls.SettingsToggle { on: Theme.textAa; onToggled: n => Theme.setTextAa(n) }
-        }
-        SettingsControls.SettingsRow {
-            title: "Native Text Rendering"
-            subtitle: "OS rasterizer (crisper) vs Qt rasterizer"
-            SettingsControls.SettingsToggle { on: Theme.textNative; onToggled: n => Theme.setTextNative(n) }
-        }
-        SettingsControls.SettingsRow {
-            title: "Image Smoothing"
-            subtitle: "Bilinear filtering on scaled images"
-            SettingsControls.SettingsToggle { on: Theme.imageSmooth; onToggled: n => Theme.setImageSmooth(n) }
-        }
-        SettingsControls.SettingsRow {
-            title: "Image Mipmaps"
-            subtitle: "+33% VRAM, sharper downscaled images"
-            SettingsControls.SettingsToggle { on: Theme.imageMipmap; onToggled: n => Theme.setImageMipmap(n) }
         }
     }
 

@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell.Io
 import "../../../themes"
 import "../../../services"
+import "../../../Commons"
 import ".."
 import "../../../Ui" as Ui
 
@@ -39,8 +40,11 @@ Column {
     function refreshSinks(): void { if (!sinkListProc.running) sinkListProc.running = true; if (!sinkDefProc.running) sinkDefProc.running = true }
     function switchSink(name: string): void {
         if (!name) return
+        // STABILITY: full DQ-escape ($ ` \ ") — old code only escaped quotes,
+        // leaving command substitution open on crafted sink names.
+        let safe = Util.shellEscapeDq(name)
         root.defaultSink = name
-        sinkSetProc.command = ["bash", "-c", "pactl set-default-sink \"" + name.replace(/\"/g, "\\\"") + "\" 2>/dev/null; for i in $(pactl list short sink-inputs 2>/dev/null | cut -f1); do pactl move-sink-input \"$i\" \"" + name.replace(/\"/g, "\\\"") + "\" 2>/dev/null; done; echo done"]
+        sinkSetProc.command = ["bash", "-c", "pactl set-default-sink \"" + safe + "\" 2>/dev/null; for i in $(pactl list short sink-inputs 2>/dev/null | cut -f1); do pactl move-sink-input \"$i\" \"" + safe + "\" 2>/dev/null; done; echo done"]
         if (!sinkSetProc.running) sinkSetProc.running = true
     }
     Component.onCompleted: refreshSinks()
@@ -84,19 +88,31 @@ Column {
         }
     }
 
-    Process { id: volProc; command: ["bash", "-c", "echo"] }
+    Process { id: volProc; command: ["bash", "-c", "echo"]; onExited: pumpVolProc() }
     QtObject {
         id: volSet
+        property string pending: ""
+        // PERF: slider drags fork wpctl per pixel (old code dropped ticks
+        // while running — volume lagged behind the finger). Coalesce.
         function setVol(p): void {
-            volProc.command = ["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + Math.max(0, Math.min(100, Math.round(p))) + "% -l 1.0 >/dev/null 2>&1; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 >/dev/null 2>&1"]
-            if (!volProc.running) volProc.running = true
+            let v = Math.max(0, Math.min(100, Math.round(p)))
+            pending = "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + v + "% -l 1.0 >/dev/null 2>&1; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 >/dev/null 2>&1"
+            if (!volProc.running) pumpVolProc()
             Theme.triggerVolumeOsd()
+        }
+        function pumpVolProc(): void {
+            if (pending === "" || volProc.running) return
+            let c = pending
+            pending = ""
+            volProc.command = ["bash", "-c", c]
+            volProc.running = true
         }
         function setMute(m): void {
             volProc.command = ["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (m ? "1" : "0") + " >/dev/null 2>&1"]
             if (!volProc.running) volProc.running = true
         }
     }
+    function pumpVolProc(): void { volSet.pumpVolProc() }
 
     SettingsControls.SettingsSection {
         title: "Display"

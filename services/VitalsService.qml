@@ -10,24 +10,31 @@ Singleton {
         id: vitalsFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/vitals.json"
         watchChanges: true; blockLoading: true; printErrors: false
-        onFileChanged: {
-            try { reload() } catch (e) { }
-        }
+        onFileChanged: vitalsReloadDebounce.restart()
         adapter: JsonAdapter {
             property bool showCpu: true
             property bool showRam: true
             property bool showGpu: true
             property bool showLabels: true
+            property bool showTopProcs: true
             property int refreshSeconds: 2
             property int warnThreshold: 75
             property int critThreshold: 90
         }
     }
 
+    // STABILITY: coalesce rapid external writes (editor save = create+write).
+    Timer {
+        id: vitalsReloadDebounce
+        interval: 250; repeat: false
+        onTriggered: { try { vitalsFile.reload() } catch (e) { } }
+    }
+
     readonly property bool showCpu: vitalsFile.adapter.showCpu !== false
     readonly property bool showRam: vitalsFile.adapter.showRam !== false
     readonly property bool showGpu: vitalsFile.adapter.showGpu !== false
     readonly property bool showLabels: vitalsFile.adapter.showLabels !== false
+    readonly property bool showTopProcs: vitalsFile.adapter.showTopProcs !== false
     readonly property int refreshSeconds: Math.max(1, Math.min(10, parseInt(vitalsFile.adapter.refreshSeconds) || 2))
     readonly property int warnThreshold: Math.max(10, Math.min(95, parseInt(vitalsFile.adapter.warnThreshold) || 75))
     readonly property int critThreshold: Math.max(20, Math.min(99, parseInt(vitalsFile.adapter.critThreshold) || 90))
@@ -37,6 +44,7 @@ Singleton {
     function setShowRam(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showRam === nv) return; vitalsFile.adapter.showRam = nv; vitalsFile.writeAdapter() }
     function setShowGpu(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showGpu === nv) return; vitalsFile.adapter.showGpu = nv; vitalsFile.writeAdapter() }
     function setShowLabels(v: bool): void { let nv = !!v; if ((vitalsFile.adapter.showLabels !== false) === nv) return; vitalsFile.adapter.showLabels = nv; vitalsFile.writeAdapter() }
+    function setShowTopProcs(v: bool): void { let nv = !!v; if ((vitalsFile.adapter.showTopProcs !== false) === nv) return; vitalsFile.adapter.showTopProcs = nv; vitalsFile.writeAdapter() }
     function setRefreshSeconds(n: int): void {
         let c = Math.max(1, Math.min(10, Math.round(n)))
         if (isNaN(c)) return
@@ -93,6 +101,19 @@ Singleton {
     }
     function refresh(): void { if (!vitalsProc.running) vitalsProc.running = true }
 
+    // PERF: epsilon-compare — assigning a property notifies every consumer
+    // (bar widgets, panels) even when the value is identical. Polling at
+    // 1-2s would otherwise fan out through the whole shell on every tick.
+    function setPct(prop: string, v: real): void {
+        let c = Math.max(0, Math.min(100, v))
+        if (Math.abs(root[prop] - c) < 0.5) return
+        root[prop] = c
+    }
+    function setGb(prop: string, v: real): void {
+        if (Math.abs(root[prop] - v) < 0.005) return
+        root[prop] = v
+    }
+
     Process {
         id: vitalsProc
         command: ["bash", "-c", "idle=$(awk '/^cpu /{print $5}' /proc/stat 2>/dev/null); total=$(awk '/^cpu /{s=0;for(i=2;i<=NF;i++)s+=$i;print s}' /proc/stat 2>/dev/null); echo \"STAT ${idle:-0} ${total:-0}\"; awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{if(t>0) print \"MEM \"t\" \"a}' /proc/meminfo 2>/dev/null; if command -v nvidia-smi >/dev/null 2>&1; then g=$(nvidia-smi --query-gpu=utilization.gpu,name --format=csv,noheader,nounits 2>/dev/null | head -1); if [ -n \"$g\" ]; then echo \"GPU_NVIDIA $g\"; else echo \"GPU_NONE\"; fi; elif [ -r /sys/class/drm/card0/device/gpu_busy_percent ]; then echo \"GPU_AMD $(cat /sys/class/drm/card0/device/gpu_busy_percent 2>/dev/null | tr -d '\\n') Generic-AMDGPU\"; elif [ -r /sys/class/drm/card1/device/gpu_busy_percent ]; then echo \"GPU_AMD $(cat /sys/class/drm/card1/device/gpu_busy_percent 2>/dev/null | tr -d '\\n') Generic-AMDGPU\"; else echo \"GPU_NONE\"; fi; awk '{print \"LOAD \"$1}' /proc/loadavg 2>/dev/null; ps -eo pcpu,comm --sort=-pcpu 2>/dev/null | head -6 | tail -5 | awk '{printf \"TOP %.1f|%s\\n\", $1, $2}'"]
@@ -116,7 +137,7 @@ Singleton {
                             let dIdle = idle - _prevIdle, dTotal = total - _prevTotal
                             if (dTotal > 0) {
                                 let pct = (1 - dIdle / dTotal) * 100
-                                if (!isNaN(pct)) cpuPct = Math.max(0, Math.min(100, pct))
+                                if (!isNaN(pct)) setPct("cpuPct", pct)
                             }
                         }
                         _prevIdle = idle
@@ -127,9 +148,9 @@ Singleton {
                     let t = parseFloat(p[0]), a = parseFloat(p[1])
                     if (!isNaN(t) && t > 0 && !isNaN(a)) {
                         let used = t - a
-                        ramTotalGb = t / 1048576
-                        ramUsedGb = Math.max(0, used) / 1048576
-                        ramPct = Math.max(0, Math.min(100, used / t * 100))
+                        setGb("ramTotalGb", t / 1048576)
+                        setGb("ramUsedGb", Math.max(0, used) / 1048576)
+                        setPct("ramPct", Math.max(0, Math.min(100, used / t * 100)))
                     }
                 } else if (l.indexOf("GPU_NVIDIA ") === 0) {
                     let rest = l.substring(11).trim()
@@ -137,22 +158,23 @@ Singleton {
                     let pct = parseFloat(c >= 0 ? rest.substring(0, c).trim() : rest)
                     let name = c >= 0 ? rest.substring(c + 1).trim() : ""
                     if (!isNaN(pct)) {
-                        gpuPct = Math.max(0, Math.min(100, pct))
-                        gpuAvailable = true
-                        if (name.length > 0) gpuName = name
+                        setPct("gpuPct", pct)
+                        if (gpuAvailable !== true) gpuAvailable = true
+                        if (name.length > 0 && gpuName !== name) gpuName = name
                     }
                 } else if (l.indexOf("GPU_AMD ") === 0) {
                     let rest = l.substring(8).trim().split(/\s+/)
                     let pct = parseFloat(rest[0])
                     if (!isNaN(pct)) {
-                        gpuPct = Math.max(0, Math.min(100, pct))
-                        gpuAvailable = true
+                        setPct("gpuPct", pct)
+                        if (gpuAvailable !== true) gpuAvailable = true
                         if (gpuName.length === 0) gpuName = "AMDGPU"
                     }
                 } else if (l === "GPU_NONE") {
-                    gpuAvailable = false
+                    if (gpuAvailable !== false) gpuAvailable = false
                 } else if (l.indexOf("LOAD ") === 0) {
-                    loadAvg = l.substring(5).trim()
+                    let nv = l.substring(5).trim()
+                    if (loadAvg !== nv) loadAvg = nv
                 } else if (l.indexOf("TOP ") === 0) {
                     let rest = l.substring(4)
                     let s = rest.indexOf("|")
@@ -163,13 +185,28 @@ Singleton {
                     }
                 }
             }
-            if (tops.length > 0) topProcs = tops.slice(0, 5)
+            if (tops.length > 0) {
+                // PERF: only assign when the list actually changed (name+cpu).
+                let cur = topProcs
+                let same = cur.length === Math.min(tops.length, 5)
+                if (same) {
+                    for (let k = 0; k < cur.length; k++) {
+                        if (!tops[k] || cur[k].name !== tops[k].name
+                            || Math.abs(cur[k].cpu - tops[k].cpu) >= 0.5) { same = false; break }
+                    }
+                }
+                if (!same) topProcs = tops.slice(0, 5)
+            } else if (topProcs.length !== 0) {
+                topProcs = []
+            }
         } catch (e) { }
     }
 
     Timer {
         id: pollTimer
-        interval: Math.max(1000, Math.min(10000, root.refreshSeconds * 1000))
+        // STABILITY: floor at 2s — 1s polling forks ~8 processes/sec forever
+        // (incl. 100-200ms nvidia-smi). 2s halves fork+parse+notify load.
+        interval: Math.max(2000, Math.min(10000, root.refreshSeconds * 1000))
         running: true; repeat: true; triggeredOnStart: true
         onTriggered: { if (!vitalsProc.running) vitalsProc.running = true }
     }

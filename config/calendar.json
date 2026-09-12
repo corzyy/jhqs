@@ -1,1 +1,4 @@
-{"weekStartDay":"sunday"}
+{
+    "notifSide": "left",
+    "weekStartDay": "sunday"
+}

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -57,6 +58,7 @@ Item {
         if (id === "petrichor") return lightBg ? "#7f9459" : "#93a06b"
         if (id === "monochrome") return lightBg ? "#181818" : "#e7e7e7"
         if (id === "catppuccin") return lightBg ? "#8839ef" : "#cba6f7"
+        if (id === "gruvbox") return "#7daea3"
         return Theme.textPrimary
     }
     function openMonetSettings() {
@@ -158,6 +160,7 @@ Item {
         }
     }
 
+    ScrollIndicator { flick: themesFlick; show: !root.showMonetSettings }
     Flickable {
         id: themesFlick
         visible: !root.showMonetSettings
@@ -191,6 +194,12 @@ Item {
                             height: 50; radius: Theme.cornerRadius
                             color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : filteredMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                             border.color: "transparent"; border.width: 0
+                            Rectangle {
+                                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                                width: 3
+                                color: Theme.accent
+                                visible: isSelected
+                            }
                             MouseArea { id: filteredMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("preset-" + modelData.id); bodyRoot.scope.setThemeEngine(modelData.id) } }
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
@@ -250,6 +259,12 @@ Item {
                             radius: Theme.cornerRadius
                             color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : presetMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                             border.color: "transparent"; border.width: 0
+                            Rectangle {
+                                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                                width: 3
+                                color: Theme.accent
+                                visible: isSelected
+                            }
                             MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("preset-" + modelData.id); bodyRoot.scope.setThemeEngine(modelData.id) } }
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
@@ -281,6 +296,7 @@ Item {
         }
     }
 
+    ScrollIndicator { flick: monetFlick; show: root.showMonetSettings }
     Flickable {
         id: monetFlick
         visible: root.showMonetSettings
@@ -302,6 +318,12 @@ Item {
                 color: root.isSelected("mode") ? Theme.withAlpha(Theme.textPrimary, 0.08) : modeMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                 border.color: "transparent"
                 border.width: 0
+                Rectangle {
+                    anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                    width: 3
+                    color: Theme.accent
+                    visible: root.isSelected("mode")
+                }
                 MouseArea { id: modeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("mode"); root.activateSelected() } }
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
@@ -339,6 +361,12 @@ Item {
                         radius: Theme.cornerRadius
                         color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : variantMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                         border.color: "transparent"; border.width: 0
+                        Rectangle {
+                            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                            width: 3
+                            color: Theme.accent
+                            visible: isSelected
+                        }
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                             Text { text: "󰸉"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : Theme.textPrimary; Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter

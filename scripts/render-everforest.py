@@ -64,6 +64,11 @@ for m in pattern.finditer(cfg):
 
 print("Running post_hooks...")
 subprocess.run(["bash","-c","killall -USR1 kitty 2>/dev/null || pkill -USR1 kitty 2>/dev/null || true"])
+# MangoWM renders colors.conf from the same palette above (templates.mango).
+# matugen's own post_hook only fires on wallpaper runs, so preset theme
+# switches must reload the compositor here, otherwise mango keeps stale
+# window colors until a manual SUPER+SHIFT+R.
+subprocess.run(["bash","-c","mmsg dispatch reload_config >/dev/null 2>&1 || true"])
 gtk_theme = "adw-gtk3-dark" if MODE=="dark" else "adw-gtk3"
 subprocess.run(["bash","-c", f"gsettings set org.gnome.desktop.interface gtk-theme '' 2>/dev/null; gsettings set org.gnome.desktop.interface gtk-theme '{gtk_theme}' 2>/dev/null || true"])
 hook = Path(f"{HOME}/.config/matugen/post-hook-scripts/gtk-themes-reload.sh")

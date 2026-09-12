@@ -66,7 +66,9 @@ Singleton {
     }
     Timer {
         id: colorReloadDebounce
-        interval: 250; repeat: false
+        // Short guard against reading a half-written matugen.json; the shell
+        // recolors as soon as the file settles.
+        interval: 80; repeat: false
         onTriggered: colorFile.reload()
     }
     Timer {
@@ -181,11 +183,22 @@ Singleton {
     readonly property string fontFamily: (fontFile.adapter.fontFamily && fontFile.adapter.fontFamily.length > 0) ? fontFile.adapter.fontFamily : "Adwaita Sans"
     readonly property string iconFontFamily: "JetBrainsMono Nerd Font"
     readonly property int fontSize: Math.max(8, Math.min(16, Math.round(fontFile.adapter.fontSize || 11)))
-    Process { id: fontApplyProc; command: ["bash", "-c", "echo"] }
+    Process { id: fontApplyProc; command: ["bash", "-c", "echo"]; onExited: pumpFontApply() }
+    property var _fontApplyPending: null
     function runFontApply(): void {
+        // STABILITY: coalesce bursts (font picker drags). Old code dropped
+        // ticks silently when running; now the latest always lands.
+        _fontApplyPending = { family: fontFamily, size: String(fontSize) }
+        if (!fontApplyProc.running) pumpFontApply()
+    }
+    function pumpFontApply(): void {
+        if (_fontApplyPending === null || _fontApplyPending === undefined) return
+        if (fontApplyProc.running) return
+        let p = _fontApplyPending
+        _fontApplyPending = null
         let script = Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/apply-font.sh"
-        fontApplyProc.command = ["bash", script, fontFamily, String(fontSize)]
-        if (!fontApplyProc.running) fontApplyProc.running = true
+        fontApplyProc.command = ["bash", script, p.family, p.size]
+        fontApplyProc.running = true
     }
     function setSystemFont(family: string): void {
         let f = (family || "").trim()
@@ -211,7 +224,6 @@ Singleton {
         adapter: JsonAdapter {
             property int radius: 0
             property bool animationsEnabled: true
-            property real animationScale: 1.0
             property string clockPosition: "center"
             property string clockFormat: "full"
             property string workspacesPosition: "left"
@@ -235,12 +247,10 @@ Singleton {
             property int edgeDistance: 0
             property int topDistance: 0
             property int contentPadding: 12
-            property string barStyle: "full"
-            property bool moduleBackground: false
         }
     }
     // Minimal is the only shell theme: former Modern branches deleted.
-    // minimalTheme stays as a constant for SettingsService/ThemingPage.
+    // minimalTheme stays as a constant for SettingsService.
     readonly property bool minimalTheme: true
     readonly property int cornerRadius: 0
     readonly property int cornerRadiusSmall: Math.max(0, Math.min(12, Math.round(cornerRadius * 0.6)))
@@ -275,18 +285,10 @@ Singleton {
         shellFile.writeAdapter()
     }
     readonly property bool animationsEnabled: shellFile.adapter.animationsEnabled
-    readonly property real animationScale: Math.max(0.2, Math.min(3.0, shellFile.adapter.animationScale))
     function setAnimationsEnabled(v: bool): void {
         let nv = !!v
         if (!!shellFile.adapter.animationsEnabled === nv) return
         shellFile.adapter.animationsEnabled = nv
-        shellFile.writeAdapter()
-    }
-    function setAnimationScale(v: real): void {
-        let c = Math.max(0.2, Math.min(3.0, v))
-        c = Math.round(c * 100) / 100
-        if (Math.abs((shellFile.adapter.animationScale ?? 1.0) - c) < 0.001) return
-        shellFile.adapter.animationScale = c
         shellFile.writeAdapter()
     }
     readonly property string clockPosition: (shellFile.adapter.clockPosition === "left" || shellFile.adapter.clockPosition === "right") ? shellFile.adapter.clockPosition : "center"
@@ -337,24 +339,20 @@ Singleton {
         shellFile.writeAdapter()
     }
     function fs(px: real): int { return Math.max(1, Math.round(px * fontScale)) }
-    Timer {
-        id: aaMigrateTimer
-        interval: 800
-        running: true
-        repeat: false
-        onTriggered: {
-            try {
-                if (!shellFile.adapter.antialiasing
-                        && shellFile.adapter.aaShapes
-                        && shellFile.adapter.aaText
-                        && shellFile.adapter.aaImageSmooth) {
-                    shellFile.adapter.aaShapes = false
-                    shellFile.adapter.aaText = false
-                    shellFile.adapter.aaImageSmooth = false
-                    shellFile.writeAdapter()
-                }
-            } catch (e) {}
-        }
+    // PERF: one-shot AA migration runs synchronously at startup (was an
+    // 800ms Timer waking the event loop after boot for a file default).
+    Component.onCompleted: {
+        try {
+            if (!shellFile.adapter.antialiasing
+                    && shellFile.adapter.aaShapes
+                    && shellFile.adapter.aaText
+                    && shellFile.adapter.aaImageSmooth) {
+                shellFile.adapter.aaShapes = false
+                shellFile.adapter.aaText = false
+                shellFile.adapter.aaImageSmooth = false
+                shellFile.writeAdapter()
+            }
+        } catch (e) {}
     }
     readonly property bool shapesAa: shellFile.adapter.aaShapes !== undefined ? !!shellFile.adapter.aaShapes : true
     readonly property bool textAa: shellFile.adapter.aaText !== undefined ? !!shellFile.adapter.aaText : true
@@ -432,7 +430,14 @@ Singleton {
     }
     function hasBarAnchor(id: string): bool { return barAnchor(id) !== null }
     property int anchorRefreshTrigger: 0
-    function refreshBarAnchors(): void { anchorRefreshTrigger++ }
+    Timer {
+        id: anchorRefreshDebounce
+        interval: 80; repeat: false
+        onTriggered: anchorRefreshTrigger++
+    }
+    // PERF: openPanel/toggleExclusive called refreshBarAnchors() synchronously
+    // per toggle, invalidating every anchor consumer. Debounce to one bump.
+    function refreshBarAnchors(): void { anchorRefreshDebounce.restart() }
     property bool polkitReady: false
     function setPolkitReady(v: bool): void {
         let nv = !!v
@@ -475,20 +480,6 @@ Singleton {
         shellFile.adapter.contentPadding = c
         shellFile.writeAdapter()
     }
-    readonly property string barStyle: (shellFile.adapter.barStyle === "island") ? "island" : "full"
-    function setBarStyle(v: string): void {
-        let nv = (v === "island") ? "island" : "full"
-        if (barStyle === nv) return
-        shellFile.adapter.barStyle = nv
-        shellFile.writeAdapter()
-    }
-    readonly property bool barModuleBackground: !!shellFile.adapter.moduleBackground
-    function setBarModuleBackground(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.moduleBackground === nv) return
-        shellFile.adapter.moduleBackground = nv
-        shellFile.writeAdapter()
-    }
     readonly property bool panelAccentBorder: !!shellFile.adapter.panelAccentBorder
     readonly property color panelBorderColor: panelAccentBorder ? accent : divider
     function setPanelAccentBorder(v: bool): void { let nv=!!v; if(!!shellFile.adapter.panelAccentBorder===nv) return; shellFile.adapter.panelAccentBorder=nv; shellFile.writeAdapter() }
@@ -502,25 +493,24 @@ Singleton {
         if (a < floorA) a = floorA
         return withAlpha(c, a)
     }
-    Process { id: panelBlurRuleProc; command: ["bash", "-c", "echo"] }
-    function applyPanelBlurLayerRule(): void {
-        panelBlurRuleProc.command = ["bash", "-c", "hyprctl eval 'hl.layer_rule({ name = \"jhqs-panel-blur\", match = { namespace = \"^(menu|launcher|calendar|weather|notifications|volumeosd|launchosd|polkit|bar|settings|systemtray)$\" }, blur = true, ignore_alpha = 0.3 })' >/dev/null 2>&1"]
-        if (!panelBlurRuleProc.running) panelBlurRuleProc.running = true
-    }
-    Component.onCompleted: applyPanelBlurLayerRule()
 
     property int sharedMenuWidth: 360
     property int sharedMenuHeight: 444
-    onSharedMenuWidthChanged: {
-        if (sharedMenuFile.adapter.width === sharedMenuWidth) return
-        sharedMenuFile.adapter.width = sharedMenuWidth
-        sharedMenuFile.writeAdapter()
+    // PERF: resize drags fired writeAdapter() per pixel (disk write + JSON
+    // churn per frame). Debounce to 500ms; in-memory props stay live.
+    Timer {
+        id: sharedMenuPersistDebounce
+        interval: 500; repeat: false
+        onTriggered: {
+            try {
+                if (sharedMenuFile.adapter.width !== sharedMenuWidth) sharedMenuFile.adapter.width = sharedMenuWidth
+                if (sharedMenuFile.adapter.height !== sharedMenuHeight) sharedMenuFile.adapter.height = sharedMenuHeight
+                sharedMenuFile.writeAdapter()
+            } catch (e) { }
+        }
     }
-    onSharedMenuHeightChanged: {
-        if (sharedMenuFile.adapter.height === sharedMenuHeight) return
-        sharedMenuFile.adapter.height = sharedMenuHeight
-        sharedMenuFile.writeAdapter()
-    }
+    onSharedMenuWidthChanged: sharedMenuPersistDebounce.restart()
+    onSharedMenuHeightChanged: sharedMenuPersistDebounce.restart()
     FileView {
         id: sharedMenuFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/shared_menu.json"
@@ -550,15 +540,6 @@ Singleton {
     property int volumeOsdTrigger: 0
     function triggerVolumeOsd(): void { volumeOsdTrigger++ }
 
-    property int launchOsdTrigger: 0
-    property string launchOsdName: ""
-    property string launchOsdIcon: ""
-    function triggerLaunchOsd(name: string, icon: string): void {
-        launchOsdName = name || ""
-        launchOsdIcon = icon || ""
-        launchOsdTrigger++
-    }
-
     property int appsRev: 0
     Timer {
         id: appsRevDebounce
@@ -576,30 +557,62 @@ Singleton {
         function onObjectInsertedPost() { root.notifyAppsChanged() }
         function onObjectRemovedPost() { root.notifyAppsChanged() }
     }
+    // PERF: memoize desktop lookups per appsRev. desktopEntryFor() does
+    // byId + heuristicLookup + hasThemeIcon per call; bar delegates called it
+    // per delegate per appsRev change. Cache keyed on (rev + id).
+    property var _desktopEntryCache: ({})
+    property string _desktopEntryCacheRev: ""
     function desktopEntryFor(appId: string): var {
         let needle = (appId || "").trim()
         if (needle.length === 0) return null
+        let revKey = appsRev + "|" + needle
+        try {
+            if (_desktopEntryCacheRev !== String(appsRev)) {
+                _desktopEntryCache = ({})
+                _desktopEntryCacheRev = String(appsRev)
+            } else if (_desktopEntryCache[revKey] !== undefined) {
+                return _desktopEntryCache[revKey]
+            }
+        } catch (e) {}
+        let found = null
         try {
             let e = DesktopEntries.byId(needle)
-            if (e) return e
-            let nodot = needle.replace(/\.desktop$/, "")
-            if (nodot !== needle) { e = DesktopEntries.byId(nodot); if (e) return e }
-            e = DesktopEntries.heuristicLookup(needle)
-            if (e) return e
+            if (e) found = e
+            else {
+                let nodot = needle.replace(/\.desktop$/, "")
+                if (nodot !== needle) { e = DesktopEntries.byId(nodot); if (e) found = e }
+                if (!found) { e = DesktopEntries.heuristicLookup(needle); if (e) found = e }
+            }
         } catch (err) {}
-        return null
+        try { _desktopEntryCache[revKey] = found } catch (e2) {}
+        return found
     }
+    property var _appIconCache: ({})
+    property string _appIconCacheRev: ""
     function appIconFor(appId: string): string {
         let low = (appId || "").toLowerCase().trim()
         if (low.length === 0) return Quickshell.iconPath("application-x-executable")
         try {
-            let e = desktopEntryFor(low)
-            if (e && e.icon) return Quickshell.iconPath(e.icon)
-        } catch (err) {}
+            if (_appIconCacheRev !== String(appsRev)) {
+                _appIconCache = ({})
+                _appIconCacheRev = String(appsRev)
+            } else if (_appIconCache[low] !== undefined) {
+                return _appIconCache[low]
+            }
+        } catch (e) {}
+        let out = ""
         try {
-            if (Quickshell.hasThemeIcon(low)) return Quickshell.iconPath(low)
-        } catch (err2) {}
-        return Quickshell.iconPath("application-x-executable")
+            let e = desktopEntryFor(low)
+            if (e && e.icon) out = Quickshell.iconPath(e.icon)
+        } catch (err) {}
+        if (out === "") {
+            try {
+                if (Quickshell.hasThemeIcon(low)) out = Quickshell.iconPath(low)
+            } catch (err2) {}
+        }
+        if (out === "") out = Quickshell.iconPath("application-x-executable")
+        try { _appIconCache[low] = out } catch (e3) {}
+        return out
     }
 
     FileView {
@@ -658,111 +671,20 @@ Singleton {
     }
 
     FileView {
-        id: osdFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/osd_settings.json"
-        watchChanges: true; onFileChanged: debouncedReload(osdFile); blockLoading: true; printErrors: false
-        adapter: JsonAdapter {
-            property bool enabled: true
-            property bool volumeEnabled: true
-            property bool launchEnabled: true
-            property string position: "bottom"
-        }
+        id: calendarFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/calendar.json"
+        watchChanges: true; onFileChanged: debouncedReload(calendarFile); blockLoading: true; printErrors: false
+        // NOTE: weekStartDay is owned by CalendarMenu/CalendarPage — it is
+        // declared here only so layout writes never drop it from the file.
+        adapter: JsonAdapter { property string weekStartDay: "sunday"; property string notifSide: "left" }
     }
-    readonly property bool _osdLegacyDisabled: !osdFile.adapter.enabled && !!osdFile.adapter.volumeEnabled && !!osdFile.adapter.launchEnabled
-    readonly property bool osdVolumeEnabled: _osdLegacyDisabled ? false : (osdFile.adapter.volumeEnabled !== undefined ? !!osdFile.adapter.volumeEnabled : (osdFile.adapter.enabled !== undefined ? !!osdFile.adapter.enabled : true))
-    readonly property bool osdLaunchEnabled: _osdLegacyDisabled ? false : (osdFile.adapter.launchEnabled !== undefined ? !!osdFile.adapter.launchEnabled : (osdFile.adapter.enabled !== undefined ? !!osdFile.adapter.enabled : true))
-    Timer {
-        id: osdMigrateTimer
-        interval: 800
-        running: true
-        repeat: false
-        onTriggered: {
-            try {
-                if (!osdFile.adapter.enabled && osdFile.adapter.volumeEnabled && osdFile.adapter.launchEnabled) {
-                    osdFile.adapter.volumeEnabled = false
-                    osdFile.adapter.launchEnabled = false
-                    osdFile.writeAdapter()
-                }
-            } catch (e) {}
-        }
-    }
-    function setOsdVolumeEnabled(v: bool): void {
-        let nv = !!v
-        if (!!osdFile.adapter.volumeEnabled === nv) return
-        osdFile.adapter.volumeEnabled = nv
-        osdFile.adapter.enabled = (nv || osdLaunchEnabled)
-        osdFile.writeAdapter()
-    }
-    function setOsdLaunchEnabled(v: bool): void {
-        let nv = !!v
-        if (!!osdFile.adapter.launchEnabled === nv) return
-        osdFile.adapter.launchEnabled = nv
-        osdFile.adapter.enabled = (nv || osdVolumeEnabled)
-        osdFile.writeAdapter()
-    }
-
-    FileView {
-        id: searchFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/search_settings.json"
-        watchChanges: true; onFileChanged: debouncedReload(searchFile); blockLoading: true; printErrors: false
-        adapter: JsonAdapter {
-            property bool apps: true
-            property bool style: true
-            property bool setup: true
-            property bool install: true
-            property bool remove: true
-            property bool about: true
-            property bool system: true
-        }
-    }
-    readonly property bool searchAppsEnabled: searchFile.adapter.apps !== undefined ? !!searchFile.adapter.apps : true
-    readonly property bool searchStyleEnabled: searchFile.adapter.style !== undefined ? !!searchFile.adapter.style : true
-    readonly property bool searchSetupEnabled: searchFile.adapter.setup !== undefined ? !!searchFile.adapter.setup : true
-    readonly property bool searchInstallEnabled: searchFile.adapter.install !== undefined ? !!searchFile.adapter.install : true
-    readonly property bool searchRemoveEnabled: searchFile.adapter.remove !== undefined ? !!searchFile.adapter.remove : true
-    readonly property bool searchAboutEnabled: searchFile.adapter.about !== undefined ? !!searchFile.adapter.about : true
-    readonly property bool searchSystemEnabled: searchFile.adapter.system !== undefined ? !!searchFile.adapter.system : true
-    function setSearchAppsEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.apps === nv) return
-        searchFile.adapter.apps = nv
-        searchFile.writeAdapter()
-    }
-    function setSearchStyleEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.style === nv) return
-        searchFile.adapter.style = nv
-        searchFile.writeAdapter()
-    }
-    function setSearchSetupEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.setup === nv) return
-        searchFile.adapter.setup = nv
-        searchFile.writeAdapter()
-    }
-    function setSearchInstallEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.install === nv) return
-        searchFile.adapter.install = nv
-        searchFile.writeAdapter()
-    }
-    function setSearchRemoveEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.remove === nv) return
-        searchFile.adapter.remove = nv
-        searchFile.writeAdapter()
-    }
-    function setSearchAboutEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.about === nv) return
-        searchFile.adapter.about = nv
-        searchFile.writeAdapter()
-    }
-    function setSearchSystemEnabled(v: bool): void {
-        let nv = !!v
-        if (!!searchFile.adapter.system === nv) return
-        searchFile.adapter.system = nv
-        searchFile.writeAdapter()
+    // Which side of the calendar popup holds notifications ("left"|"right").
+    readonly property bool calendarNotifLeft: calendarFile.adapter.notifSide !== "right"
+    function setCalendarNotifSide(side: string): void {
+        let nv = (side === "right") ? "right" : "left"
+        if ((calendarFile.adapter.notifSide || "left") === nv) return
+        calendarFile.adapter.notifSide = nv
+        calendarFile.writeAdapter()
     }
 
     readonly property var barModuleIds: ["launcher", "workspaces", "activewindow", "clock", "weather", "updates", "systemtray", "network", "volume", "bluetooth", "vitals"]
@@ -795,15 +717,14 @@ Singleton {
         }
         Component.onCompleted: barMigrateTimer.restart()
     }
+    // PERF: one-shot migration fires once at 250ms (was 2s + re-arm = 2
+    // wakeups for a version check). No repeat cost after first boot.
     Timer {
         id: barMigrateTimer
-        interval: 2000
+        interval: 250
         repeat: false
-        property int checks: 0
         onTriggered: {
-            if ((barLayoutFile.adapter.version || 0) >= 1) { barMigrateTimer.stop(); return }
-            if (barMigrateTimer.checks < 1) { barMigrateTimer.checks = 1; barMigrateTimer.restart(); return }
-            barMigrateTimer.stop()
+            if ((barLayoutFile.adapter.version || 0) >= 1) return
             root.migrateBarLayout()
         }
     }
@@ -1025,6 +946,62 @@ Singleton {
         } catch (e) {}
     }
 
+    // Generic per-module label visibility (future-proof).
+    // Modules with their own service storage (volume/showPct, weather/
+    // showLabel, vitals/showLabels, clock/clockFormat) keep it for backwards
+    // compat. Everything else — updates count, activewindow title, and any
+    // future module with a text label — uses this central map so a new
+    // widget only needs:
+    //   visible: Theme.barLabelVisible("<moduleId>") && <hasLabelData>
+    //   function toggleLabel(): void { Theme.toggleBarLabel("<moduleId>") }
+    // and right-click toggling works with zero BarModule changes.
+    FileView {
+        id: barLabelFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/bar_labels.json"
+        watchChanges: true; onFileChanged: debouncedReload(barLabelFile); blockLoading: true; printErrors: false
+        adapter: JsonAdapter {
+            property var labels: ({})
+        }
+    }
+    function barLabelVisible(id: string): bool {
+        try {
+            let key = (id || "").trim()
+            if (key.length === 0) return false
+            let m = barLabelFile.adapter.labels
+            if (m && m[key] !== undefined) return m[key] !== false
+            return true
+        } catch (e) { return true }
+    }
+    function setBarLabelVisible(id: string, v: bool): void {
+        let key = (id || "").trim()
+        if (key.length === 0) return
+        let nv = !!v
+        if (barLabelVisible(key) === nv) {
+            // Still persist explicit false so the choice survives restarts
+            // even when the default would also be visible.
+            try {
+                let cur = barLabelFile.adapter.labels
+                if (cur && cur[key] !== undefined) return
+            } catch (e) {}
+            if (nv) return
+        }
+        let m = {}
+        try {
+            let cur = barLabelFile.adapter.labels
+            if (cur && typeof cur === "object") {
+                for (let k in cur) m[k] = cur[k]
+            }
+        } catch (e) {}
+        m[key] = nv
+        barLabelFile.adapter.labels = m
+        barLabelFile.writeAdapter()
+    }
+    function toggleBarLabel(id: string): void {
+        let key = (id || "").trim()
+        if (key.length === 0) return
+        setBarLabelVisible(key, !barLabelVisible(key))
+    }
+
     FileView {
         id: trayFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/tray.json"
@@ -1097,24 +1074,25 @@ Singleton {
         else next = "balanced"
         powerModeFile.adapter.mode = next
         powerModeFile.writeAdapter()
+        // PERF: Quickshell PowerProfiles API already applies the profile
+        // synchronously. The old powerprofilesctl fork duplicated the same
+        // action (2 writers, race on rapid toggle). Keep API only.
         try {
             if (next === "performance") PowerProfiles.profile = PowerProfile.Performance
             else if (next === "power-saver") PowerProfiles.profile = PowerProfile.PowerSaver
             else PowerProfiles.profile = PowerProfile.Balanced
         } catch(e) {}
-        powerModeProc.command = ["bash", "-c", "powerprofilesctl set " + next + " 2>/dev/null || echo no_pp"]
-        if (!powerModeProc.running) powerModeProc.running = true
     }
 
     function withAlpha(c: color, a: real): color { return Qt.rgba(c.r, c.g, c.b, a) }
 
-    readonly property int animMicro: animationsEnabled ? Math.round(100 * animationScale) : 0
-    readonly property int animFast: animationsEnabled ? Math.round(150 * animationScale) : 0
-    readonly property int animNormal: animationsEnabled ? Math.round(200 * animationScale) : 0
-    readonly property int animSlow: animationsEnabled ? Math.round(300 * animationScale) : 0
-    readonly property int animEmph: animationsEnabled ? Math.round(400 * animationScale) : 0
-    readonly property int animStagger: animationsEnabled ? Math.round(30 * animationScale) : 0
-    readonly property int animBounce: animationsEnabled ? Math.round(350 * animationScale) : 0
+    readonly property int animMicro: animationsEnabled ? 100 : 0
+    readonly property int animFast: animationsEnabled ? 150 : 0
+    readonly property int animNormal: animationsEnabled ? 200 : 0
+    readonly property int animSlow: animationsEnabled ? 300 : 0
+    readonly property int animEmph: animationsEnabled ? 400 : 0
+    readonly property int animStagger: animationsEnabled ? 30 : 0
+    readonly property int animBounce: animationsEnabled ? 350 : 0
     readonly property int easingStandard: Easing.OutCubic
     readonly property int easingEmph: Easing.OutBack
     readonly property int easingBounce: Easing.OutBack
@@ -1129,13 +1107,13 @@ Singleton {
     readonly property real pressScale: 0.94
     readonly property real iconPopScale: 1.08
 
-    readonly property int panelAnimFade: animationsEnabled ? Math.round(200 * animationScale) : 0
-    readonly property int panelAnimSlide: animationsEnabled ? Math.round(350 * animationScale) : 0
-    readonly property int panelAnimScale: animationsEnabled ? Math.round(400 * animationScale) : 0
-    readonly property int panelAnimExit: animationsEnabled ? Math.round(150 * animationScale) : 0
-    readonly property int panelAnimCollapse: animationsEnabled ? Math.round(200 * animationScale) : 0
-    readonly property int expanderDur: animationsEnabled ? Math.round(200 * animationScale) : 0
-    readonly property int celestiaPanelDur: animationsEnabled ? Math.round(500 * animationScale) : 0
+    readonly property int panelAnimFade: animationsEnabled ? 200 : 0
+    readonly property int panelAnimSlide: animationsEnabled ? 350 : 0
+    readonly property int panelAnimScale: animationsEnabled ? 400 : 0
+    readonly property int panelAnimExit: animationsEnabled ? 150 : 0
+    readonly property int panelAnimCollapse: animationsEnabled ? 200 : 0
+    readonly property int expanderDur: animationsEnabled ? 200 : 0
+    readonly property int celestiaPanelDur: animationsEnabled ? 500 : 0
     readonly property var celestiaPanelCurve: [0.38, 1.21, 0.22, 1, 1, 1]
     readonly property int panelHideDelay: animationsEnabled ? panelAnimExit + 20 : 0
     readonly property real panelOvershootScale: 1.35

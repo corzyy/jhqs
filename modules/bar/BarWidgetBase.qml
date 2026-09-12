@@ -4,6 +4,16 @@
 // and guarantees consistent padding/behavior. It also avoids the old
 // pattern of instantiating BOTH Row and Column trees: only the active
 // orientation's content slot is loaded via Loader.
+//
+// LABEL-TOGGLE CONVENTION (future-proof):
+// Any widget with a text label next to its icon gets right-click label
+// toggling for free by defining:
+//   function toggleLabel(): void { ... }
+// BarModule.click() calls toggleLabel() on right-click when present (checked
+// via duck-typing), and this base MouseArea does the same for standalone
+// use. New modules: bind label visibility to a setting, add toggleLabel(),
+// no BarModule changes needed. Icon-only widgets simply omit toggleLabel()
+// and right-click falls through to rightClicked()/legacy actions.
 import QtQuick
 import QtQuick.Layouts
 import "../../themes"
@@ -12,6 +22,7 @@ Item {
     id: root
     signal clicked()
     signal rightClicked()
+    signal middleClicked()
 
     // Content providers supply one component each; only the active one loads.
     property Component rowContent
@@ -51,11 +62,17 @@ Item {
     MouseArea {
         id: mouse
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: m => {
-            if (m.button === Qt.RightButton) root.rightClicked()
+            if (m.button === Qt.RightButton) {
+                // Future-proof: label-capable widgets define toggleLabel().
+                try {
+                    if (typeof root.toggleLabel === "function") { root.toggleLabel(); return }
+                } catch (e) {}
+                root.rightClicked()
+            } else if (m.button === Qt.MiddleButton) root.middleClicked()
             else root.clicked()
         }
     }

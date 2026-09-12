@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Hyprland
 import Quickshell.Services.SystemTray as TrayService
 import "../../themes"
 import "../../services"
@@ -25,7 +24,10 @@ Item {
 
     readonly property bool activeVisible: (moduleId !== "weather" || WeatherService.hasData)
                                        && (moduleId !== "systemtray" || trayCount > 0)
+    // PERF: only the systemtray instance scans tray items. Old code ran the
+    // same O(n) scan in every DraggableModule (~10x) on every tray change.
     readonly property int trayCount: {
+        if (moduleId !== "systemtray") return 1
         let n = 0
         try {
             let vals = TrayService.SystemTray.items.values
@@ -53,7 +55,38 @@ Item {
         try { widgetLoader.item?.clearHover?.() } catch (e) { }
     }
 
+    function toggleModuleLabel(): bool {
+        // Future-proof: any bar widget exposing toggleLabel() gets right-click
+        // label toggling with zero per-module wiring. New modules just add:
+        //   function toggleLabel(): void { ... }
+        // Wrapper comps (e.g. clockComp Item->Clock) are covered by checking
+        // direct children too, so forwarding boilerplate is optional.
+        try {
+            let w = widgetLoader.item
+            if (!w) return false
+            if (typeof w.toggleLabel === "function") { w.toggleLabel(); return true }
+            try {
+                if (w.wsInnerItem && typeof w.wsInnerItem.toggleLabel === "function") { w.wsInnerItem.toggleLabel(); return true }
+            } catch (e1) {}
+            try {
+                let ch = w.children
+                if (ch) {
+                    for (let i = 0; i < ch.length; i++) {
+                        let c = ch[i]
+                        if (c && typeof c.toggleLabel === "function") { c.toggleLabel(); return true }
+                    }
+                }
+            } catch (e2) {}
+        } catch (e) {}
+        return false
+    }
+
     function click(button: int, x: real, y: real): void {
+        // Right-click toggles the module label when the widget supports it.
+        // Icon-only modules (no toggleLabel) fall through to legacy actions.
+        if (button === Qt.RightButton) {
+            if (toggleModuleLabel()) return
+        }
         if (moduleId === "launcher") {
             if (button === Qt.LeftButton) requestMenu()
         } else if (moduleId === "clock") {
@@ -61,17 +94,21 @@ Item {
             else if (button === Qt.LeftButton) requestCalendar()
         } else if (moduleId === "weather") {
             if (button === Qt.LeftButton) requestWeather()
-            else if (button === Qt.RightButton || button === Qt.MiddleButton) WeatherService.refresh()
+            else if (button === Qt.MiddleButton) WeatherService.refresh()
+            else if (button === Qt.RightButton) WeatherService.refresh()
         } else if (moduleId === "network") {
             if (button === Qt.LeftButton) requestNetwork()
         } else if (moduleId === "volume") {
-            if (button === Qt.RightButton) VolumeService.toggleMute()
+            if (button === Qt.MiddleButton) VolumeService.toggleMute()
+            else if (button === Qt.RightButton) VolumeService.toggleMute()
             else if (button === Qt.LeftButton) requestVolume()
         } else if (moduleId === "bluetooth") {
-            if (button === Qt.RightButton) BluetoothService.togglePower()
+            if (button === Qt.MiddleButton) BluetoothService.togglePower()
+            else if (button === Qt.RightButton) BluetoothService.togglePower()
             else if (button === Qt.LeftButton) requestBluetooth()
         } else if (moduleId === "vitals") {
-            if (button === Qt.LeftButton) requestVitals()
+            if (button === Qt.MiddleButton) VitalsService.refresh()
+            else if (button === Qt.LeftButton) requestVitals()
         } else if (moduleId === "updates") {
             if (button === Qt.MiddleButton) UpdateService.checkNow()
             else if (button === Qt.LeftButton) requestUpdates()
@@ -95,9 +132,23 @@ Item {
         }
     }
 
+    function screenNameForWheel(): string {
+        // Follow the focused monitor (matches Workspaces display).
+        try {
+            let f = MangoService.focusedMonitor
+            if (f && ("" + f).length > 0) return "" + f
+        } catch (e) {}
+        try {
+            if (monitor && monitor.name) return "" + monitor.name
+            if (typeof monitor === "string" && ("" + monitor).length > 0) return "" + monitor
+        } catch (e2) {}
+        return ""
+    }
     function wheel(dy: real): bool {
         if (moduleId === "workspaces") {
-            Hyprland.dispatch(dy > 0 ? "workspace m-1" : "workspace m+1")
+            let sn = screenNameForWheel()
+            if (dy > 0) MangoService.prevTag(sn)
+            else MangoService.nextTag(sn)
             return true
         }
         if (moduleId === "volume") {
@@ -119,7 +170,8 @@ Item {
     Loader {
         id: widgetLoader
         anchors.centerIn: parent
-        asynchronous: false
+        // PERF: async so one slow widget (tray icon fetch) can't stall bar layout.
+        asynchronous: true
         // RAM: unload collapsed widgets instead of keeping them alive at
         // width 0 (weather with no data, empty tray). Destroying the item
         // frees its bindings, timers and images; it reloads on next show.
@@ -157,7 +209,7 @@ Item {
             property alias wsInnerItem: wsInner
             implicitWidth: wsInner.implicitWidth + (Theme.workspaceStyle === "default2" ? 0 : 6)
             implicitHeight: wsInner.implicitHeight + (Theme.workspaceStyle === "default2" ? 0 : 6)
-            Workspaces { id: wsInner; anchors.centerIn: parent; vertical: root.vertical }
+            Workspaces { id: wsInner; anchors.centerIn: parent; vertical: root.vertical; monitor: root.monitor }
             function setHoverAt(px: real, py: real): void { wsInner.setHoverAt(px, py) }
             function clearHover(): void { wsInner.clearHover() }
             function activateAt(px: real, py: real): bool { return wsInner.activateAt(px, py) }
@@ -168,6 +220,7 @@ Item {
         Item {
             implicitWidth: clockInner.implicitWidth + 12
             implicitHeight: clockInner.implicitHeight + 8
+            function toggleLabel(): void { clockInner.toggleLabel() }
             Clock { id: clockInner; anchors.centerIn: parent; vertical: root.vertical; onClicked: root.requestCalendar() }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
         }
@@ -177,11 +230,11 @@ Item {
     Component { id: networkComp; NetworkWidget { vertical: root.vertical; onClicked: root.requestNetwork() } }
     Component {
         id: volumeComp
-        VolumeWidget { vertical: root.vertical; onClicked: root.requestVolume(); onRightClicked: VolumeService.toggleMute() }
+        VolumeWidget { vertical: root.vertical; onClicked: root.requestVolume(); onMiddleClicked: VolumeService.toggleMute() }
     }
     Component {
         id: btComp
-        BluetoothWidget { vertical: root.vertical; onClicked: root.requestBluetooth(); onRightClicked: BluetoothService.togglePower() }
+        BluetoothWidget { vertical: root.vertical; onClicked: root.requestBluetooth(); onRightClicked: BluetoothService.togglePower(); onMiddleClicked: BluetoothService.togglePower() }
     }
     Component { id: vitalsComp; VitalsWidget { vertical: root.vertical; onClicked: root.requestVitals() } }
     Component {

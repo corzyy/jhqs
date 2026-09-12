@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import "./bar" as Bar
@@ -80,55 +79,24 @@ Scope {
         function debugCount(n: int): string { UpdateService.debugCount = n; UpdateService.debugForce = true; return "debugCount=" + n }
     }
 
+    // Fullscreen state comes from MangoService (mmsg all-clients); the bar
+    // hides itself on screens with a fullscreen client.
     property var fullscreenByScreen: ({ })
-    Timer { id: fsDebounce; interval: 200; repeat: false; onTriggered: if (!fsProc.running) fsProc.running = true }
-    function refreshFullscreen() {
-        if (fsProc.running) return
-        if (fsDebounce.running) return
-        fsDebounce.restart()
-    }
-    Process {
-        id: fsProc
-        command: ["bash", "-c", "hyprctl monitors -j 2>/dev/null; echo '__JHQS_WS__'; hyprctl workspaces -j 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: topBarScope.finishFullscreenRefresh(text || "")
-        }
-    }
-    function finishFullscreenRefresh(out) {
+    function pullMangoFullscreen(): void {
         try {
-            let parts = ("" + (out || "")).split("__JHQS_WS__")
-            if (parts.length < 2) return
-            let mons = JSON.parse((parts[0] || "").trim() || "[]")
-            let wss = JSON.parse((parts[1] || "").trim() || "[]")
-            let fsIds = { }
-            for (let i = 0; i < wss.length; i++) {
-                let w = wss[i]
-                if (w && w.hasfullscreen) fsIds[w.id] = true
-            }
-            let m = { }
-            for (let j = 0; j < mons.length; j++) {
-                let mon = mons[j]
-                if (!mon || !mon.name) continue
-                let aid = (mon.activeWorkspace && mon.activeWorkspace.id !== undefined) ? mon.activeWorkspace.id : -1
-                m[mon.name] = !!fsIds[aid]
-            }
-            fullscreenByScreen = m
-        } catch (e) { }
+            MangoService.refresh()
+            let m = MangoService.fullscreenByScreen
+            let copy = {}
+            for (let k in m) copy[k] = !!m[k]
+            fullscreenByScreen = copy
+        } catch (e) {}
     }
     Connections {
-        target: Hyprland
+        target: MangoService
         ignoreUnknownSignals: true
-        function onRawEvent(event) {
-            try {
-                let n = event ? event.name : ""
-                if (n === "fullscreen" || n === "activewindow" || n === "activewindowv2"
-                        || n === "workspace" || n === "workspacev2" || n === "focusedmon" || n === "focusedmonv2"
-                        || n === "movewindow" || n === "movewindowv2" || n === "openwindow" || n === "closewindow") {
-                    topBarScope.refreshFullscreen()
-                }
-            } catch (e) { }
-        }
+        function onFullscreenByScreenChanged() { topBarScope.pullMangoFullscreen() }
     }
+    function refreshFullscreen() { pullMangoFullscreen() }
     Component.onCompleted: refreshFullscreen()
 
     IpcHandler {
@@ -154,16 +122,27 @@ Scope {
             property int barWidth: Math.max(20, Math.min(64, topBarWindow.cfgThickness))
             onBarWidthChanged: Theme.barEffectiveWidth = barWidth
             onBarHeightChanged: Theme.barEffectiveHeight = barHeight
-            onWidthChanged: publishWindowRect()
-            onHeightChanged: publishWindowRect()
-            onBarPosChanged: publishWindowRect()
-            onEdgeDistChanged: publishWindowRect()
-            onTopDistChanged: publishWindowRect()
+            // PERF: 7 onChanged handlers called publishWindowRect() synchronously
+            // per frame (geometry storm during resize/drag). Coalesce to one
+            // deferred publish per event-loop tick.
+            property bool _rectDirty: false
+            function requestPublishWindowRect(): void {
+                if (_rectDirty) return
+                _rectDirty = true
+                Qt.callLater(() => {
+                    _rectDirty = false
+                    publishWindowRect()
+                })
+            }
+            onWidthChanged: requestPublishWindowRect()
+            onHeightChanged: requestPublishWindowRect()
+            onBarPosChanged: requestPublishWindowRect()
+            onEdgeDistChanged: requestPublishWindowRect()
+            onTopDistChanged: requestPublishWindowRect()
             property string barPos: Theme.barPosition
             property real barOpacity: Theme.barOpacity
             property bool isVertical: barPos === "left" || barPos === "right"
             property bool isHorizontal: !isVertical
-            property bool isIsland: Theme.barStyle === "island"
             property int edgeDist: Theme.barEdgeDistance
             property int topDist: Theme.barTopDistance
             property bool screenFullscreen: {
@@ -192,7 +171,6 @@ Scope {
                 antialiasing: Theme.shapesAa
                 id: barBackground
                 anchors.fill: parent
-                visible: !topBarWindow.isIsland
                 radius: (topBarWindow.edgeDist > 0 || topBarWindow.topDist > 0) ? Theme.cornerRadius : 0
                 color: topBarWindow.barOpacity >= 0.999 ? Theme.panelBg : Theme.withAlpha(Theme.bg, Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha)))
             }
@@ -324,6 +302,31 @@ Scope {
                 }
             }
             function moveSlotDrag(slot: var, x: real, y: real): void {
+                // PERF: coalesce per-pixel drag moves. dropCandidates() does
+                // mapToItem per slot per move + 7 prop updates repainting dots
+                // + marker per pixel. One evaluation per frame is identical
+                // visually at a fraction of the cost.
+                _pendingDragSlot = slot
+                _pendingDragX = x
+                _pendingDragY = y
+                if (!_dragCoalesced) {
+                    _dragCoalesced = true
+                    Qt.callLater(flushSlotDrag)
+                }
+            }
+            property var _pendingDragSlot: null
+            property real _pendingDragX: 0
+            property real _pendingDragY: 0
+            property bool _dragCoalesced: false
+            function flushSlotDrag(): void {
+                _dragCoalesced = false
+                let slot = _pendingDragSlot
+                let x = _pendingDragX, y = _pendingDragY
+                _pendingDragSlot = null
+                if (!slot || !topBarScope.dragActive) return
+                flushSlotDragInner(slot, x, y)
+            }
+            function flushSlotDragInner(slot: var, x: real, y: real): void {
                 if (!topBarScope.dragActive) return
                 let scenePoint = { x: x, y: y }
                 try { scenePoint = slot.mapToItem(null, x, y) } catch (e) { }
@@ -391,20 +394,8 @@ Scope {
                 Item {
                     id: leftZoneWrap
                     anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(leftZoneRow.implicitWidth + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0), (topBarScope.dragActive && topBarScope.leftGapEmpty) ? 96 : 0)
+                    width: Math.max(leftZoneRow.implicitWidth + (Theme.barContentPadding > 0 ? 14 : 0), (topBarScope.dragActive && topBarScope.leftGapEmpty) ? 96 : 0)
                     height: Math.max(0, Math.min(leftZoneRow.implicitHeight + 8, parent.height - 4))
-                    Rectangle {
-                        antialiasing: Theme.shapesAa
-                        anchors.fill: parent
-                        visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (leftZoneRow.implicitWidth > 0 || (topBarScope.dragActive && topBarScope.leftGapEmpty))
-                        radius: Math.min(Theme.cornerRadius, height / 2)
-                        color: {
-                            if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                            let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                            let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                            return Theme.withAlpha(base, a)
-                        }
-                    }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: leftDropDot
@@ -418,7 +409,9 @@ Scope {
                         anchors.centerIn: parent
                         spacing: Theme.barModuleSpacing
                         Repeater {
-                            model: Theme.barLayoutLeft
+                            // PERF: hidden orientation keeps zero delegates
+                            // (was 2x full bar trees alive, ~20 DraggableModules).
+                            model: topBarWindow.isHorizontal ? Theme.barLayoutLeft : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -460,20 +453,8 @@ Scope {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.horizontalCenterOffset: parent.width * -0.25
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(twoFifthsZoneRow.implicitWidth + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0), (topBarScope.dragActive && topBarScope.twoFifthsGapEmpty) ? 110 : 0)
+                    width: Math.max(twoFifthsZoneRow.implicitWidth + (Theme.barContentPadding > 0 ? 14 : 0), (topBarScope.dragActive && topBarScope.twoFifthsGapEmpty) ? 110 : 0)
                     height: Math.max(0, Math.min(twoFifthsZoneRow.implicitHeight + 8, parent.height - 4))
-                    Rectangle {
-                        antialiasing: Theme.shapesAa
-                        anchors.fill: parent
-                        visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (twoFifthsZoneRow.implicitWidth > 0 || (topBarScope.dragActive && topBarScope.twoFifthsGapEmpty))
-                        radius: Math.min(Theme.cornerRadius, height / 2)
-                        color: {
-                            if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                            let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                            let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                            return Theme.withAlpha(base, a)
-                        }
-                    }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: twoFifthsDropDot
@@ -487,7 +468,7 @@ Scope {
                         anchors.centerIn: parent
                         spacing: Theme.barModuleSpacing
                         Repeater {
-                            model: Theme.barLayoutTwoFifths
+                            model: topBarWindow.isHorizontal ? Theme.barLayoutTwoFifths : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -527,20 +508,8 @@ Scope {
                 Item {
                     id: centerZoneWrap
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(centerZoneRow.implicitWidth + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0), (topBarScope.dragActive && topBarScope.middleGapEmpty) ? 110 : 0)
+                    width: Math.max(centerZoneRow.implicitWidth + (Theme.barContentPadding > 0 ? 14 : 0), (topBarScope.dragActive && topBarScope.middleGapEmpty) ? 110 : 0)
                     height: Math.max(0, Math.min(centerZoneRow.implicitHeight + 8, parent.height - 4))
-                    Rectangle {
-                        antialiasing: Theme.shapesAa
-                        anchors.fill: parent
-                        visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (centerZoneRow.implicitWidth > 0 || (topBarScope.dragActive && topBarScope.middleGapEmpty))
-                        radius: Math.min(Theme.cornerRadius, height / 2)
-                        color: {
-                            if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                            let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                            let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                            return Theme.withAlpha(base, a)
-                        }
-                    }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: centerDropDot
@@ -554,7 +523,7 @@ Scope {
                         anchors.centerIn: parent
                         spacing: Theme.barModuleSpacing
                         Repeater {
-                            model: Theme.barLayoutCenter
+                            model: topBarWindow.isHorizontal ? Theme.barLayoutCenter : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -596,20 +565,8 @@ Scope {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.horizontalCenterOffset: parent.width * 0.25
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(fourFifthsZoneRow.implicitWidth + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0), (topBarScope.dragActive && topBarScope.fourFifthsGapEmpty) ? 110 : 0)
+                    width: Math.max(fourFifthsZoneRow.implicitWidth + (Theme.barContentPadding > 0 ? 14 : 0), (topBarScope.dragActive && topBarScope.fourFifthsGapEmpty) ? 110 : 0)
                     height: Math.max(0, Math.min(fourFifthsZoneRow.implicitHeight + 8, parent.height - 4))
-                    Rectangle {
-                        antialiasing: Theme.shapesAa
-                        anchors.fill: parent
-                        visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (fourFifthsZoneRow.implicitWidth > 0 || (topBarScope.dragActive && topBarScope.fourFifthsGapEmpty))
-                        radius: Math.min(Theme.cornerRadius, height / 2)
-                        color: {
-                            if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                            let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                            let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                            return Theme.withAlpha(base, a)
-                        }
-                    }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: fourFifthsDropDot
@@ -623,7 +580,7 @@ Scope {
                         anchors.centerIn: parent
                         spacing: Theme.barModuleSpacing
                         Repeater {
-                            model: Theme.barLayoutFourFifths
+                            model: topBarWindow.isHorizontal ? Theme.barLayoutFourFifths : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -663,20 +620,8 @@ Scope {
                 Item {
                     id: rightZoneWrap
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(rightZoneRow.implicitWidth + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0), (topBarScope.dragActive && topBarScope.rightGapEmpty) ? 96 : 0)
+                    width: Math.max(rightZoneRow.implicitWidth + (Theme.barContentPadding > 0 ? 14 : 0), (topBarScope.dragActive && topBarScope.rightGapEmpty) ? 96 : 0)
                     height: Math.max(0, Math.min(rightZoneRow.implicitHeight + 8, parent.height - 4))
-                    Rectangle {
-                        antialiasing: Theme.shapesAa
-                        anchors.fill: parent
-                        visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (rightZoneRow.implicitWidth > 0 || (topBarScope.dragActive && topBarScope.rightGapEmpty))
-                        radius: Math.min(Theme.cornerRadius, height / 2)
-                        color: {
-                            if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                            let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                            let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                            return Theme.withAlpha(base, a)
-                        }
-                    }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: rightDropDot
@@ -690,7 +635,7 @@ Scope {
                         anchors.centerIn: parent
                         spacing: Theme.barModuleSpacing
                         Repeater {
-                            model: Theme.barLayoutRight
+                            model: topBarWindow.isHorizontal ? Theme.barLayoutRight : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -740,20 +685,8 @@ Scope {
                     Item {
                         id: vTopWrap
                         Layout.fillWidth: true
-                        implicitHeight: vTopCol.implicitHeight + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0)
+                        implicitHeight: vTopCol.implicitHeight + (Theme.barContentPadding > 0 ? 14 : 0)
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.leftGapEmpty && topBarWindow.isVertical) ? 96 : 0
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            anchors.fill: parent
-                            visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (vTopCol.implicitHeight > 0 || (topBarScope.dragActive && topBarScope.leftGapEmpty))
-                            radius: Math.min(Theme.cornerRadius, width / 2)
-                            color: {
-                                if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                                let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                                let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                                return Theme.withAlpha(base, a)
-                            }
-                        }
                         Rectangle {
                             antialiasing: Theme.shapesAa
                             id: vTopDot
@@ -769,7 +702,7 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.barModuleSpacing
                             Repeater {
-                                model: Theme.barLayoutLeft
+                                model: topBarWindow.isVertical ? Theme.barLayoutLeft : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -809,20 +742,8 @@ Scope {
                     Item {
                         id: vTwoFifthsWrap
                         Layout.fillWidth: true
-                        implicitHeight: vTwoFifthsCol.implicitHeight + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0)
+                        implicitHeight: vTwoFifthsCol.implicitHeight + (Theme.barContentPadding > 0 ? 14 : 0)
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.twoFifthsGapEmpty && topBarWindow.isVertical) ? 110 : 0
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            anchors.fill: parent
-                            visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (vTwoFifthsCol.implicitHeight > 0 || (topBarScope.dragActive && topBarScope.twoFifthsGapEmpty))
-                            radius: Math.min(Theme.cornerRadius, width / 2)
-                            color: {
-                                if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                                let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                                let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                                return Theme.withAlpha(base, a)
-                            }
-                        }
                         Rectangle {
                             antialiasing: Theme.shapesAa
                             id: vTwoFifthsDot
@@ -838,7 +759,7 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.barModuleSpacing
                             Repeater {
-                                model: Theme.barLayoutTwoFifths
+                                model: topBarWindow.isVertical ? Theme.barLayoutTwoFifths : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -878,20 +799,8 @@ Scope {
                     Item {
                         id: vMidWrap
                         Layout.fillWidth: true
-                        implicitHeight: vMidCol.implicitHeight + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0)
+                        implicitHeight: vMidCol.implicitHeight + (Theme.barContentPadding > 0 ? 14 : 0)
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.middleGapEmpty && topBarWindow.isVertical) ? 110 : 0
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            anchors.fill: parent
-                            visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (vMidCol.implicitHeight > 0 || (topBarScope.dragActive && topBarScope.middleGapEmpty))
-                            radius: Math.min(Theme.cornerRadius, width / 2)
-                            color: {
-                                if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                                let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                                let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                                return Theme.withAlpha(base, a)
-                            }
-                        }
                         Rectangle {
                             antialiasing: Theme.shapesAa
                             id: vMidDot
@@ -907,7 +816,7 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.barModuleSpacing
                             Repeater {
-                                model: Theme.barLayoutCenter
+                                model: topBarWindow.isVertical ? Theme.barLayoutCenter : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -947,20 +856,8 @@ Scope {
                     Item {
                         id: vFourFifthsWrap
                         Layout.fillWidth: true
-                        implicitHeight: vFourFifthsCol.implicitHeight + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0)
+                        implicitHeight: vFourFifthsCol.implicitHeight + (Theme.barContentPadding > 0 ? 14 : 0)
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.fourFifthsGapEmpty && topBarWindow.isVertical) ? 110 : 0
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            anchors.fill: parent
-                            visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (vFourFifthsCol.implicitHeight > 0 || (topBarScope.dragActive && topBarScope.fourFifthsGapEmpty))
-                            radius: Math.min(Theme.cornerRadius, width / 2)
-                            color: {
-                                if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                                let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                                let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                                return Theme.withAlpha(base, a)
-                            }
-                        }
                         Rectangle {
                             antialiasing: Theme.shapesAa
                             id: vFourFifthsDot
@@ -976,7 +873,7 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.barModuleSpacing
                             Repeater {
-                                model: Theme.barLayoutFourFifths
+                                model: topBarWindow.isVertical ? Theme.barLayoutFourFifths : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index
@@ -1016,20 +913,8 @@ Scope {
                     Item {
                         id: vBottomWrap
                         Layout.fillWidth: true
-                        implicitHeight: vBottomCol.implicitHeight + ((topBarWindow.isIsland || Theme.barModuleBackground || Theme.barContentPadding > 0) ? 14 : 0)
+                        implicitHeight: vBottomCol.implicitHeight + (Theme.barContentPadding > 0 ? 14 : 0)
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.rightGapEmpty && topBarWindow.isVertical) ? 96 : 0
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            anchors.fill: parent
-                            visible: (topBarWindow.isIsland || Theme.barModuleBackground) && (vBottomCol.implicitHeight > 0 || (topBarScope.dragActive && topBarScope.rightGapEmpty))
-                            radius: Math.min(Theme.cornerRadius, width / 2)
-                            color: {
-                                if (topBarWindow.barOpacity >= 0.999) return topBarWindow.isIsland ? Theme.panelBg : Theme.cardBg
-                                let a = Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha))
-                                let base = topBarWindow.isIsland ? Theme.bg : Theme.surface_container_high
-                                return Theme.withAlpha(base, a)
-                            }
-                        }
                         Rectangle {
                             antialiasing: Theme.shapesAa
                             id: vBottomDot
@@ -1045,7 +930,7 @@ Scope {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.barModuleSpacing
                             Repeater {
-                                model: Theme.barLayoutRight
+                                model: topBarWindow.isVertical ? Theme.barLayoutRight : []
                                 Bar.DraggableModule {
                                     required property var modelData
                                     required property int index

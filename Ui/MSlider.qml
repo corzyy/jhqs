@@ -70,14 +70,20 @@ Item {
         let steps = Math.round((v - from) / stepSize)
         let snapped = from + steps * stepSize
         snapped = Math.max(from, Math.min(to, snapped))
-        let factor = 1
-        if (decimals > 0) factor = Math.pow(10, decimals)
-        else if (stepSize < 1) {
+        // PERF: decimals derived from stepSize (no per-pixel side effect).
+        // Old code assigned root.decimals inside _snap() on every drag pixel,
+        // invalidating every _valueText() binding in a loop.
+        return Math.round(snapped * _snapFactor) / _snapFactor
+    }
+    // PERF: computed once per stepSize change, not per drag pixel.
+    readonly property real _snapFactor: {
+        if (decimals > 0) return Math.pow(10, decimals)
+        if (stepSize > 0 && stepSize < 1) {
             let s = stepSize.toString()
             let dot = s.indexOf(".")
-            if (dot !== -1) { let d = s.length - dot - 1; factor = Math.pow(10, d); root.decimals = d }
+            if (dot !== -1) return Math.pow(10, s.length - dot - 1)
         }
-        return Math.round(snapped * factor) / factor
+        return 1
     }
     function _valueText(): string {
         if (valueText.length > 0) return valueText
@@ -226,7 +232,9 @@ Item {
             }
         }
         Loader {
-            active: !root._vertical && root._isDiscrete && root.showTicks && root._tickCount > 1 && sliderArea.activeW > 8
+            // PERF: active on tick config only (was also gated on activeW>8,
+            // creating/destroying the tick tree mid-drag per pixel).
+            active: !root._vertical && root._isDiscrete && root.showTicks && root._tickCount > 1
             asynchronous: true
             x: sliderArea.trackLeft; width: sliderArea.activeW; y: (parent.height - root.trackHeight) / 2; height: root.trackHeight
             sourceComponent: Row {

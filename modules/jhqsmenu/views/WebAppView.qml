@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -116,6 +117,7 @@ Item {
         }
     }
 
+    ScrollIndicator { flick: removeList; show: removeList.visible }
     ColumnLayout {
         anchors.fill: parent
         spacing: 8
@@ -287,6 +289,9 @@ Item {
             Layout.leftMargin: 0; Layout.rightMargin: 0
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            // PERF: recycle delegates.
+            reuseItems: true
+            cacheBuffer: 160
             spacing: 3
             model: bodyRoot.scope.filteredWebApps
             currentIndex: root.selIdx
@@ -301,6 +306,12 @@ Item {
                 readonly property bool isSelected: root.selIdx === index
                 color: (isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
                 border.color: "transparent"; border.width: 0
+                Rectangle {
+                    anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                    width: 3
+                    color: Theme.accent
+                    visible: isSelected
+                }
                 MouseArea {
                     id: rowMouse
                     anchors.fill: parent
@@ -407,6 +418,7 @@ Item {
             Layout.preferredHeight: root.isInstall ? 88 : 72
             radius: 0; color: Theme.withAlpha(Theme.textPrimary, 0.04)
             border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1; clip: true
+            ScrollIndicator { flick: logFlick }
             Flickable {
                 id: logFlick
                 anchors.fill: parent; anchors.margins: 10

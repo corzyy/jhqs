@@ -6,8 +6,8 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Services.SystemTray
-import "../themes"
-import "../Ui"
+import "../../themes"
+import "../../Ui"
 
 Scope {
     id: trayScope
@@ -22,7 +22,10 @@ Scope {
     readonly property int screenGap: 6
     property int panelGap: screenGap - Theme.barThickness
 
+    // PERF: hidden panel keeps zero items (was rebuilding the array + all
+    // row delegates on every tray signal even when closed).
     readonly property var rawItems: {
+        if (!trayScope.showTray) return []
         let out = []
         try {
             let vals = SystemTray.items.values
@@ -97,7 +100,7 @@ Scope {
                 x: trayAnchor.panelX
                 y: trayAnchor.panelY
                 color: Theme.bg
-                border.color: Theme.accent
+                border.color: Theme.panelBorderColor
                 border.width: 2
                 radius: 0
                 clip: true
@@ -125,7 +128,7 @@ Scope {
                     anchors.fill: parent
                     anchors.margins: 12
                     contentHeight: trayCol.implicitHeight
-                    contentWidth: width
+                    contentWidth: trayCol.width
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     flickableDirection: Flickable.VerticalFlick
@@ -170,7 +173,7 @@ Scope {
                             Layout.fillWidth: true
                             spacing: 4
                             Repeater {
-                                model: trayScope.rawItems
+                                model: trayScope.showTray ? trayScope.rawItems : []
                                 delegate: Rectangle {
                                     id: trayRow
                                     required property var modelData
@@ -179,6 +182,27 @@ Scope {
                                     property string iid: String((modelData && modelData.id) || "")
                                     property bool isPinned: Theme.isTrayPinned(iid)
                                     property bool isHidden: Theme.isTrayHidden(iid)
+                                    // PERF: per-delegate cache — displayName() does
+                                    // String+slice+try/catch; symbolic avoids a
+                                    // string split per reveal frame.
+                                    readonly property string iconSrc: String((trayRow.item && trayRow.item.icon) || "")
+                                    readonly property bool symbolic: {
+                                        let n = iconSrc.split("?")[0]
+                                        return n.slice(-9) === "-symbolic"
+                                    }
+                                    readonly property string dName: {
+                                        try {
+                                            let t = String(trayRow.item.title || "").trim()
+                                            if (t.length > 0) return t
+                                            let tt = String(trayRow.item.tooltipTitle || "").trim()
+                                            if (tt.length > 0) return tt
+                                            let id = String(trayRow.item.id || "")
+                                            let slash = id.lastIndexOf("/")
+                                            if (slash !== -1) id = id.substring(slash + 1)
+                                            if (id.length > 0) return id
+                                        } catch (e) { }
+                                        return "Unknown"
+                                    }
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 40
                                     radius: Theme.cornerRadiusSmall
@@ -205,27 +229,38 @@ Scope {
                                                 id: rowImg
                                                 anchors.fill: parent
                                                 fillMode: Image.PreserveAspectFit
-                                                sourceSize.width: Math.round(18 * Screen.devicePixelRatio)
-                                                sourceSize.height: Math.round(18 * Screen.devicePixelRatio)
-                                                source: String(trayRow.item.icon || "")
+                                                // PERF: fixed 36px decode (was DPR-scaled,
+                                                // refetching all icons on DPR change).
+                                                sourceSize.width: 36
+                                                sourceSize.height: 36
+                                                source: trayRow.symbolic ? "" : trayRow.iconSrc
                                                 asynchronous: true
                                                 cache: true
-                                                visible: !trayScope.iconIsSymbolic(trayRow.item.icon)
-                                                onStatusChanged: if (status === Image.Error) source = ""
+                                                visible: !trayRow.symbolic
+                                                onStatusChanged: if (status === Image.Error && source !== "") source = ""
                                             }
-                                            MultiEffect {
+                                            // PERF: MultiEffect is an offscreen pass per
+                                            // row — Loader-gate to symbolic icons only.
+                                            Loader {
                                                 anchors.fill: parent
-                                                source: rowImg
-                                                visible: trayScope.iconIsSymbolic(trayRow.item.icon)
-                                                colorization: 1.0
-                                                colorizationColor: Theme.textPrimary
+                                                active: trayRow.symbolic
+                                                asynchronous: true
+                                                sourceComponent: traySymbolFx
+                                            }
+                                            Component {
+                                                id: traySymbolFx
+                                                MultiEffect {
+                                                    source: rowImg
+                                                    colorization: 1.0
+                                                    colorizationColor: Theme.textPrimary
+                                                }
                                             }
                                         }
                                         Text {
                                             antialiasing: Theme.textAa
                                             renderType: Theme.textRenderType
                                             Layout.fillWidth: true
-                                            text: trayScope.displayName(trayRow.item)
+                                            text: trayRow.dName
                                             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12)
                                             color: Theme.textPrimary
                                             elide: Text.ElideRight

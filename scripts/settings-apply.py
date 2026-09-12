@@ -2,24 +2,19 @@
 """settings-apply.py — persistent writers for the jhqs Settings panel.
 
 Usage: settings-apply.py <domain> <key=value>...
-Domains: kitty | fish | hypridle | brightness | anim-speed | preset
+Domains: kitty | fish | brightness
 
 All writers are atomic (tmp + replace) and idempotent. Called from QML
-Process so the UI never blocks; live Hyprland keywords stay in QML.
+Process so the UI never blocks.
 """
-import json
 import pathlib
 import re
 import subprocess
 import sys
 
 HOME = pathlib.Path.home()
-HYPR = HOME / ".config/hypr/configs"
-JHQS_CFG = HOME / ".config/quickshell/jhqs/config"
 KITTY = HOME / ".config/kitty/kitty.conf"
 FISH_PROMPT = HOME / ".config/fish/functions/fish_prompt.fish"
-HYPRIDLE = HOME / ".config/hypr/hypridle.conf"
-SETTINGS_JSON = JHQS_CFG / "settings.json"
 
 def atomic_write(path: pathlib.Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,22 +75,6 @@ def fish(pairs: dict) -> None:
             check=False,
         )
 
-def hypridle(pairs: dict) -> None:
-    if not HYPRIDLE.exists():
-        return
-    t = HYPRIDLE.read_text()
-    timeouts = list(re.finditer(r"(timeout\s*=\s*)(\d+)", t))
-    if "lock" in pairs and len(timeouts) >= 1:
-        v = max(30, min(3600, int(float(pairs["lock"]))))
-        m = timeouts[0]
-        t = t[: m.start(2)] + str(v) + t[m.end(2):]
-        timeouts = list(re.finditer(r"(timeout\s*=\s*)(\d+)", t))
-    if "suspend" in pairs and len(timeouts) >= 2:
-        v = max(60, min(7200, int(float(pairs["suspend"]))))
-        m = timeouts[1]
-        t = t[: m.start(2)] + str(v) + t[m.end(2):]
-    atomic_write(HYPRIDLE, t)
-
 def brightness(pairs: dict) -> None:
     v = max(5, min(100, int(float(pairs.get("level", 100)))))
     subprocess.run(
@@ -103,117 +82,7 @@ def brightness(pairs: dict) -> None:
         check=False,
     )
 
-def fmt_blur_val(v: str) -> str:
-    s = (v + "").strip().lower()
-    if s in ("true", "false"):
-        return s
-    try:
-        return "%g" % float(s)
-    except ValueError:
-        return "0"
-
-def hypr_blur(pairs: dict) -> None:
-    """Upsert keys inside the `blur = {...}` block of looknfeel.lua."""
-    path = HYPR / "looknfeel.lua"
-    if not path.exists():
-        return
-    t = path.read_text()
-    m = re.search(r"(blur\s*=\s*\{)(.*?)(\n[ \t]*\},)", t, re.S)
-    if not m:
-        return
-    body = m.group(2)
-    for k, v in pairs.items():
-        if not re.fullmatch(r"[a-z_]+", k or ""):
-            continue
-        fv = fmt_blur_val(v)
-        nb, n = re.subn(
-            r"^([ \t]*" + re.escape(k) + r"\s*=\s*)([^\n,]+)(,?)",
-            r"\g<1>" + fv + r"\g<3>",
-            body,
-            flags=re.M,
-        )
-        if n == 0:
-            nb = body.rstrip() + "\n      " + k + " = " + fv + ",\n    "
-        body = nb
-    atomic_write(path, t[: m.start(2)] + body + t[m.end(2):])
-
-BASE_SPEEDS = {"windows": 3.0, "border": 10.0, "fade": 2.5, "workspaces": 3.5, "specialWorkspace": 3.0}
-
-def anim_speed(pairs: dict) -> None:
-    scale = max(0.2, min(3.0, float(pairs.get("scale", 1.0))))
-    path = HYPR / "animations.lua"
-    if not path.exists():
-        return
-    t = path.read_text()
-
-    def repl(m: re.Match) -> str:
-        leaf = m.group(1)
-        base = BASE_SPEEDS.get(leaf, 3.0)
-        return f"{{ leaf = \"{leaf}\", enabled = true, speed = {round(base * scale, 2)}"
-
-    t = re.sub(r"\{\s*leaf\s*=\s*\"([^\"]+)\"\s*,\s*enabled\s*=\s*\w+\s*,\s*speed\s*=\s*[\d.]+", repl, t)
-    atomic_write(path, t)
-
-def _hypr(cmd: str) -> None:
-    subprocess.run(["bash", "-c", cmd + " >/dev/null 2>&1 || true"], check=False)
-
-def _cfg(tables: str) -> str:
-    return "hyprctl eval 'hl.config({" + tables + "})'"
-
-def _sed_lua(path: pathlib.Path, expr: str) -> None:
-    _hypr(f"sed -i -E '{expr}' {path} 2>/dev/null")
-
-def _json_patch(patch: dict) -> None:
-    try:
-        data = json.loads(SETTINGS_JSON.read_text()) if SETTINGS_JSON.exists() else {}
-    except Exception:
-        data = {}
-    data.update(patch)
-    atomic_write(SETTINGS_JSON, json.dumps(data, indent=4, sort_keys=True) + "\n")
-
-PRESETS = {
-    "coding": {"gapsIn": 4, "gapsOut": 8, "border": 2, "rounding": 8, "layout": "dwindle",
-               "shadow": True, "blur": True, "animEnabled": True},
-    "gaming": {"gapsIn": 0, "gapsOut": 0, "border": 1, "rounding": 0, "layout": "dwindle",
-               "shadow": False, "blur": False, "animEnabled": False, "tearing": True},
-    "present": {"gapsIn": 8, "gapsOut": 16, "border": 2, "rounding": 10, "layout": "dwindle",
-                "shadow": True, "blur": False, "animEnabled": True},
-    "chill": {"gapsIn": 12, "gapsOut": 24, "border": 3, "rounding": 16, "layout": "scrolling",
-              "shadow": True, "blur": True, "animEnabled": True},
-}
-
-def preset(pairs: dict) -> None:
-    name = re.sub(r"[^a-z]", "", pairs.get("name", "").lower())
-    if name not in PRESETS:
-        return
-    p = PRESETS[name]
-    look = HYPR / "looknfeel.lua"
-    _hypr(_cfg(f"general={{gaps_in={p['gapsIn']}}}"))
-    _hypr(_cfg(f"general={{gaps_out={p['gapsOut']}}}"))
-    _hypr(_cfg(f"general={{border_size={p['border']}}}"))
-    _hypr(_cfg(f"decoration={{rounding={p['rounding']}}}"))
-    _hypr(_cfg(f"general={{layout=\"{p['layout']}\"}}"))
-    _hypr(_cfg(f"decoration={{shadow={{enabled={'true' if p['shadow'] else 'false'}}}}}"))
-    _hypr(_cfg(f"decoration={{blur={{enabled={'true' if p['blur'] else 'false'}}}}}"))
-    _hypr(_cfg(f"animations={{enabled={'true' if p['animEnabled'] else 'false'}}}"))
-    _sed_lua(look, f"s/(gaps_in\\s*=\\s*)[0-9]+/\\1{p['gapsIn']}/")
-    _sed_lua(look, f"s/(gaps_out\\s*=\\s*)[0-9]+/\\1{p['gapsOut']}/")
-    _sed_lua(look, f"s/(border_size\\s*=\\s*)[0-9]+/\\1{p['border']}/")
-    _sed_lua(look, f"s/(rounding\\s*=\\s*)[0-9]+/\\1{p['rounding']}/")
-    _sed_lua(look, f"s/(layout\\s*=\\s*\")[^\"]+\"/\\1{p['layout']}\"/")
-    if p.get("tearing") is not None:
-        _hypr(_cfg(f"general={{allow_tearing={'true' if p['tearing'] else 'false'}}}"))
-    _json_patch({
-        "gapsIn": p["gapsIn"], "gapsOut": p["gapsOut"], "border": p["border"],
-        "rounding": p["rounding"], "layout": p["layout"], "shadow": p["shadow"],
-        "blur": p["blur"], "animEnabled": p["animEnabled"],
-        **({"tearing": p["tearing"]} if p.get("tearing") is not None else {}),
-    })
-    _hypr("notify-send -u low 'Settings' 'Preset " + name + " applied' 2>/dev/null")
-
-DOMAINS = {"kitty": kitty, "fish": fish, "hypridle": hypridle,
-           "brightness": brightness, "anim-speed": anim_speed, "preset": preset,
-           "hypr-blur": hypr_blur}
+DOMAINS = {"kitty": kitty, "fish": fish, "brightness": brightness}
 
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in DOMAINS:

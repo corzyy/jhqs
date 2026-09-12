@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -15,8 +16,10 @@ visible: opacity > 0.01
 enabled: bodyRoot.scope.showWallpaper
 scale: bodyRoot.scope.showWallpaper ? 1 : 0.97
 transformOrigin: Item.Center
-Behavior on opacity { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-Behavior on scale { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+// PERF: no animation when hidden or animations off (was animating opacity +
+// scale on every view switch, even to invisible).
+Behavior on opacity { enabled: Theme.animationsEnabled && bodyRoot.scope.showWallpaper; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+Behavior on scale { enabled: Theme.animationsEnabled && bodyRoot.scope.showWallpaper; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
 readonly property var modeLabels: ({ "stretch": "Stretch", "fit": "Fit", "fill": "Fill", "center": "Center", "tile": "Tile" })
 function modeLabel(id) { return modeLabels[id] !== undefined ? modeLabels[id] : id }
 function cycleMode(dir) {
@@ -26,30 +29,41 @@ function cycleMode(dir) {
     if (i === -1) i = 0
     bodyRoot.scope.setWallpaperMode(ids[(i + dir + ids.length) % ids.length])
 }
+ScrollIndicator { flick: wallpaperGrid; show: wallpaperGrid.visible }
 GridView {
     id: wallpaperGrid
     visible: !bodyRoot.scope.showWallpaperSettings
     anchors.top: parent.top; anchors.topMargin: 10; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
     clip:true; cellWidth:Math.floor(width/3); cellHeight:185; model: bodyRoot.scope.filteredWallpapers; currentIndex: bodyRoot.selectedIndex; boundsBehavior: Flickable.StopAtBounds
+    // PERF: recycle grid delegates (500 wallpapers).
+    reuseItems: true
     cacheBuffer: 400
     onCurrentIndexChanged: if(visible) positionViewAtIndex(currentIndex, GridView.Visible)
     delegate: Item {
         id: wpDelegate; required property var modelData; required property int index
         width: wallpaperGrid.cellWidth; height: wallpaperGrid.cellHeight
         property bool isSelected: bodyRoot.selectedIndex === index
+        // PERF: per-delegate cache (was file:// concat + split/pop per
+        // binding per filter keystroke for 500 wallpapers).
+        readonly property string fileUrl: "file://" + modelData
+        readonly property string baseName: {
+            let s = String(modelData || "")
+            let i = s.lastIndexOf("/")
+            return i >= 0 ? s.substring(i + 1) : s
+        }
         Rectangle {
             antialiasing: Theme.shapesAa
             anchors.fill: parent; anchors.margins:5; radius: Theme.cornerRadiusSmall; clip:true
             color: isSelected?Theme.bgSelected:wpMouse.containsMouse?Theme.bgHover:Theme.panelSurface
             border.color:isSelected?Theme.accent:Theme.divider; border.width:isSelected?2:1
             Column { anchors.fill:parent; anchors.margins:5; spacing:5
-                Rectangle { width:parent.width; height:parent.height-18; radius: Theme.cornerRadiusSmall; clip:true; color:"#0f111a"; Image { anchors.fill:parent; source:"file://"+modelData; fillMode:Image.PreserveAspectCrop; asynchronous:true; cache:true; sourceSize.width: 360; sourceSize.height: 167; onStatusChanged:if(status===Image.Error) source=""
+                Rectangle { width:parent.width; height:parent.height-18; radius: Theme.cornerRadiusSmall; clip:true; color:"#0f111a"; Image { anchors.fill:parent; source: fileUrl; fillMode:Image.PreserveAspectCrop; asynchronous:true; cache:true; sourceSize.width: 360; sourceSize.height: 167; onStatusChanged: if (status === Image.Error && source !== "") source = ""
                     smooth: Theme.imageSmooth
                     mipmap: Theme.imageMipmap
                 }
                     antialiasing: Theme.shapesAa
                 }
-                Text { width:parent.width; text:modelData.split("/").pop(); color:isSelected?Theme.textPrimary:Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(9); font.weight:isSelected?Font.Medium:Font.Normal; elide:Text.ElideMiddle; horizontalAlignment:Text.AlignHCenter; maximumLineCount:1
+                Text { width:parent.width; text: baseName; color:isSelected?Theme.accent:Theme.textSecondary; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(9); font.weight:isSelected?Font.Medium:Font.Normal; elide:Text.ElideMiddle; horizontalAlignment:Text.AlignHCenter; maximumLineCount:1
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }

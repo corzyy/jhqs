@@ -13,7 +13,21 @@ Item {
 
     readonly property bool isTimeOnly: Theme.clockFormat === "timeOnly"
 
+    // Label-toggle convention: BarModule right-click calls this when present.
+    // New label-capable modules just add an equivalent toggleLabel().
+    function toggleLabel(): void { Theme.toggleClockFormat() }
+
     SystemClock { id: c; precision: SystemClock.Minutes }
+
+    // PERF: 5x Qt.formatDateTime ran in BOTH orientations (hidden branch still
+    // bound). Cache once per minute; hidden branch reads "" (no format call).
+    readonly property bool _showDay: !isTimeOnly
+    readonly property string _dayStr: (!vertical && _showDay) ? Qt.formatDateTime(c.date, "dddd") : ""
+    readonly property string _timeStr: !vertical ? Qt.formatDateTime(c.date, "HH:mm") : ""
+    readonly property string _hhStr: vertical ? Qt.formatDateTime(c.date, "HH") : ""
+    readonly property string _mmStr: vertical ? Qt.formatDateTime(c.date, "mm") : ""
+    readonly property string _dddStr: (vertical && _showDay) ? Qt.formatDateTime(c.date, "ddd") : ""
+    readonly property color _hoverColor: mouse.containsMouse ? Theme.primary : Theme.textPrimary
 
     Row {
         id: row
@@ -25,8 +39,8 @@ Item {
             renderType: Theme.textRenderType
             id: dayText
             visible: !root.isTimeOnly
-            text: Qt.formatDateTime(c.date, "dddd")
-            color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
+            text: root._dayStr
+            color: root._hoverColor
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
             opacity: visible ? 1 : 0
@@ -36,8 +50,8 @@ Item {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
             id: timeText
-            text: Qt.formatDateTime(c.date, "HH:mm")
-            color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
+            text: root._timeStr
+            color: root._hoverColor
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
         }
@@ -50,16 +64,16 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            text: Qt.formatDateTime(c.date, "HH")
-            color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
+            text: root._hhStr
+            color: root._hoverColor
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
         }
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            text: Qt.formatDateTime(c.date, "mm")
-            color: mouse.containsMouse ? Theme.primary : Theme.textPrimary
+            text: root._mmStr
+            color: root._hoverColor
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
         }
@@ -67,7 +81,7 @@ Item {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
             visible: !root.isTimeOnly
-            text: Qt.formatDateTime(c.date, "ddd")
+            text: root._dddStr
             color: mouse.containsMouse ? Theme.primary : Theme.textMuted
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
@@ -81,7 +95,7 @@ Item {
         hoverEnabled: true; cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: mouse => {
-            if (mouse.button === Qt.RightButton) Theme.toggleClockFormat()
+            if (mouse.button === Qt.RightButton) root.toggleLabel()
             else root.clicked()
         }
     }

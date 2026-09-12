@@ -52,7 +52,7 @@ Scope {
     }
     Process {
         id: grimProc
-        command: ["bash", "-c", "rm -f /tmp/quickshell-lock-*.png; mons=$(hyprctl monitors -j 2>/dev/null | jq -r '.[].name' 2>/dev/null); if [ -z \"$mons\" ]; then mons=\"DP-1\"; fi; for mon in $mons; do grim -o \"$mon\" \"/tmp/quickshell-lock-${mon}.png\" 2>/dev/null || grim \"/tmp/quickshell-lock-${mon}.png\" 2>/dev/null || true; done; grim /tmp/quickshell-lock-fallback.png 2>/dev/null || true; echo done"]
+        command: ["bash", "-c", "rm -f /tmp/quickshell-lock-*.png; mons=$(mmsg get all-monitors 2>/dev/null | jq -r '.monitors[]?.name' 2>/dev/null); if [ -z \"$mons\" ]; then mons=\"DP-1\"; fi; for mon in $mons; do grim -o \"$mon\" \"/tmp/quickshell-lock-${mon}.png\" 2>/dev/null || grim \"/tmp/quickshell-lock-${mon}.png\" 2>/dev/null || true; done; grim /tmp/quickshell-lock-fallback.png 2>/dev/null || true; echo done"]
         stdout: StdioCollector {
             onStreamFinished: {
                 lockScope.hasScreenshot = true
@@ -124,11 +124,13 @@ Scope {
                     sourceSize.height: 540
                     scale: lockScope.locked ? 1.0 : 1.06
                     opacity: lockScope.locked ? 1 : 0.85
-                    layer.enabled: lockScope.locked
+                    // PERF: blur only while locked AND decoded (was live
+                    // fullscreen blur pass per screen while locked).
+                    layer.enabled: lockScope.locked && status === Image.Ready
                     layer.effect: MultiEffect {
                         blurEnabled: true
-                        blur: 1.0
-                        blurMax: 16
+                        blur: 0.6
+                        blurMax: 8
                         autoPaddingEnabled: true
                     }
                     onStatusChanged: {
@@ -224,7 +226,9 @@ Scope {
                             horizontalAlignment: Text.AlignHCenter
                         }
                     }
-                    layer.enabled: true
+                    // PERF: shadow passes gated on locked (were 3 always-on
+                    // offscreen passes, even when the lockscreen hid).
+                    layer.enabled: lockScope.locked
                     layer.effect: MultiEffect {
                         shadowEnabled: true
                         shadowColor: Theme.withAlpha(Theme.scrim, 0.40)
@@ -307,7 +311,7 @@ Scope {
                             color: lockScope.failed ? Theme.withAlpha(Theme.error, 0.18) : Theme.withAlpha(Theme.surface2, 0.62)
                             border.color: lockScope.failed ? Theme.errorColor : (pinField.activeFocus ? Theme.primary : Theme.withAlpha(Theme.outline, 0.22))
                             border.width: lockScope.failed || pinField.activeFocus ? 1.6 : 1
-                            layer.enabled: true
+                            layer.enabled: lockScope.locked
                             layer.effect: MultiEffect {
                                 shadowEnabled: true
                                 shadowColor: Theme.withAlpha(Theme.scrim, 0.25)
@@ -320,12 +324,16 @@ Scope {
                                 anchors.centerIn: parent
                                 spacing: 14
                                 visible: lockScope.pinInput.length > 0
+                                // PERF: fixed 12 dots (was model: pinInput.length,
+                                // creating/destroying delegates per keystroke).
                                 Repeater {
-                                    model: lockScope.pinInput.length
+                                    model: 12
                                     delegate: Rectangle {
+                                        required property int index
                                         width: 12; height: 12; radius: Theme.cornerRadiusSmall
                                         color: lockScope.failed ? Theme.errorColor : Theme.textPrimary
                                         opacity: 0.95
+                                        visible: index < lockScope.pinInput.length
                                     }
                                 }
                             }

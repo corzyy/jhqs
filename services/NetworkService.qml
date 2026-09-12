@@ -24,7 +24,10 @@ Singleton {
             }
         }
     }
-    Timer { interval: 30000; running: true; repeat: true; triggeredOnStart: true; onTriggered: { if (!netPollProc.running) netPollProc.running = true; if (!linkProc.running) linkProc.running = true } }
+    // PERF: 60s poll (was 30s). linkProc runs `nmcli dev wifi` which wakes
+    // the wifi driver + forks 3x nmcli; nothing here changes faster than
+    // NetworkManager D-Bus signals consumers already observe on demand.
+    Timer { interval: 60000; running: true; repeat: true; triggeredOnStart: true; onTriggered: { if (!netPollProc.running) netPollProc.running = true; if (!linkProc.running) linkProc.running = true } }
 
     Process {
         id: linkProc
@@ -49,10 +52,11 @@ Singleton {
                         if (t.indexOf("802-3-ethernet") === 0 || t === "ethernet") { ssid = (p[0] || "").trim(); type = "ethernet"; break }
                     }
                 }
-                root.ssid = ssid
-                root.activeType = type
+                if (root.ssid !== ssid) root.ssid = ssid
+                if (root.activeType !== type) root.activeType = type
                 let sig = parseInt((lines[lines.length - 1] || "").trim())
-                root.signal = isNaN(sig) ? 0 : Math.max(0, Math.min(100, sig))
+                sig = isNaN(sig) ? 0 : Math.max(0, Math.min(100, sig))
+                if (root.signal !== sig) root.signal = sig
             }
         }
     }
@@ -113,13 +117,33 @@ Singleton {
     }
     function refreshLists() { if (!wifiListProc.running) wifiListProc.running = true; if (!ethListProc.running) ethListProc.running = true }
     Process { id: wifiRescanProc; command: ["bash", "-c", "nmcli dev wifi rescan 2>/dev/null; echo done"] }
-    function rescan() { if (!wifiRescanProc.running) wifiRescanProc.running = true; Qt.callLater(refreshLists) }
+    // STABILITY: scan needs 3-5s to populate; immediate refreshLists showed
+    // stale results. Delay to let the driver finish.
+    Timer { id: rescanDelay; interval: 4000; repeat: false; onTriggered: refreshLists() }
+    function rescan() { if (!wifiRescanProc.running) wifiRescanProc.running = true; rescanDelay.restart() }
 
-    Process { id: netActProc; command: ["bash", "-c", "echo"] }
+    Process { id: netActProc; command: ["bash", "-c", "echo"]; stdout: StdioCollector { onStreamFinished: { root.pumpNetAct(); refreshDebounce.restart() } } }
+    property var _netActPending: null
+    // STABILITY: queue instead of drop. Overwriting command while running
+    // silently lost the 2nd click (connect + immediate disconnect, etc).
     function runNetAct(cmd: string): void {
+        if (netActProc.running) { _netActPending = cmd; return }
         netActProc.command = ["bash", "-c", cmd]
-        if (!netActProc.running) netActProc.running = true
-        Qt.callLater(function() { refreshLink(); refreshLists(); refreshDns() })
+        netActProc.running = true
+    }
+    function pumpNetAct(): void {
+        if (_netActPending === null || _netActPending === undefined) return
+        let c = _netActPending
+        _netActPending = null
+        if (netActProc.running) { _netActPending = c; return }
+        netActProc.command = ["bash", "-c", c]
+        netActProc.running = true
+    }
+    // PERF: one refresh pass per action burst, not 4 procs per click.
+    Timer {
+        id: refreshDebounce
+        interval: 1000; repeat: false
+        onTriggered: { refreshLink(); refreshLists(); refreshDns() }
     }
     function setWifiEnabled(on: bool): void { runNetAct("nmcli radio wifi " + (on ? "on" : "off") + " 2>/dev/null; echo done") }
     function toggleWifi(): void { setWifiEnabled(!wifiEnabled) }
