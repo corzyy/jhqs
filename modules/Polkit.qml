@@ -25,7 +25,8 @@ Scope {
         }
     }
     property var agentObj: agentLoader.item
-    property string agentPath: agentObj && agentObj.path ? agentObj.path : "/org/quickshell/PolkitAgent"
+    property string agentPath: "/org/quickshell/PolkitAgent"
+    onAgentObjChanged: if (agentObj && agentObj.path) agentPath = agentObj.path
     property bool agentActive: agentObj ? agentObj.isActive : false
     property bool agentRegistered: agentObj ? agentObj.isRegistered : false
     onAgentRegisteredChanged: { try { Theme.setPolkitReady(agentRegistered) } catch (e) { } }

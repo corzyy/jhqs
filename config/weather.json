@@ -4,6 +4,6 @@
     "longitude": 0,
     "name": "Bonn",
     "refreshMinutes": 15,
-    "showLabel": false,
+    "showLabel": true,
     "unit": "metric"
 }
