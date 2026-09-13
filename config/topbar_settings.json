@@ -11,7 +11,7 @@
     "contentPadding": 3,
     "edgeDistance": 0,
     "fontScale": 1.05,
-    "moduleSpacing": 0,
+    "moduleSpacing": -4,
     "opacity": 1,
     "panelAccentBorder": true,
     "panelBlur": 0.1,
