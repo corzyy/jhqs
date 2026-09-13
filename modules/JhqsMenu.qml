@@ -108,13 +108,20 @@ Scope {
         }
         onExited: (code) => jhqsMenuScope.finishWebAppOp(code)
     }
-    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium ~/.config/mango/configs/monitors.conf 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim ~/.config/mango/configs/monitors.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupBindsProc; command: ["bash", "-c", "codium ~/.config/mango/configs/binds-system.conf 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim ~/.config/mango/configs/binds-system.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
+    // Setup targets open the matching mango config in the default editor
+    // (VSCodium, with xdg-open/nvim fallbacks). Bindings point at the user
+    // file; monitors at the active monitors.conf.
+    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim \"$HOME/.config/mango/configs/monitors.conf\"; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
+    Process { id: setupBindsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim \"$HOME/.config/mango/configs/binds-user.conf\"; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupAutostartProc; command: ["bash", "-c", "codium ~/.config/mango/configs/autostart.conf 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim ~/.config/mango/configs/autostart.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupKittyProc; command: ["bash", "-c", "codium ~/.config/kitty/kitty.conf 2>/dev/null || kitty --class setup-kitty --title \"Kitty Config\" bash -c 'nvim ~/.config/kitty/kitty.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupFishProc; command: ["bash", "-c", "kitty --class setup-fish --title \"Fish Config\" bash -c 'nvim ~/.config/fish/config.fish; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     Process { id: setupAppearanceProc; command: ["bash", "-c", "nwg-look 2>/dev/null || codium ~/.config/gtk-3.0/settings.ini 2>/dev/null || kitty --class setup-gtk --title \"GTK Appearance\" bash -c 'echo \"nwg-look nicht gefunden\"; echo \"GTK Settings: ~/.config/gtk-3.0/settings.ini\"; cat ~/.config/gtk-3.0/settings.ini 2>/dev/null; read -n1 -s' &"] }
     Process { id: setupAudioProc; command: ["bash", "-c", "pavucontrol 2>/dev/null || kitty --class setup-audio --title Audio bash -c 'wpctl status 2>/dev/null || pactl info; read -n1 -s' &"] }
+    // Runs the shell updater (git clone + rsync over the live install, keeping
+    // config/) in a terminal so progress is visible; the script restarts the
+    // shell itself on success.
+    Process { id: setupShellUpdateProc; command: ["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
     readonly property string shellPosition: Theme.barPosition
     FileView {
         id: wallpaperSettingsFile
@@ -1723,6 +1730,7 @@ Scope {
             else if (t === "Keybindings") runProc(setupBindsProc)
             else if (t === "Autostart") runProc(setupAutostartProc)
             else if (t === "Audio") runProc(setupAudioProc)
+            else if (t === "Shell Update") runProc(setupShellUpdateProc)
             dismissed()
         } else { dismissed() }
     }
@@ -1778,6 +1786,7 @@ Scope {
                 else if (m.title==="Keybindings") runProc(setupBindsProc)
                 else if (m.title==="Autostart") runProc(setupAutostartProc)
                 else if (m.title==="Audio") runProc(setupAudioProc)
+                else if (m.title==="Shell Update") runProc(setupShellUpdateProc)
                 dismissed(); return
             }
         }

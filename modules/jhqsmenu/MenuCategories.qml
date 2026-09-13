@@ -28,7 +28,8 @@ QtObject {
         {title: "Monitors", icon: "󰍹", arrow: ""},
         {title: "Keybindings", icon: "󰌌", arrow: ""},
         {title: "Autostart", icon: "󰐥", arrow: ""},
-        {title: "Audio", icon: "󰕾", arrow: ""}
+        {title: "Audio", icon: "󰕾", arrow: ""},
+        {title: "Shell Update", icon: "󰚰", arrow: ""}
     ]
 
     readonly property var installMenu: [
