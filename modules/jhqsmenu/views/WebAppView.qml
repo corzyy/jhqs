@@ -256,7 +256,7 @@ Item {
                 border.width: (iconInput.activeFocus || root.fieldIdx === 2) ? 2 : 1
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
-                    Text { text: "󰣇"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textMuted
+                    Text { text: "󰣛"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: Theme.textMuted
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }

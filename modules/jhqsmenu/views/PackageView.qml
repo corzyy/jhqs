@@ -112,7 +112,7 @@ Item {
                         renderType: Theme.textRenderType
                     }
                 }
-                Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣇"); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : (Theme.textPrimary); Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter;
+                Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣛"); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : (Theme.textPrimary); Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter;
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
@@ -149,7 +149,7 @@ Item {
             visible: packageList.count === 0
             anchors.centerIn: parent
             spacing: 4
-            Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣇"); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: Theme.textMuted; Layout.alignment: Qt.AlignHCenter
+            Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣛"); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: Theme.textMuted; Layout.alignment: Qt.AlignHCenter
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }

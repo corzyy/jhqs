@@ -10,7 +10,7 @@ Item {
         renderType: Theme.textRenderType
         id: launcherIcon
         anchors.centerIn: parent
-        text: ""
+        text: ""
         font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18)
         color: m.containsMouse ? Theme.primary : Theme.textPrimary
         scale: 1.0
