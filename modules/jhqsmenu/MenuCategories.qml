@@ -33,7 +33,6 @@ QtObject {
 
     readonly property var installMenu: [
         {title: "Package", icon: "󰣇", arrow: "›"},
-        {title: "AUR", icon: "󰣇", arrow: "›"},
         {title: "Flatpak", icon: "󰇚", arrow: "›"},
         {title: "Web App", icon: "󰖟", arrow: "›"},
         {title: "Gaming", icon: "󰊗", arrow: "›"},
@@ -42,7 +41,6 @@ QtObject {
 
     readonly property var removeMenu: [
         {title: "Package", icon: "󰣇", arrow: "›"},
-        {title: "AUR", icon: "󰣇", arrow: "›"},
         {title: "Flatpak", icon: "󰆴", arrow: "›"},
         {title: "Web App", icon: "󰖟", arrow: "›"}
     ]

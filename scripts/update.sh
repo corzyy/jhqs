@@ -6,15 +6,15 @@ UNATTENDED=0
 
 for arg in "$@"; do
     case "$arg" in
-        system|aur|flatpak|all) TARGET="$arg" ;;
+        system|flatpak|all) TARGET="$arg" ;;
         -y|--yes|--unattended) UNATTENDED=1 ;;
         -h|--help)
-            echo "Usage: update.sh [system|aur|flatpak|all] [-y|--yes|--unattended]"
+            echo "Usage: update.sh [system|flatpak|all] [-y|--yes|--unattended]"
             exit 0
             ;;
         *)
             echo "Unknown argument: $arg" >&2
-            echo "Usage: update.sh [system|aur|flatpak|all] [-y|--yes|--unattended]" >&2
+            echo "Usage: update.sh [system|flatpak|all] [-y|--yes|--unattended]" >&2
             exit 2
             ;;
     esac
@@ -40,28 +40,9 @@ ensure_sudo() {
 }
 
 update_system() {
-    echo "Update system packages"
+    echo "Update system packages (DNF)"
     echo ""
-    sudo pacman -Syu --noconfirm
-}
-
-update_aur() {
-    local helper=""
-    if command -v yay >/dev/null 2>&1; then
-        helper="yay"
-    elif command -v paru >/dev/null 2>&1; then
-        helper="paru"
-    else
-        echo "No AUR helper (yay/paru) installed — skipping AUR updates."
-        return 0
-    fi
-    echo "Update AUR packages ($helper)"
-    echo ""
-    if [[ $helper == "yay" ]]; then
-        yay -Sua --noconfirm --cleanafter --sudoflags "-n"
-    else
-        paru -Sua --needed --noconfirm --skipreview --cleanafter --sudoflags "-n"
-    fi
+    sudo dnf upgrade -y
 }
 
 update_flatpak() {
@@ -75,30 +56,24 @@ update_flatpak() {
 }
 
 prune_orphans() {
-    local orphans=()
-    mapfile -t orphans < <(pacman -Qtdq 2>/dev/null || true)
-    ((${#orphans[@]})) || return 0
-
-    echo "Orphan packages (no longer required by anything):"
-    printf '  %s\n' "${orphans[@]}"
+    echo "Autoremove unneeded packages (DNF)"
     echo ""
 
     if ((UNATTENDED)) || [[ ! -t 0 || ! -t 1 ]]; then
-        echo "${#orphans[@]} orphaned package(s) kept. Re-run without -y in a terminal to review them."
+        echo "Re-run without -y in a terminal to review them, or run: sudo dnf autoremove"
         echo ""
         return 0
     fi
 
     local answer=""
-    read -r -p "Remove ${#orphans[@]} orphaned package(s)? [y/N] " answer || true
+    read -r -p "Run 'sudo dnf autoremove'? [y/N] " answer || true
     case "$answer" in
         [yY]|[yY][eE][sS])
-            echo "Removing orphan packages"
-            sudo pacman -Rns "${orphans[@]}"
+            sudo dnf autoremove
             echo ""
             ;;
         *)
-            echo "Keeping orphaned packages."
+            echo "Keeping unneeded packages."
             echo ""
             ;;
     esac
@@ -109,18 +84,12 @@ case "$TARGET" in
         ensure_sudo
         update_system
         ;;
-    aur)
-        ensure_sudo
-        update_aur
-        ;;
     flatpak)
         update_flatpak
         ;;
     all)
         ensure_sudo
         update_system
-        echo ""
-        update_aur
         echo ""
         update_flatpak
         echo ""

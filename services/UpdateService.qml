@@ -67,7 +67,7 @@ Singleton {
     }
 
     function checkNow(): void {
-        // PERF: coalesce boot + net-flap + pacman-touch storms. All 5 timer
+        // PERF: coalesce boot + net-flap + rpm-touch storms. All 5 timer
         // sources funnel here; without this 3 check-updates.sh runs queue up.
         checkCoalesce.restart()
     }
@@ -81,7 +81,7 @@ Singleton {
         }
     }
     function status(): string {
-        return "system=" + _counts.system + " aur=" + _counts.aur + " flatpak=" + _counts.flatpak
+        return "system=" + _counts.system + " flatpak=" + _counts.flatpak
             + " total=" + totalCount + " hasUpdates=" + hasUpdates
             + " checking=" + checking + " schedule=\"" + checkSchedule + "\""
             + " debugForce=" + debugForce + " display=" + displayCount
@@ -96,7 +96,7 @@ Singleton {
         return "usage: debug on|off|toggle|count <n> | debug 5"
     }
 
-    // CPU: status() used to scan updates 3x (system+aur+flatpak). Single pass.
+    // CPU: status() used to scan updates 2x (system+flatpak). Single pass.
     function count(source: string): int {
         let total = 0
         for (let i = 0; i < updates.length; i++) if (updates[i].source === source) total++
@@ -105,14 +105,13 @@ Singleton {
     // Cached per-updates-change breakdown so status()/panel header don't
     // re-scan the list on every binding evaluation.
     readonly property var _counts: {
-        let s = 0, a = 0, f = 0
+        let s = 0, f = 0
         for (let i = 0; i < updates.length; i++) {
             let src = updates[i].source
             if (src === "system") s++
-            else if (src === "aur") a++
             else if (src === "flatpak") f++
         }
-        return { system: s, aur: a, flatpak: f }
+        return { system: s, flatpak: f }
     }
 
     function parseUpdates(raw: string): void {
@@ -124,7 +123,7 @@ Singleton {
             if (!lines[i]) continue
             let fields = lines[i].split("\t")
             if (fields.length < 3) continue
-            if (fields[0] !== "system" && fields[0] !== "aur" && fields[0] !== "flatpak") continue
+            if (fields[0] !== "system" && fields[0] !== "flatpak") continue
             if ((fields[1] || "").trim().length === 0) continue
             let item = { source: fields[0], name: fields[1], detail: fields.slice(2).join("\t") }
             let key = item.source + "\t" + item.name
@@ -192,19 +191,19 @@ Singleton {
     Timer { id: netActiveTimer; interval: 8000; repeat: false; onTriggered: root.checkNow() }
     Connections { target: NetworkService; function onNetActiveChanged() { if (NetworkService.netActive) netActiveTimer.restart() } }
 
-    property double _lastPacmanMtime: 0
+    property double _lastDnfMtime: 0
     Process {
-        id: pacmanMtimeProc
-        command: ["bash", "-c", "stat -c %Y /var/log/pacman.log 2>/dev/null | tr -d '\\n'"]
+        id: dnfMtimeProc
+        command: ["bash", "-c", "stat -c %Y /var/log/dnf5.log 2>/dev/null | tr -d '\\n'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let n = parseInt(((text || "").trim() || "0"))
                 if (isNaN(n)) return
-                if (root._lastPacmanMtime === 0) { root._lastPacmanMtime = n; return }
-                if (n !== root._lastPacmanMtime) { root._lastPacmanMtime = n; externalTimer.restart() }
+                if (root._lastDnfMtime === 0) { root._lastDnfMtime = n; return }
+                if (n !== root._lastDnfMtime) { root._lastDnfMtime = n; externalTimer.restart() }
             }
         }
     }
-    Timer { id: pacmanMtimeTimer; interval: 1800000; running: true; repeat: true; triggeredOnStart: false; onTriggered: if (!pacmanMtimeProc.running) pacmanMtimeProc.running = true }
+    Timer { id: dnfMtimeTimer; interval: 1800000; running: true; repeat: true; triggeredOnStart: false; onTriggered: if (!dnfMtimeProc.running) dnfMtimeProc.running = true }
     Timer { id: externalTimer; interval: 4000; repeat: false; onTriggered: root.checkNow() }
 }

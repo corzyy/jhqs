@@ -28,7 +28,7 @@ jhqs/
 ├── services/              — singletons, no UI
 │   ├── qmldir             — singleton registrations (History/Update/Network/VolumeService)
 │   ├── HistoryService.qml — notification history (max 100)
-│   ├── UpdateService.qml  — pacman+aur+flatpak polling, check-updates.sh (menu updates in JhqsMenu)
+ │   ├── UpdateService.qml  — dnf+flatpak polling, check-updates.sh (menu updates in JhqsMenu)
 │   ├── NetworkService.qml — nmcli poll every 4s (bar icon only)
 │   └── VolumeService.qml  — Pipewire.defaultAudioSink + fallback volume.sh, OSD trigger
 │

@@ -285,37 +285,76 @@ Scope {
         if (!family || ("" + family).trim().length === 0) return
         try { Theme.setSystemFont(("" + family).trim()) } catch(e) { console.log("[JhqsMenu] setSystemFont err", e) }
     }
+    // DNF/Fedora package backend (this system is Fedora; no Arch tooling).
+    // - Install: `dnf list --available` catalog (~72k pkgs), parsed + compacted
+    //   to name|version|repo in bash (awk/sort) so only ~3MB reaches QML
+    //   (raw `dnf list` table is ~13MB of padded text and stalls the UI).
+    //   NOTE: the flag form `--available` must be used, not the positional
+    //   `dnf list available` (dnf5 returns an empty list for that form while
+    //   repo metadata is degraded).
+    //   A persistent cache (~/.cache/jhqs/dnf-available.cache) makes the menu
+    //   instant: the menu Loader is destroyed on dismiss, so every open shows
+    //   `cat` of the cache first, then refreshes via dnf in the background.
+    // - Remove: local rpmdb via `rpm -qa` (fast, offline) for the full
+    //   installed list, plus `dnf repoquery --userinstalled` (pacman -Qqe
+    //   equivalent) to limit removal to explicitly installed packages.
+    // Flags matter: -y answers the repo GPG-import prompt (broken Terra key
+    // would otherwise block on stdin forever under the shell's Process),
+    // < /dev/null guarantees EOF for any residual prompt, timeout bounds it.
     Process {
-        id: packageListProc
-        command: ["bash", "-c", "pacman -Sl 2>/dev/null"]
+        id: installedListProc
+        command: ["bash", "-c", "rpm -qa --queryformat '%{NAME}\\t%{VERSION}-%{RELEASE}\\t%{ARCH}\\n' 2>/dev/null | sort -u"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
-                if (out.length === 0) return
-                let lines = out.split("\n")
                 let arr = []
-                let seen = { }
-                for (let i = 0; i < lines.length; i++) {
-                    let ln = lines[i].trim()
-                    if (ln.length === 0) continue
-                    let p = ln.split(/\s+/)
-                    if (p.length < 3) continue
-                    if (!/^[a-z0-9@._+\-]+$/.test(p[1])) continue
-                    let inst = /\[(installed|installiert)/i.test(ln)
-                    if (seen[p[1]] !== undefined) { if (inst) arr[seen[p[1]]].installed = true; continue }
-                    seen[p[1]] = arr.length
-                    arr.push({ repo: p[0], name: p[1], version: p[2], installed: inst })
+                if (out.length > 0) {
+                    let lines = out.split("\n")
+                    let seen = { }
+                    for (let i = 0; i < lines.length; i++) {
+                        let ln = lines[i].trim()
+                        if (ln.length === 0) continue
+                        let p = ln.split("\t")
+                        if (p.length < 2) continue
+                        let nm = (p[0] || "").trim()
+                        if (!/^[A-Za-z0-9@._+\-]+$/.test(nm)) continue
+                        if (seen[nm] !== undefined) continue
+                        seen[nm] = true
+                        arr.push({ repo: (p[2] || "").trim() || "rpm", name: nm, version: (p[1] || "").trim(), installed: true })
+                    }
                 }
                 arr.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
-                jhqsMenuScope.packageList = arr
+                jhqsMenuScope.installedList = arr
+                jhqsMenuScope.restampAvailableInstalled()
             }
         }
+    }
+    property var installedList: []
+    function refreshInstalled() { if (!installedListProc.running) installedListProc.running = true }
+    // Re-stamp installed flags on the preloaded catalog when the rpmdb list
+    // lands after it (both load in parallel on menu open). Object identity
+    // is preserved for unchanged rows so dependent Repeaters don't rebuild.
+    function restampAvailableInstalled() {
+        if (!availableList || availableList.length === 0) return
+        if (!installedList || installedList.length === 0) return
+        let iset = { }
+        try {
+            for (let i = 0; i < installedList.length; i++) { let p = installedList[i]; if (p && p.name) iset[p.name] = true }
+        } catch (e) { return }
+        let next = []
+        for (let i = 0; i < availableList.length; i++) {
+            let e = availableList[i]
+            if (!e || !e.name) continue
+            let inst = !!iset[e.name]
+            next.push(e.installed === inst ? e : { repo: e.repo, name: e.name, nl: e.nl || e.name.toLowerCase(), version: e.version, installed: inst })
+        }
+        availableList = next
     }
     property var explicitPackageSet: ({ })
     property bool explicitPackagesLoaded: false
     Process {
         id: explicitListProc
-        command: ["bash", "-c", "pacman -Qqe 2>/dev/null"]
+        command: ["bash", "-c", "timeout 60 dnf -y repoquery --cacheonly --userinstalled --queryformat '%{NAME}\\n' -q < /dev/null 2>/dev/null | sort -u"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
@@ -334,21 +373,18 @@ Scope {
     }
     function refreshExplicit() { if (!explicitListProc.running) explicitListProc.running = true }
     readonly property var protectedPackages: [
-        "base", "base-devel",
-        "linux", "linux-lts", "linux-zen", "linux-hardened",
-        "linux-headers", "linux-lts-headers", "linux-zen-headers",
-        "linux-firmware", "intel-ucode", "amd-ucode", "sof-firmware",
-        "mkinitcpio", "dracut", "booster",
-        "limine", "grub", "efibootmgr", "sbctl",
-        "systemd", "systemd-libs", "systemd-sysvcompat",
-        "filesystem", "glibc", "lib32-glibc", "bash", "fish", "dbus",
-        "pacman", "pacman-contrib", "sudo",
-        "polkit", "polkit-kde-agent",
-        "hyprland", "quickshell", "uwsm", "sddm",
-        "xdg-desktop-portal-hyprland", "qt5-wayland", "qt6-wayland",
-        "mesa", "lib32-mesa", "nvidia-open", "nvidia-utils", "libva-nvidia-driver",
-        "networkmanager",
-        "pipewire", "pipewire-alsa", "pipewire-pulse", "pipewire-jack", "wireplumber", "libpulse", "gst-plugin-pipewire"
+        "kernel", "kernel-core", "kernel-modules", "kernel-modules-core", "kernel-modules-extra",
+        "kernel-headers", "linux-firmware",
+        "grub2-common", "grub2-efi-x64", "grub2-pc", "grub2-tools", "shim-x64", "efibootmgr",
+        "systemd", "systemd-libs", "systemd-udev", "systemd-boot-unsigned",
+        "filesystem", "glibc", "bash", "dbus", "dbus-broker",
+        "dnf", "dnf5", "libdnf5", "rpm", "rpm-libs", "sudo",
+        "polkit",
+        "mangowm", "quickshell", "sddm",
+        "xdg-desktop-portal", "xdg-desktop-portal-gtk", "qt6-qtwayland", "qt5-qtwayland",
+        "mesa-dri-drivers", "mesa-filesystem", "mesa-libGL", "mesa-libEGL", "mesa-vulkan-drivers",
+        "NetworkManager",
+        "pipewire", "pipewire-alsa", "pipewire-pulseaudio", "pipewire-jack-audio-connection-kit", "wireplumber", "pulseaudio-libs", "gst-plugin-pipewire"
     ]
     function isProtectedPackage(name) {
         if (!name) return false
@@ -363,154 +399,157 @@ Scope {
         if (!explicitPackagesLoaded) return true
         try { return !!explicitPackageSet["" + name] } catch (e) { return true }
     }
-    property var aurPackages: []
-    property bool aurSearching: false
-    property string aurSearchPending: ""
-    property string aurSearchRunning: ""
-    property var aurCache: ({ })
+    // Preloaded DNF catalog for Install > Package (~72k rows).
+    // Source is `dnf list --available` ("name.arch version repo" rows plus a
+    // localized header). bash (awk) strips the .arch suffix, keeps
+    // x86_64/noarch, strips epoch prefixes, validates names, and `sort -u`
+    // dedupes — QML receives compact `name|version|repo` lines, already
+    // sorted. QML dedupes by name (last wins). Filtering is
+    // local + instant (debounced _q). Warmed on menu open; refreshed after
+    // install/remove ops.
+    // Speed design:
+    // - File cache: a menu open `cat`s the cache (~20ms) and parses it in one
+    //   synchronous pass (~150ms for 72k rows) instead of waiting ~1.5s for
+    //   dnf. A background dnf run refreshes the cache only when it is older
+    //   than 6h (__JHQS_CACHE_FRESH__ marker = no work). The cache is only
+    //   replaced when the fresh output has >1000 lines, so a failed dnf run
+    //   (lock/contention/empty) never wipes good data.
+    // - The parse uses indexOf (no regex, no re-sort: the pipeline already
+    //   sorted). split+regex+sort over 72k rows measured ~830ms.
+    // - NOTE: an earlier revision pumped the parse through an `interval: 0`
+    //   Timer. Timers with a zero interval do NOT repeat in Quickshell, so the
+    //   catalog was never published and Install > Package stayed empty.
+    // - --cacheonly first: never touches the network, immune to slow /
+    //   broken-repo metadata refreshes which used to stall the menu for tens
+    //   of seconds. Empty result (unusable cache) -> exactly one refresh run
+    //   without --cacheonly, which repopulates the cache for a long time.
+    property var availableList: []
+    property bool availableLoading: false
+    property double availableLoadStart: 0
+    property bool availableRefreshTried: false
+    // Marker printed by the refresh command when the on-disk cache is fresh
+    // (<=6h): QML keeps showing the instantly-loaded cache, no re-parse.
+    readonly property string availableFreshMarker: "__JHQS_CACHE_FRESH__"
     Process {
-        id: aurSearchProc
+        id: availableListProc
         command: ["bash", "-c", "echo"]
         stdout: StdioCollector {
-            onStreamFinished: jhqsMenuScope.finishAurSearch(text || "")
+            onStreamFinished: jhqsMenuScope.finishAvailable(text || "")
         }
     }
-    Timer {
-        id: aurSearchDebounce
-        interval: 250; repeat: false
-        onTriggered: jhqsMenuScope.runAurSearch()
-    }
-    property var aurFeatured: ["anydesk-bin", "balena-etcher", "bottles", "brave-bin", "docker-desktop", "dropbox", "github-desktop-bin", "google-chrome", "heroic-games-launcher-bin", "onlyoffice-bin", "pamac-aur", "paru-bin", "postman-bin", "rustdesk-bin", "slack-desktop", "spotify", "teamviewer", "thorium-browser-bin", "visual-studio-code-bin", "wps-office", "yay", "zoom"]
-    property var aurFeaturedPackages: []
-    property bool aurFeaturedLoading: false
+    // Instant path: plain `cat` of the cache file (~20ms, no dnf startup).
     Process {
-        id: aurFeaturedProc
+        id: availableCacheProc
         command: ["bash", "-c", "echo"]
         stdout: StdioCollector {
-            onStreamFinished: jhqsMenuScope.finishAurFeatured(text || "")
+            onStreamFinished: jhqsMenuScope.finishAvailableCache(text || "")
         }
     }
-    function refreshFeatured() {
-        if (aurFeaturedPackages.length > 0 || aurFeaturedProc.running) return
-        aurFeaturedProc.command = ["bash", "-c", "paru -Si " + aurFeatured.map(n => "aur/" + n).join(" ") + " 2>/dev/null || true"]
-        aurFeaturedLoading = true
-        aurFeaturedProc.running = true
+    function availableCacheFile(): string {
+        return "${XDG_CACHE_HOME:-$HOME/.cache}/jhqs/dnf-available.cache"
     }
-    function finishAurFeatured(out) {
-        aurFeaturedLoading = false
+    // Compact `dnf list` pipeline: arch-filter + epoch-strip + validate in
+    // awk, dedupe via sort. Writes through a temp file so a failed/empty dnf
+    // run never corrupts the cache; stdout is always the cache content.
+    function availableDnfPipeline(cacheFlag: string): string {
+        return "LC_ALL=C timeout 120 dnf -y list --available " + cacheFlag + "-q < /dev/null 2>/dev/null | awk 'NF<3{next} {na=$1; ver=$2; repo=$3; sub(/^[0-9]+:/,\"\",ver); dot=match(na,/\\.[^\\.]*$/); if(dot==0)next; nm=substr(na,1,dot-1); arch=substr(na,dot+1); if(arch!=\"x86_64\"&&arch!=\"noarch\")next; if(nm!~/^[A-Za-z0-9@._+\\-]+$/)next; print nm\"|\"ver\"|\"repo}' | sort -u > \"$TMP\"; if [ -s \"$TMP\" ] && [ \"$(wc -l < \"$TMP\")\" -gt 1000 ]; then mv -f \"$TMP\" \"$CACHE\"; else rm -f \"$TMP\"; fi; cat \"$CACHE\" 2>/dev/null || true"
+    }
+    function availableCommand(cached: bool): string {
+        return "CACHE=\"" + availableCacheFile() + "\"; mkdir -p \"${XDG_CACHE_HOME:-$HOME/.cache}/jhqs\"; TMP=\"$CACHE.tmp\"; " + availableDnfPipeline(cached ? "--cacheonly " : "")
+    }
+    function availableCacheCommand(): string {
+        return "cat \"" + availableCacheFile() + "\" 2>/dev/null || true"
+    }
+    // Background refresh: no-op marker when the cache is fresh (<=6h old and
+    // >1000 lines), otherwise the same dnf pipeline (refreshes the cache).
+    function availableRefreshCommand(): string {
+        return "CACHE=\"" + availableCacheFile() + "\"; mkdir -p \"${XDG_CACHE_HOME:-$HOME/.cache}/jhqs\"; TMP=\"$CACHE.tmp\"; if [ -s \"$CACHE\" ] && [ \"$(wc -l < \"$CACHE\")\" -gt 1000 ] && [ -z \"$(find \"$CACHE\" -mmin +360 2>/dev/null)\" ]; then echo \"" + availableFreshMarker + "\"; else " + availableDnfPipeline("--cacheonly ") + "; fi"
+    }
+    function startAvailableBgRefresh() {
+        if (availableListProc.running) return
+        availableListProc.command = ["bash", "-c", availableRefreshCommand()]
+        availableListProc.running = true
+    }
+    // One synchronous parse of compact `name|version|repo` rows. The pipeline
+    // guarantees exactly 3 fields and a valid name, so no regex/validation is
+    // needed here. Object insertion order preserves the pre-sorted order;
+    // dedupe by name (last repo wins).
+    function parseAvailableText(t: string): var {
+        let lines = t.split("\n")
+        let byName = { }
+        let iset = { }
+        try {
+            for (let i = 0; i < installedList.length; i++) { let p = installedList[i]; if (p && p.name) iset[p.name] = true }
+        } catch (e) { }
+        for (let i = 0; i < lines.length; i++) {
+            let ln = lines[i]
+            if (ln.length === 0) continue
+            let i1 = ln.indexOf("|")
+            if (i1 < 0) continue
+            let i2 = ln.indexOf("|", i1 + 1)
+            if (i2 < 0) continue
+            let nm = ln.slice(0, i1)
+            byName[nm] = { repo: ln.slice(i2 + 1) || "dnf", name: nm, nl: nm.toLowerCase(), version: ln.slice(i1 + 1, i2), installed: !!iset[nm] }
+        }
         let arr = []
-        let t = (out || "").trim()
-        if (t.length > 0) {
-            let curName = "", curVer = ""
-            let lines = t.split("\n")
-            for (let i = 0; i < lines.length; i++) {
-                let ln = lines[i].trim()
-                if (ln === "") {
-                    if (curName !== "" && curVer !== "") arr.push({ repo: "aur", name: curName, version: curVer, installed: false })
-                    curName = ""; curVer = ""
-                    continue
-                }
-                let nm = ln.match(/^Name\s*:\s*(.+)$/)
-                if (nm) { curName = nm[1].trim(); continue }
-                let vs = ln.match(/^Version\s*:\s*(.+)$/)
-                if (vs) curVer = vs[1].trim()
-            }
-            if (curName !== "" && curVer !== "") arr.push({ repo: "aur", name: curName, version: curVer, installed: false })
-        }
-        arr.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
-        aurFeaturedPackages = arr
-        if (showPackages && packageMode === "aur" && qLower() === "") {
+        for (let k in byName) arr.push(byName[k])
+        return arr
+    }
+    // Parse + publish. Returns false (leaving state untouched) when there is
+    // nothing usable, so callers can fall back to a dnf run.
+    function applyAvailable(t: string): bool {
+        if (t.length === 0) return false
+        let arr = parseAvailableText(t)
+        if (arr.length === 0) return false
+        availableList = arr
+        availableLoading = false
+        try { console.log("[JhqsMenu] available catalog: " + arr.length + " packages in " + Math.round(Date.now() - availableLoadStart) + "ms") } catch (e) { }
+        if (showPackages && packageMode === "install") {
             selectedIndex = 0
             try { if (bodyRootRef) bodyRootRef.selectedIndex = 0 } catch(e) { }
         }
+        return true
     }
-    function scheduleAurSearch() {
-        if (!(showPackages && packageMode === "aur" && !packageOpActive)) return
-        let q = qLower()
-        if (q === "") {
-            aurPackages = []; aurSearching = false; aurSearchPending = ""; aurSearchRunning = ""
-            selectedIndex = 0
-            try { if (bodyRootRef) bodyRootRef.selectedIndex = 0 } catch(e) { }
-            return
-        }
-        aurSearchPending = q
-        aurSearchDebounce.restart()
+    function refreshAvailable() {
+        if (availableList.length > 0 || availableListProc.running || availableCacheProc.running) return
+        availableRefreshTried = false
+        availableLoading = true
+        availableLoadStart = Date.now()
+        availableCacheProc.command = ["bash", "-c", availableCacheCommand()]
+        availableCacheProc.running = true
     }
-    function applyAurResults(q, arr) {
-        aurPackages = (arr || []).slice(0, 100)
-        selectedIndex = 0
-        try { if (bodyRootRef) bodyRootRef.selectedIndex = 0 } catch(e) { }
+    function refreshAvailableForce() {
+        if (availableListProc.running || availableCacheProc.running) return
+        availableRefreshTried = false
+        availableListProc.command = ["bash", "-c", availableCommand(true)]
+        availableLoading = true
+        availableLoadStart = Date.now()
+        availableListProc.running = true
     }
-    function runAurSearch() {
-        let q = aurSearchPending
-        if (q === "" || !showPackages || packageMode !== "aur" || packageOpActive) return
-        if (aurCache[q] !== undefined) { applyAurResults(q, aurCache[q]); return }
-        if (aurSearchProc.running) {
-            try { aurSearchProc.running = false } catch(e) { }
-            aurSearchRunning = ""
-            if (aurSearchProc.running) return
-        }
-        aurSearchRunning = q
-        aurSearching = true
-        aurSearchProc.command = ["paru", "-Ss", "--aur", "--limit", "100", q]
-        aurSearchProc.running = true
-    }
-    function finishAurSearch(out) {
-        let q = aurSearchRunning
-        aurSearchRunning = ""
-        aurSearching = false
+    // Instant path: valid cache shows immediately, then a background dnf
+    // refresh tops it up. Cache miss/invalid -> dnf directly.
+    function finishAvailableCache(out) {
         let t = (out || "").trim()
-        let arr = []
-        if (t.length > 0) {
-            let lines = t.split("\n")
-            for (let i = 0; i < lines.length && arr.length < 100; i++) {
-                let ln = lines[i].trim()
-                if (ln.length === 0 || ln.indexOf(" ") === -1) continue
-                let p = ln.split(/\s+/)
-                if (p[0].indexOf("/") === -1 || p.length < 2) continue
-                let nm = p[0].slice(p[0].lastIndexOf("/") + 1)
-                if (!/^[a-z0-9@._+\-]+$/.test(nm)) continue
-                arr.push({ repo: "aur", name: nm, version: p[1], installed: /\[install/i.test(ln) })
-            }
-        }
-        arr.sort((a, b) => { if ((a.name === q) !== (b.name === q)) return a.name === q ? -1 : 1; return a.name < b.name ? -1 : (a.name > b.name ? 1 : 0) })
-        if (q !== "") {
-            aurCache[q] = arr
-            let ckeys = Object.keys(aurCache)
-            if (ckeys.length > 30) delete aurCache[ckeys[0]]
-        }
-        if (q !== "" && q === aurSearchPending && showPackages && packageMode === "aur" && !packageOpActive) {
-            applyAurResults(q, arr)
-        }
-        if (aurSearchPending !== "" && aurSearchPending !== q && showPackages && packageMode === "aur" && !packageOpActive) {
-            runAurSearch()
+        if (applyAvailable(t)) { startAvailableBgRefresh(); return }
+        if (!availableListProc.running) {
+            availableListProc.command = ["bash", "-c", availableCommand(true)]
+            availableListProc.running = true
         }
     }
-    property var aurInstalledPackages: []
-    Process {
-        id: foreignListProc
-        command: ["bash", "-c", "pacman -Qm 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let out = (text || "").trim()
-                let arr = []
-                if (out.length > 0) {
-                    let lines = out.split("\n")
-                    for (let i = 0; i < lines.length; i++) {
-                        let ln = lines[i].trim()
-                        if (ln.length === 0) continue
-                        let p = ln.split(/\s+/)
-                        if (p.length < 2) continue
-                        if (!/^[a-z0-9@._+\-]+$/.test(p[0])) continue
-                        arr.push({ repo: "aur", name: p[0], version: p[1], installed: true })
-                    }
-                }
-                arr.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
-                jhqsMenuScope.aurInstalledPackages = arr
-            }
+    function finishAvailable(out) {
+        let t = (out || "").trim()
+        if (t === availableFreshMarker) { availableLoading = false; return }
+        if (applyAvailable(t)) return
+        availableLoading = false
+        if (!availableRefreshTried) {
+            // Cache-only miss (wiped/expired cache): single refresh run.
+            availableRefreshTried = true
+            availableListProc.command = ["bash", "-c", availableCommand(false)]
+            availableLoading = true
+            availableLoadStart = Date.now()
+            availableListProc.running = true
         }
     }
-    function refreshForeign() { if (!foreignListProc.running) foreignListProc.running = true }
     property var flatpakList: []
     property var flatpakInstalledPackages: []
     property bool flatpakLoading: false
@@ -815,7 +854,7 @@ Scope {
         if (showNewAppMenu) { showNewAppMenu = false; clearSearch(); return true }
         if (showPackages) {
             if (packageOpActive) { leavePackageOp(); return true }
-            showPackages = false; if (packageOrigin === "Remove" || packageOrigin === "AurRemove" || packageOrigin === "FlatpakRemove") showRemove = true; else showInstall = true; clearSearch(); return true
+            showPackages = false; if (packageOrigin === "Remove" || packageOrigin === "FlatpakRemove") showRemove = true; else showInstall = true; clearSearch(); return true
         }
         if (showWebApp) {
             showWebApp = false; if (webAppMode === "remove") showRemove = true; else showInstall = true; clearSearch(); return true
@@ -865,6 +904,8 @@ Scope {
         function moveDown(): void { if (jhqsMenuScope.totalCount === 0) return; jhqsMenuScope.selectedIndex = jhqsMenuScope.showWallpaper ? Math.min(jhqsMenuScope.selectedIndex + 3, jhqsMenuScope.totalCount - 1) : (jhqsMenuScope.selectedIndex + 1) % jhqsMenuScope.totalCount }
         function moveUp(): void { if (jhqsMenuScope.totalCount === 0) return; jhqsMenuScope.selectedIndex = jhqsMenuScope.showWallpaper ? Math.max(jhqsMenuScope.selectedIndex - 3, 0) : (jhqsMenuScope.selectedIndex - 1 + jhqsMenuScope.totalCount) % jhqsMenuScope.totalCount }
         function getSelected(): string { return jhqsMenuScope.selectedEntryInfo() }
+        function preloadPackages(): string { jhqsMenuScope.refreshAvailable(); jhqsMenuScope.refreshPackages(); return "preload started" }
+        function packageStatus(): string { return "available=" + jhqsMenuScope.availableList.length + " loading=" + jhqsMenuScope.availableLoading + " installed=" + jhqsMenuScope.installedList.length }
     }
 
     function isHiddenLauncherApp(e): bool {
@@ -909,7 +950,7 @@ Scope {
         } catch (e) { }
         return out
     }
-    onFilterTextChanged: { tryAutoExpandCategory(); scheduleAurSearch(); filterDebounce.restart() }
+    onFilterTextChanged: { tryAutoExpandCategory(); filterDebounce.restart() }
     JHQ.MenuCategories { id: menuCategories }
     readonly property var styleMenu: menuCategories.styleMenu
     readonly property var themeOptions: menuCategories.themeOptions
@@ -1186,42 +1227,39 @@ Scope {
         }
         return r
     }
-    property var packageList: []
     property string packageOrigin: "Install"
     property string packageMode: "install"
+    // Curated Fedora (DNF) catalogs. Names must be installable via
+    // `dnf install` on Fedora (+RPM Fusion/COPR where noted).
     readonly property var gamingCatalog: [
-        { repo: "multilib", name: "steam", version: "", displayName: "Steam", aur: false },
-        { repo: "aur", name: "heroic-games-launcher-bin", version: "", displayName: "Heroic Launcher", aur: true },
-        { repo: "extra", name: "prismlauncher", version: "", displayName: "Prism Launcher", aur: false }
+        { repo: "rpmfusion", name: "steam", version: "", displayName: "Steam" },
+        { repo: "fedora", name: "lutris", version: "", displayName: "Lutris" },
+        { repo: "fedora", name: "prismlauncher", version: "", displayName: "Prism Launcher" },
+        { repo: "fedora", name: "heroic-games-launcher", version: "", displayName: "Heroic Launcher" }
     ]
     readonly property var browserCatalog: [
-        { repo: "extra", name: "firefox", version: "", displayName: "Firefox", aur: false },
-        { repo: "cachyos", name: "brave-origin-bin", version: "", displayName: "Brave Origin", aur: false },
-        { repo: "cachyos", name: "zen-browser-bin", version: "", displayName: "Zen Browser", aur: false },
-        { repo: "cachyos", name: "helium-browser-bin", version: "", displayName: "Helium Browser", aur: false },
-        { repo: "extra", name: "chromium", version: "", displayName: "Chromium", aur: false }
+        { repo: "fedora", name: "firefox", version: "", displayName: "Firefox" },
+        { repo: "fedora", name: "chromium", version: "", displayName: "Chromium" },
+        { repo: "rpmfusion", name: "brave-browser", version: "", displayName: "Brave" },
+        { repo: "copr", name: "helium-bin", version: "", displayName: "Helium Browser" }
     ]
     function curatedCatalog() { return packageMode === "browser" ? browserCatalog : gamingCatalog }
     function curatedTitle() { return packageMode === "browser" ? "Browser" : "Gaming" }
     function curatedSize() { return packageMode === "browser" ? browserCatalog.length : gamingCatalog.length }
     function curatedSpec(name) {
-        let cat = curatedCatalog()
-        for (let i = 0; i < cat.length; i++) if (cat[i].name === name) return cat[i].aur ? "aur/" + name : name
         return name
     }
     readonly property var _installedSet: {
         let s = {}
         try {
-            for (let i = 0; i < packageList.length; i++) { let p = packageList[i]; if (p && p.name && p.installed) s[p.name] = true }
-            for (let j = 0; j < aurInstalledPackages.length; j++) { let a = aurInstalledPackages[j]; if (a && a.name) s[a.name] = true }
+            for (let i = 0; i < installedList.length; i++) { let p = installedList[i]; if (p && p.name && p.installed) s[p.name] = true }
         } catch (e) { }
         return s
     }
     readonly property var _versionMap: {
         let m = {}
         try {
-            for (let i = 0; i < packageList.length; i++) { let p = packageList[i]; if (p && p.name && p.version) m[p.name] = p.version }
-            for (let j = 0; j < aurInstalledPackages.length; j++) { let a = aurInstalledPackages[j]; if (a && a.name && a.version) m[a.name] = a.version }
+            for (let i = 0; i < installedList.length; i++) { let p = installedList[i]; if (p && p.name && p.version) m[p.name] = p.version }
         } catch (e) { }
         return m
     }
@@ -1239,13 +1277,13 @@ Scope {
     function isPackageSelected(name) { try { return packageSelected.indexOf(name) !== -1 } catch(e) { return false } }
     function togglePackageSelected(name) {
         if (!name) return
-        if ((packageMode === "remove" || packageMode === "aurremove") && isProtectedPackage(name)) return
+        if (packageMode === "remove" && isProtectedPackage(name)) return
         let i = packageSelected.indexOf(name)
         if (i === -1) packageSelected = packageSelected.concat([name])
         else packageSelected = packageSelected.slice(0, i).concat(packageSelected.slice(i + 1))
     }
     function clearPackageSelection() { packageSelected = [] }
-    property int installedPackageCount: packageList.filter(p => p && p.installed && isRemovablePackage(p.name)).length
+    property int installedPackageCount: installedList.filter(p => p && p.installed && isRemovablePackage(p.name)).length
     property var filteredPackages: {
         if (!showPackages) return []
         let q = _qLower()
@@ -1265,10 +1303,18 @@ Scope {
             }
             return gexact.concat(gstarts, gsub, gname)
         }
-        if (packageMode === "aur") {
-            if (q !== "") return aurPackages.slice(0, 100)
-            let fset = _installedSet
-            return aurFeaturedPackages.map(p => ({ repo: "aur", name: p.name, version: p.version, installed: !!fset[p.name] }))
+        if (packageMode === "install") {
+            if (q === "") return availableList.slice(0, 100)
+            let exact = [], starts = [], sub = []
+            for (let i = 0; i < availableList.length; i++) {
+                let p = availableList[i]
+                if (!p || !p.name) continue
+                let n = p.nl || ("" + p.name).toLowerCase()
+                if (n === q) exact.push(p)
+                else if (n.startsWith(q)) starts.push(p)
+                else if (n.includes(q)) sub.push(p)
+            }
+            return exact.concat(starts, sub).slice(0, 100)
         }
         if (packageMode === "flatpak" || packageMode === "flatpakremove") {
             let fbase = packageMode === "flatpakremove" ? flatpakInstalledPackages : flatpakList
@@ -1286,7 +1332,7 @@ Scope {
             }
             return fexact.concat(fstarts, fsub, fname).slice(0, 100)
         }
-        let base = packageMode === "remove" ? packageList.filter(p => p && p.installed && isRemovablePackage(p.name)) : (packageMode === "aurremove" ? aurInstalledPackages.filter(p => p && p.name && isRemovablePackage(p.name)) : packageList)
+        let base = packageMode === "remove" ? installedList.filter(p => p && p.installed && isRemovablePackage(p.name)) : installedList
         if (q === "") return base.slice(0, 100)
         let exact = [], starts = [], sub = []
         for (let i = 0; i < base.length; i++) {
@@ -1299,19 +1345,19 @@ Scope {
         }
         return exact.concat(starts, sub).slice(0, 100)
     }
-    function refreshPackages() { if ((!packageList || packageList.length === 0) && !packageListProc.running) packageListProc.running = true }
-    function refreshPackagesForce() { if (!packageListProc.running) packageListProc.running = true }
+    // installedList (rpmdb) backs Remove mode + installed flags everywhere.
+    // availableList (DNF catalog) backs Install mode; warmed on menu open.
+    function refreshPackages() { if ((!installedList || installedList.length === 0) && !installedListProc.running) installedListProc.running = true }
+    function refreshPackagesForce() { if (!installedListProc.running) installedListProc.running = true }
     function openPackages(origin) {
         packageOrigin = origin
-        packageMode = (origin === "Remove") ? "remove" : (origin === "AurInstall") ? "aur" : (origin === "AurRemove" ? "aurremove" : (origin === "FlatpakInstall" ? "flatpak" : (origin === "FlatpakRemove" ? "flatpakremove" : (origin === "GamingInstall" ? "gaming" : (origin === "BrowserInstall" ? "browser" : "install")))))
+        packageMode = (origin === "Remove") ? "remove" : (origin === "FlatpakInstall" ? "flatpak" : (origin === "FlatpakRemove" ? "flatpakremove" : (origin === "GamingInstall" ? "gaming" : (origin === "BrowserInstall" ? "browser" : "install"))))
         showInstall = false; showRemove = false; showWebApp = false; showPackages = true
         clearPackageSelection(); clearSearch()
-        if (packageMode === "remove" || packageMode === "aurremove") refreshExplicit()
-        if (packageMode === "aur") { aurPackages = []; aurSearching = false; aurSearchPending = ""; aurSearchRunning = ""; refreshFeatured(); refreshForeign() }
-        else if (packageMode === "aurremove") refreshForeign()
+        if (packageMode === "remove") { refreshExplicit(); refreshPackagesForce() }
         else if (packageMode === "flatpak" || packageMode === "flatpakremove") refreshFlatpak()
-        else if (packageMode === "gaming" || packageMode === "browser") { refreshPackages(); refreshForeign() }
-        else refreshPackages()
+        else if (packageMode === "gaming" || packageMode === "browser") refreshPackages()
+        else { refreshAvailable(); refreshPackages() }
         packageOpActive = packageOpRunning
     }
     function installPackage(name) {
@@ -1361,9 +1407,9 @@ Scope {
         if (!pkgs || pkgs.length === 0) return false
         let clean = []
         for (let i = 0; i < pkgs.length; i++) { let n = pkgs[i]; if (n && /^[A-Za-z0-9@._+\-]+$/.test(n) && clean.indexOf(n) === -1) clean.push(n) }
-        if (mode === "remove" || mode === "aurremove") clean = clean.filter(n => !isProtectedPackage(n))
+        if (mode === "remove") clean = clean.filter(n => !isProtectedPackage(n))
         if (clean.length === 0) return false
-        let m = (mode === "remove" || mode === "aurremove") ? "remove" : (mode === "aur" ? "aur" : (mode === "flatpak" ? "flatpak" : (mode === "flatpakremove" ? "flatpakremove" : (mode === "gaming" ? "gaming" : (mode === "browser" ? "browser" : "install")))))
+        let m = (mode === "remove") ? "remove" : (mode === "flatpak" ? "flatpak" : (mode === "flatpakremove" ? "flatpakremove" : (mode === "gaming" ? "gaming" : (mode === "browser" ? "browser" : "install"))))
         if (!polkitReadyFor(m)) {
             packageOpMode = m; packageOpPkgs = []
             packageOpLines = []; packageOpLog = ""; packageOpExit = -1; packageOpSuccess = false
@@ -1379,16 +1425,15 @@ Scope {
         clearPackageSelection(); clearSearch()
         let inner
         {
-            let tag = (mode === "aur" || mode === "aurremove") ? " (AUR)" : ((m === "flatpak" || m === "flatpakremove") ? " (Flatpak)" : (m === "gaming" ? " (Gaming)" : (m === "browser" ? " (Browser)" : "")))
+            let tag = ((m === "flatpak" || m === "flatpakremove") ? " (Flatpak)" : (m === "gaming" ? " (Gaming)" : (m === "browser" ? " (Browser)" : " (DNF)")))
             packageOpAppend(((m === "remove" || m === "flatpakremove") ? "Entferne " : "Installiere ") + clean.length + " Paket(e)" + tag + ": " + clean.join(" "))
-            if (m === "remove") inner = "pacman -Rns --noconfirm " + clean.join(" ")
-            else if (m === "aur") inner = "paru --sudo pkexec -S --needed --noconfirm --skipreview " + clean.map(n => "aur/" + n).join(" ")
-            else if (m === "gaming" || m === "browser") inner = "paru --sudo pkexec -S --needed --noconfirm --skipreview " + clean.map(n => curatedSpec(n)).join(" ")
+            if (m === "remove") inner = "dnf remove -y " + clean.join(" ")
+            else if (m === "gaming" || m === "browser") inner = "dnf install -y " + clean.map(n => curatedSpec(n)).join(" ")
             else if (m === "flatpak") inner = "flatpak install -y flathub " + clean.join(" ")
             else if (m === "flatpakremove") inner = "flatpak uninstall -y " + clean.join(" ")
-            else inner = "pacman -S --needed --noconfirm " + clean.join(" ")
+            else inner = "dnf install -y " + clean.join(" ")
         }
-        packageOpProc.command = (m === "aur" || m === "gaming" || m === "browser" || m === "flatpak" || m === "flatpakremove")
+        packageOpProc.command = (m === "flatpak" || m === "flatpakremove")
             ? ["script", "-qec", inner, "/dev/null"]
             : ["script", "-qec", "pkexec --disable-internal-agent " + inner, "/dev/null"]
         if (!packageOpProc.running) packageOpProc.running = true
@@ -1398,9 +1443,9 @@ Scope {
         packageOpRunning = false; packageOpExit = code; packageOpSuccess = (code === 0)
         if (code === 0) {
             packageOpAppend("✓ Fertig (Code 0)")
-            if (packageOpMode === "install" || packageOpMode === "aur" || packageOpMode === "flatpak" || packageOpMode === "gaming" || packageOpMode === "browser") {
+            if (packageOpMode === "install" || packageOpMode === "flatpak" || packageOpMode === "gaming" || packageOpMode === "browser") {
                 let names = (packageOpPkgs || []).join(", ").slice(0, 180)
-                let tag = packageOpMode === "aur" ? " (AUR)" : (packageOpMode === "flatpak" ? " (Flatpak)" : (packageOpMode === "gaming" ? " (Gaming)" : (packageOpMode === "browser" ? " (Browser)" : "")))
+                let tag = (packageOpMode === "flatpak" ? " (Flatpak)" : (packageOpMode === "gaming" ? " (Gaming)" : (packageOpMode === "browser" ? " (Browser)" : " (DNF)")))
                 if (names !== "") sendInstallNotification("✓ Installiert: " + names + tag, "findest du im App-Launcher")
             }
         }
@@ -1411,8 +1456,8 @@ Scope {
             packageOpAppend("System → Neustarten (oder: systemctl reboot)")
         }
         refreshPackagesForce()
+        refreshAvailableForce()
         refreshFlatpakForce()
-        refreshForeign()
         refreshExplicit()
         try { Theme.notifyAppsChanged() } catch (e) { }
         try { UpdateService.checkNow() } catch (e) { }
@@ -1654,7 +1699,6 @@ Scope {
             if (t === "Flatpak") { openPackages("FlatpakInstall"); return }
             else if (t === "Web App") { openWebApp("install"); return }
             else if (t === "Package") { openPackages("Install"); return }
-            else if (t === "AUR") { openPackages("AurInstall"); return }
             else if (t === "Gaming") { openPackages("GamingInstall"); return }
             else if (t === "Browser") { openPackages("BrowserInstall"); return }
             dismissed()
@@ -1662,7 +1706,6 @@ Scope {
             if (t === "Flatpak") { openPackages("FlatpakRemove"); return }
             else if (t === "Web App") { openWebApp("remove"); return }
             else if (t === "Package") { openPackages("Remove"); return }
-            else if (t === "AUR") { openPackages("AurRemove"); return }
             dismissed()
         } else if (category === "System") {
             if (entry && doSessionAction(entry.title)) dismissed()
@@ -1726,8 +1769,8 @@ Scope {
                 else dismissed()
                 return
             }
-            if (showInstall) { if (m.title==="Flatpak") { openPackages("FlatpakInstall"); return } else if (m.title==="Web App") { openWebApp("install"); return } else if (m.title==="Package") { openPackages("Install"); return } else if (m.title==="AUR") { openPackages("AurInstall"); return } else if (m.title==="Gaming") { openPackages("GamingInstall"); return } else if (m.title==="Browser") { openPackages("BrowserInstall"); return } dismissed(); return }
-            if (showRemove) { if (m.title==="Flatpak") { openPackages("FlatpakRemove"); return } else if (m.title==="Web App") { openWebApp("remove"); return } else if (m.title==="Package") { openPackages("Remove"); return } else if (m.title==="AUR") { openPackages("AurRemove"); return } dismissed(); return }
+            if (showInstall) { if (m.title==="Flatpak") { openPackages("FlatpakInstall"); return } else if (m.title==="Web App") { openWebApp("install"); return }             else if (m.title==="Package") { openPackages("Install"); return } else if (m.title==="Gaming") { openPackages("GamingInstall"); return } else if (m.title==="Browser") { openPackages("BrowserInstall"); return } dismissed(); return }
+            if (showRemove) { if (m.title==="Flatpak") { openPackages("FlatpakRemove"); return } else if (m.title==="Web App") { openWebApp("remove"); return } else if (m.title==="Package") { openPackages("Remove"); return } dismissed(); return }
             if (showSession) { if (doSessionAction(m.title)) dismissed(); return }
             if (showSetup) {
                 if (m.title==="Settings") { openSettings("global"); return }
@@ -1890,7 +1933,7 @@ Scope {
                             else if(event.key===Qt.Key_Escape){ if(!bodyRoot.scope.handleEsc()) bodyRoot.scope.dismissed(); event.accepted=true }
                         }
                         Component.onCompleted: { bodyRoot.scope.queryInputRef = queryInput; forceActiveFocus(); if(queryInput) queryInput.forceActiveFocus() }
-                        Connections { target: bodyRoot.scope; function onShowMenuChanged(){ if(bodyRoot.scope.showMenu){ bodyRoot.scope.resetAllSubmenus(); bodyRoot.scope.clearSearch(); if(!bodyRoot.scope.wallpaperFiles || bodyRoot.scope.wallpaperFiles.length===0) bodyRoot.scope.refreshWallpapers(); if(!bodyRoot.scope.packageList || bodyRoot.scope.packageList.length===0) bodyRoot.scope.refreshPackages(); if(!bodyRoot.scope.fontFallbackFamilies || bodyRoot.scope.fontFallbackFamilies.length===0) bodyRoot.scope.refreshFonts(); Qt.callLater(()=>{ parent.forceActiveFocus(); if(queryInput) queryInput.forceActiveFocus() }) } } }
+                        Connections { target: bodyRoot.scope; function onShowMenuChanged(){ if(bodyRoot.scope.showMenu){ bodyRoot.scope.resetAllSubmenus(); bodyRoot.scope.clearSearch(); if(!bodyRoot.scope.wallpaperFiles || bodyRoot.scope.wallpaperFiles.length===0) bodyRoot.scope.refreshWallpapers(); if(!bodyRoot.scope.installedList || bodyRoot.scope.installedList.length===0) bodyRoot.scope.refreshPackages(); if(!bodyRoot.scope.availableList || bodyRoot.scope.availableList.length===0) bodyRoot.scope.refreshAvailable(); if(!bodyRoot.scope.fontFallbackFamilies || bodyRoot.scope.fontFallbackFamilies.length===0) bodyRoot.scope.refreshFonts(); Qt.callLater(()=>{ parent.forceActiveFocus(); if(queryInput) queryInput.forceActiveFocus() }) } } }
 
                         Item {
                             id: searchRow

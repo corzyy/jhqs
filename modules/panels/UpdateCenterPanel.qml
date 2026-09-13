@@ -45,7 +45,6 @@ Scope {
 
     readonly property var sections: [
         { id: "system", title: "System", action: "Update system" },
-        { id: "aur", title: "AUR", action: "Update AUR" },
         { id: "flatpak", title: "Flatpak", action: "Update Flatpak" }
     ]
     readonly property var scheduleOptions: [
@@ -63,22 +62,18 @@ Scope {
     // slice() + count() (O(n) scans) in every delegate binding — a nested
     // Repeater rebuild on any single update. One pass per updates change.
     readonly property var _systemRows: updates.filter(function(item) { return item.source === "system" })
-    readonly property var _aurRows: updates.filter(function(item) { return item.source === "aur" })
     readonly property var _flatpakRows: updates.filter(function(item) { return item.source === "flatpak" })
     readonly property int _systemCount: _systemRows.length
-    readonly property int _aurCount: _aurRows.length
     readonly property int _flatpakCount: _flatpakRows.length
 
     // Single canonical counter lives in UpdateService — don't re-scan here.
     function count(source: string): int {
         if (source === "system") return _systemCount
-        if (source === "aur") return _aurCount
         if (source === "flatpak") return _flatpakCount
         return UpdateService.count(source)
     }
     function sectionRows(source: string): var {
         if (source === "system") return _systemRows
-        if (source === "aur") return _aurRows
         if (source === "flatpak") return _flatpakRows
         return updates.filter(function(item) { return item.source === source })
     }
@@ -107,7 +102,7 @@ Scope {
     }
     function updateCommand(kind: string): string {
         if (kind === "shell") return "bash " + shellQuote(shellScript)
-        let target = (kind === "system" || kind === "aur" || kind === "flatpak") ? kind : "all"
+        let target = (kind === "system" || kind === "flatpak") ? kind : "all"
         return "bash " + shellQuote(updateScript) + " " + target
     }
     function runInTerminal(command: string, markDone: bool, hold: bool): void {

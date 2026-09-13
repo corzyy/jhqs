@@ -73,7 +73,7 @@ Scope {
     }
     IpcHandler {
         target: "updates"
-        function check(): string { UpdateService.checkNow(); return "checking system+aur+flatpak..." }
+        function check(): string { UpdateService.checkNow(); return "checking system+flatpak..." }
         function status(): string { return UpdateService.status() }
         function debug(arg: string): string { return UpdateService.setDebug(arg) }
         function debugCount(n: int): string { UpdateService.debugCount = n; UpdateService.debugForce = true; return "debugCount=" + n }

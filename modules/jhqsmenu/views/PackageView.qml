@@ -18,14 +18,13 @@ Item {
     transformOrigin: Item.Center
 
     readonly property bool isRemove: bodyRoot.scope.packageMode === "remove"
-    readonly property bool isAur: bodyRoot.scope.packageMode === "aur"
-    readonly property bool isAurRemove: bodyRoot.scope.packageMode === "aurremove"
+    readonly property bool isInstall: bodyRoot.scope.packageMode === "install"
     readonly property bool isFlatpak: bodyRoot.scope.packageMode === "flatpak"
     readonly property bool isFlatpakRemove: bodyRoot.scope.packageMode === "flatpakremove"
     readonly property bool isCurated: bodyRoot.scope.packageMode === "gaming" || bodyRoot.scope.packageMode === "browser"
     readonly property bool isBrowser: bodyRoot.scope.packageMode === "browser"
     readonly property int selCount: bodyRoot.scope.packageSelected.length
-    readonly property string primaryLabel: ((isRemove || isAurRemove || isFlatpakRemove) ? "Entfernen" : "Installieren") + (selCount > 0 ? " (" + selCount + ")" : "")
+    readonly property string primaryLabel: ((isRemove || isFlatpakRemove) ? "Entfernen" : "Installieren") + (selCount > 0 ? " (" + selCount + ")" : "")
 
     function toggleCurrent() {
         let p = bodyRoot.scope.filteredPackages[bodyRoot.selectedIndex]
@@ -49,9 +48,10 @@ Item {
             if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer bei " + bodyRoot.scope.curatedTitle()
             return bodyRoot.scope.curatedSize() + (root.isBrowser ? " Browser" : " Gaming-Apps") + " – Space: auswählen, Enter: installieren"
         }
-        if (root.isAur) {
-            if (bodyRoot.scope.filterText.length > 0) return bodyRoot.scope.aurSearching ? "Suche AUR…" : "Keine Treffer im AUR"
-            return bodyRoot.scope.aurFeaturedLoading ? "Lade AUR-Programme…" : "Paketnamen tippen – Live-Suche im AUR"
+        if (root.isInstall) {
+            if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer bei DNF"
+            if (bodyRoot.scope.availableLoading) return "Lade Pakete…"
+            return bodyRoot.scope.availableList.length + " Pakete – tippen zum Filtern"
         }
         if (root.isFlatpak) {
             if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer bei Flathub"
@@ -62,12 +62,8 @@ Item {
             return bodyRoot.scope.flatpakInstalledLoading ? "Lade installierte Flatpaks…" : (bodyRoot.scope.flatpakInstalledPackages.length === 0 ? "Keine Flatpaks installiert" : bodyRoot.scope.flatpakInstalledPackages.length + " Flatpaks – tippen zum Filtern")
         }
         if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer"
-        if (root.isAurRemove) {
-            return bodyRoot.scope.aurInstalledPackages.length === 0 ? "Keine AUR-Pakete installiert" : bodyRoot.scope.aurInstalledPackages.length + " AUR-Pakete – tippen zum Filtern"
-        }
-        if (bodyRoot.scope.packageList.length === 0) return "Lade Pakete..."
+        if (bodyRoot.scope.installedList.length === 0) return "Lade Pakete..."
         if (root.isRemove) return "Keine installierten Pakete"
-        return bodyRoot.scope.packageList.length + " Pakete – tippen zum Filtern"
     }
 
     ScrollIndicator { flick: packageList }
@@ -191,7 +187,7 @@ Item {
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                text: root.selCount > 0 ? root.selCount + " ausgewählt" : (root.isCurated ? (bodyRoot.scope.filteredPackages.length + (root.isBrowser ? " Browser – Space: auswählen" : " Gaming-Apps – Space: auswählen")) : (root.isAur && bodyRoot.scope.aurSearching ? "Suche AUR…" : (root.isAur && bodyRoot.scope.filterText.length === 0 ? (bodyRoot.scope.aurFeaturedLoading ? "Lade AUR-Programme…" : bodyRoot.scope.aurFeaturedPackages.length + " Programme – Space: auswählen") : root.isFlatpak ? (bodyRoot.scope.flatpakLoading ? "Lade Flatpaks…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.flatpakList.length + " Flatpaks – Space: auswählen" : "Space: auswählen")) : root.isFlatpakRemove ? (bodyRoot.scope.flatpakInstalledLoading ? "Lade installierte Flatpaks…" : bodyRoot.scope.flatpakInstalledPackages.length + " installiert – Space: auswählen") : (root.isAurRemove ? bodyRoot.scope.aurInstalledPackages.length + " installiert – Space: auswählen" : (root.isRemove ? bodyRoot.scope.installedPackageCount + " installiert – Space: auswählen" : "Space: auswählen")))))
+                text: root.selCount > 0 ? root.selCount + " ausgewählt" : (root.isCurated ? (bodyRoot.scope.filteredPackages.length + (root.isBrowser ? " Browser – Space: auswählen" : " Gaming-Apps – Space: auswählen")) : (root.isInstall ? (bodyRoot.scope.availableLoading ? "Lade Pakete…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.availableList.length + " Pakete – Space: auswählen" : "Space: auswählen")) : root.isFlatpak ? (bodyRoot.scope.flatpakLoading ? "Lade Flatpaks…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.flatpakList.length + " Flatpaks – Space: auswählen" : "Space: auswählen")) : root.isFlatpakRemove ? (bodyRoot.scope.flatpakInstalledLoading ? "Lade installierte Flatpaks…" : bodyRoot.scope.flatpakInstalledPackages.length + " installiert – Space: auswählen") : (root.isRemove ? bodyRoot.scope.installedPackageCount + " installiert – Space: auswählen" : "Space: auswählen")))
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
                 color: root.selCount > 0 ? Theme.textPrimary : Theme.textMuted
                 font.weight: root.selCount > 0 ? Font.Medium : Font.Normal
