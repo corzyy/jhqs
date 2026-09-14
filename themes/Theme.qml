@@ -292,14 +292,23 @@ Singleton {
         shellFile.writeAdapter()
     }
     readonly property string clockPosition: (shellFile.adapter.clockPosition === "left" || shellFile.adapter.clockPosition === "right") ? shellFile.adapter.clockPosition : "center"
-    readonly property string clockFormat: (shellFile.adapter.clockFormat === "timeOnly") ? "timeOnly" : "full"
+    // Clock label formats (right-click the clock to cycle):
+    // full: "Monday 20:15" | short: "Mon 20:15" | date: "8th May 20:15" | timeOnly: "20:15"
+    readonly property var clockFormats: ["full", "short", "date", "timeOnly"]
+    readonly property string clockFormat: {
+        let v = shellFile.adapter.clockFormat
+        return clockFormats.indexOf(v) !== -1 ? v : "full"
+    }
     function setClockFormat(v: string): void {
-        let nv = (v === "timeOnly") ? "timeOnly" : "full"
+        let nv = clockFormats.indexOf(v) !== -1 ? v : "full"
         if ((shellFile.adapter.clockFormat || "full") === nv) return
         shellFile.adapter.clockFormat = nv
         shellFile.writeAdapter()
     }
-    function toggleClockFormat(): void { setClockFormat(clockFormat === "full" ? "timeOnly" : "full") }
+    function toggleClockFormat(): void {
+        let i = clockFormats.indexOf(clockFormat)
+        setClockFormat(clockFormats[(i + 1) % clockFormats.length])
+    }
     readonly property string workspacesPosition: (shellFile.adapter.workspacesPosition === "center" || shellFile.adapter.workspacesPosition === "right") ? shellFile.adapter.workspacesPosition : "left"
     readonly property string workspaceStyle: (shellFile.adapter.workspaceStyle === "m3") ? "m3" : (shellFile.adapter.workspaceStyle === "default2") ? "default2" : "default"
     function setWorkspaceStyle(v: string): void {

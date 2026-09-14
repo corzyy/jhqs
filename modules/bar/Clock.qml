@@ -11,7 +11,21 @@ Item {
     // NOTE: `opacity: enabled ? ...` + its Behavior removed — `enabled` is
     // never set false, so this was a permanent 1.0 with a dead animation.
 
-    readonly property bool isTimeOnly: Theme.clockFormat === "timeOnly"
+    readonly property string clockFmt: Theme.clockFormat
+    readonly property bool isTimeOnly: clockFmt === "timeOnly"
+    readonly property bool isDate: clockFmt === "date"
+
+    // Ordinal suffix for the date format ("8th May"): 1st 2nd 3rd 21st…,
+    // teens (11th 12th 13th) always "th".
+    function ordinalSuffix(d: int): string {
+        if (d % 100 >= 11 && d % 100 <= 13) return "th"
+        switch (d % 10) {
+        case 1: return "st"
+        case 2: return "nd"
+        case 3: return "rd"
+        default: return "th"
+        }
+    }
 
     // Label-toggle convention: BarModule right-click calls this when present.
     // New label-capable modules just add an equivalent toggleLabel().
@@ -22,11 +36,19 @@ Item {
     // PERF: 5x Qt.formatDateTime ran in BOTH orientations (hidden branch still
     // bound). Cache once per minute; hidden branch reads "" (no format call).
     readonly property bool _showDay: !isTimeOnly
-    readonly property string _dayStr: (!vertical && _showDay) ? Qt.formatDateTime(c.date, "dddd") : ""
+    readonly property int _dayNum: c.date.getDate()
+    readonly property string _dayStr: {
+        if (vertical || !_showDay) return ""
+        if (clockFmt === "short") return Qt.formatDateTime(c.date, "ddd")
+        if (clockFmt === "date") return _dayNum + ordinalSuffix(_dayNum) + " " + Qt.formatDateTime(c.date, "MMM")
+        return Qt.formatDateTime(c.date, "dddd")
+    }
     readonly property string _timeStr: !vertical ? Qt.formatDateTime(c.date, "HH:mm") : ""
     readonly property string _hhStr: vertical ? Qt.formatDateTime(c.date, "HH") : ""
     readonly property string _mmStr: vertical ? Qt.formatDateTime(c.date, "mm") : ""
-    readonly property string _dddStr: (vertical && _showDay) ? Qt.formatDateTime(c.date, "ddd") : ""
+    readonly property string _dddStr: (vertical && _showDay && !isDate) ? Qt.formatDateTime(c.date, "ddd") : ""
+    readonly property string _vDayStr: (vertical && isDate) ? (_dayNum + ordinalSuffix(_dayNum)) : ""
+    readonly property string _vMonStr: (vertical && isDate) ? Qt.formatDateTime(c.date, "MMM") : ""
     readonly property color _hoverColor: mouse.containsMouse ? Theme.primary : Theme.textPrimary
 
     Row {
@@ -80,8 +102,30 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: !root.isTimeOnly
+            visible: !root.isTimeOnly && !root.isDate
             text: root._dddStr
+            color: mouse.containsMouse ? Theme.primary : Theme.textMuted
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            anchors.horizontalCenter: parent.horizontalCenter
+            opacity: visible ? 0.85 : 0
+            height: visible ? implicitHeight : 0
+        }
+        Text {
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+            visible: root.isDate
+            text: root._vDayStr
+            color: mouse.containsMouse ? Theme.primary : Theme.textMuted
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            anchors.horizontalCenter: parent.horizontalCenter
+            opacity: visible ? 0.85 : 0
+            height: visible ? implicitHeight : 0
+        }
+        Text {
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+            visible: root.isDate
+            text: root._vMonStr
             color: mouse.containsMouse ? Theme.primary : Theme.textMuted
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter

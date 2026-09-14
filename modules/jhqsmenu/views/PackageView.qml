@@ -97,21 +97,11 @@ Item {
             Rectangle {
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                 width: 3
-                color: Theme.accent
-                visible: isSelected
+                color: isChecked ? "white" : Theme.accent
+                visible: isChecked || isSelected || rowMouse.containsMouse
             }
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
-                Rectangle {
-                    antialiasing: Theme.shapesAa
-                    Layout.preferredWidth: 18; Layout.preferredHeight: 18; radius: 0
-                    color: rowBg.isChecked ? Theme.accent : "transparent"
-                    border.color: rowBg.isChecked ? Theme.accent : (Theme.withAlpha(Theme.textPrimary, 0.4)); border.width: 1
-                    Text { anchors.centerIn: parent; visible: rowBg.isChecked; text: "✓"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold; color: Theme.onAccent
-                        antialiasing: Theme.textAa
-                        renderType: Theme.textRenderType
-                    }
-                }
                 Text { text: root.isCurated ? (root.isBrowser ? "󰖟" : "󰊗") : ((root.isFlatpak || root.isFlatpakRemove) ? "󰇚" : "󰣛"); font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : (Theme.textPrimary); Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter;
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType

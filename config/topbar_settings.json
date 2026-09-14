@@ -6,7 +6,7 @@
     "aaTextNative": true,
     "animationsEnabled": true,
     "antialiasing": true,
-    "clockFormat": "full",
+    "clockFormat": "short",
     "clockPosition": "center",
     "contentPadding": 3,
     "edgeDistance": 0,

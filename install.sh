@@ -173,7 +173,7 @@ elif [[ -n "${JHQS_DEST:-}" ]]; then
     echo "Done. (Test install — shell not started.)"
 elif command -v quickshell >/dev/null 2>&1; then
     if quickshell ipc -c jhqs call jhqs reload >/dev/null 2>&1 \
-       || quickshell -d -c jhqs >/dev/null 2>&1; then
+       || "$DEST/scripts/jhqs" start >/dev/null 2>&1; then
         echo "Shell started."
     else
         echo "Installed. Start it manually with:  jhqs start"

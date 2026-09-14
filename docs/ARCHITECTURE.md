@@ -28,9 +28,18 @@ jhqs/
 ├── services/              — singletons, no UI
 │   ├── qmldir             — singleton registrations (History/Update/Network/VolumeService)
 │   ├── HistoryService.qml — notification history (max 100)
- │   ├── UpdateService.qml  — dnf+flatpak polling, check-updates.sh (menu updates in JhqsMenu)
+│   ├── LogService.qml     — persistent error log: follows the shell's own
+│   │                         Quickshell log via scripts/log-errors.sh and appends
+│   │                         ERROR/WARN/CRITICAL/FATAL lines, timestamped, to
+│   │                         logs/errors.log; record() for shell-raised errors
+│   │                         (shell.qml reports Quickshell.reloadFailed)
+│   ├── UpdateService.qml  — dnf+flatpak polling, check-updates.sh (menu updates in JhqsMenu)
 │   ├── NetworkService.qml — nmcli poll every 4s (bar icon only)
 │   └── VolumeService.qml  — Pipewire.defaultAudioSink + fallback volume.sh, OSD trigger
+│
+├── logs/                  — runtime error logs (git-ignored, see logs/.gitignore):
+│                             errors.log (timestamped runtime errors, `jhqs log`),
+│                             startup.log (shell stdout/stderr, fatal load errors)
 │
 ├── modules/
 │   ├── TopBar.qml         — bar shell (delegates to services + modules/bar/*)

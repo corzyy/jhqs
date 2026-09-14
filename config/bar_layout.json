@@ -17,8 +17,8 @@
     ],
     "right": [
         "systemtray",
-        "bluetooth",
         "network",
+        "bluetooth",
         "volume",
         "vitals"
     ],

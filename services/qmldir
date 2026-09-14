@@ -1,4 +1,5 @@
 singleton HistoryService 1.0 HistoryService.qml
+singleton LogService 1.0 LogService.qml
 singleton UpdateService 1.0 UpdateService.qml
 singleton NetworkService 1.0 NetworkService.qml
 singleton VolumeService 1.0 VolumeService.qml

@@ -328,7 +328,7 @@ Scope {
                         if (!/^[A-Za-z0-9@._+\-]+$/.test(nm)) continue
                         if (seen[nm] !== undefined) continue
                         seen[nm] = true
-                        arr.push({ repo: (p[2] || "").trim() || "rpm", name: nm, version: (p[1] || "").trim(), installed: true })
+                        arr.push({ repo: (p[2] || "").trim() || "rpm", name: nm, nl: nm.toLowerCase(), version: (p[1] || "").trim(), installed: true })
                     }
                 }
                 arr.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
@@ -583,7 +583,7 @@ Scope {
                     seen[appId] = true
                     let disp = (cols[1] || "").trim()
                     let ver = (cols[2] || "").trim()
-                    arr.push({ repo: "flathub", name: appId, version: ver, displayName: disp, installed: false })
+                    arr.push({ repo: "flathub", name: appId, nl: appId.toLowerCase(), version: ver, displayName: disp, dl: disp.toLowerCase(), installed: false })
                 }
                 arr.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
                 let iset = { }
@@ -617,7 +617,7 @@ Scope {
                         seen[appId] = true
                         let disp = (cols[1] || "").trim()
                         let ver = (cols[2] || "").trim()
-                        arr.push({ repo: "flathub", name: appId, version: ver, displayName: disp, installed: true })
+                        arr.push({ repo: "flathub", name: appId, nl: appId.toLowerCase(), version: ver, displayName: disp, dl: disp.toLowerCase(), installed: true })
                     }
                     arr.sort((a, b) => a.name < b.name ? -1 : (a.name > b.name ? 1 : 0))
                 }
@@ -630,7 +630,7 @@ Scope {
                     for (let k = 0; k < cur.length; k++) {
                         let e = cur[k]
                         let inst = !!iset[e.name]
-                        next.push(e.installed === inst ? e : { repo: e.repo, name: e.name, version: e.version, displayName: e.displayName || "", installed: inst })
+                        next.push(e.installed === inst ? e : { repo: e.repo, name: e.name, nl: e.nl || ("" + e.name).toLowerCase(), version: e.version, displayName: e.displayName || "", dl: e.dl || ("" + (e.displayName || "")).toLowerCase(), installed: inst })
                     }
                     jhqsMenuScope.flatpakList = next
                 }
@@ -659,7 +659,7 @@ Scope {
         webAppListProc.running = true
     }
     property var filteredWebApps: {
-        let q = _qLower()
+        let q = qLower()
         if (!showWebApp || webAppMode !== "remove") return []
         if (q === "") return webAppList
         return webAppList.filter(w => {
@@ -803,30 +803,32 @@ Scope {
         try { if (bodyRootRef) bodyRootRef.filterText = txt } catch(e) { }
     }
     function qLower(): string { return filterText.toLowerCase().trim() }
-    // PERF: debounced query for the 7 heavyweight list filters (apps, packages,
-    // fonts, wallpapers, webapps). Per-keystroke filtering re-ran triple-scan +
-    // localeCompare sorts + 10k-line package filter on every character. Chrome
-    // (menus, counts, empty states) still reads filterText immediately; heavy
-    // lists settle 120ms after typing stops.
+    // PERF: only the 72k-row DNF package catalog is debounced. Everything
+    // else (apps, menus, categories, wallpapers, fonts, webapps: a few
+    // hundred rows max) filters instantly on every keystroke (<1ms).
+    // Previously they all shared a 120ms debounce, so top-level results
+    // visibly lagged behind typing.
     property string _q: ""
     function _qLower(): string { return _q.toLowerCase().trim() }
     Timer {
         id: filterDebounce
-        interval: 120; repeat: false
+        interval: 50; repeat: false
         onTriggered: jhqsMenuScope._q = jhqsMenuScope.filterText
     }
-    // STABILITY: clamp selection when the debounced list lands (it can shrink
-    // 120ms after the keystroke that reset selectedIndex=0 on stale count).
+    // STABILITY: clamp selection when the debounced package list lands (it
+    // can shrink after the keystroke that changed the query).
     on_QChanged: {
         try {
             if (selectedIndex >= totalCount) selectedIndex = Math.max(0, totalCount - 1)
             if (bodyRootRef && bodyRootRef.selectedIndex >= totalCount) bodyRootRef.selectedIndex = Math.max(0, totalCount - 1)
         } catch (e) { }
     }
-    function queryWords(): var {
-        let q = qLower()
+    function queryWordsFor(q: string): var {
         if (q === "") return []
         return q.split(/\s+/).filter(w => w.length > 0)
+    }
+    function queryWords(): var {
+        return queryWordsFor(qLower())
     }
     // Multi-word match: every query word must occur (any order).
     function matchesAll(hayLower: string, words: var): bool {
@@ -842,7 +844,7 @@ Scope {
         return -1
     }
     function clearSearch() {
-        filterText = ""; selectedIndex = 0; syncQueryInput("")
+        filterText = ""; _q = ""; filterDebounce.stop(); selectedIndex = 0; syncQueryInput("")
         try { if (bodyRootRef) bodyRootRef.selectedIndex = 0 } catch(e) { }
     }
     function tryAutoExpandCategory(): void {
@@ -964,12 +966,22 @@ Scope {
             for (let i = 0; i < src.length; i++) {
                 let a = src[i]
                 if (!a) continue
-                out.push({ e: a, n: ((a.name || "") + " " + (a.id || "")).toLowerCase(), c: ((a.comment || "")).toLowerCase() })
+                // Pre-lower once here (menu open), not per keystroke: nl is the
+                // name for exact/prefix tiers, n is the full haystack.
+                let nm = (a.name || ""), aid = (a.id || "")
+                let nl = ("" + nm).toLowerCase()
+                out.push({ e: a, nl: nl, n: (nm + " " + aid).toLowerCase(), c: ((a.comment || "")).toLowerCase() })
             }
         } catch (e) { }
         return out
     }
-    onFilterTextChanged: { tryAutoExpandCategory(); filterDebounce.restart() }
+    onFilterTextChanged: {
+        tryAutoExpandCategory()
+        // Empty query clears the debounced package filter instantly instead
+        // of waiting out the timer.
+        if (filterText === "") { _q = ""; filterDebounce.stop() }
+        else filterDebounce.restart()
+    }
     JHQ.MenuCategories { id: menuCategories }
     readonly property var styleMenu: menuCategories.styleMenu
     readonly property var themeOptions: menuCategories.themeOptions
@@ -1099,7 +1111,7 @@ Scope {
     property var filteredWallpapers: {
         if (!showWallpaper) return []
         let files = engineWallpapers
-        let q = _qLower()
+        let q = qLower()
         if (q === "") return files
         return files.filter(p => p.toLowerCase().split("/").pop().includes(q))
     }
@@ -1144,7 +1156,7 @@ Scope {
     }
     property var filteredFonts: {
         if (!showFont) return []
-        let q = _qLower()
+        let q = qLower()
         let all = fontAllFamilies
         if (q === "") return all
         return all.filter(f => ("" + f).toLowerCase().includes(q)).slice(0, 100)
@@ -1252,7 +1264,7 @@ Scope {
     }
     property var filteredFontGroups: {
         if (!showFont) return []
-        let q = _qLower()
+        let q = qLower()
         let groups = fontGrouped
         if (q === "") return groups
         return groups.filter(g => {
@@ -1266,16 +1278,21 @@ Scope {
     }
     property var filteredNewApps: {
         if (!showNewAppMenu) return []
-        let q = _qLower()
+        let q = qLower()
         if (q === "") {
             let out = []
             for (let i = 0; i < _appSearchIndex.length && out.length < 50; i++) out.push(_appSearchIndex[i].e)
             return out
         }
+        let words = queryWordsFor(q)
+        let multi = words.length > 1
         let r = []
         for (let i = 0; i < _appSearchIndex.length; i++) {
             let row = _appSearchIndex[i]
-            if (row.n.includes(q) || row.c.includes(q)) { r.push(row.e); if (r.length >= 8) break }
+            if (multi) {
+                if (!matchesAll(row.n, words) && !matchesAll(row.c, words)) continue
+            } else if (row.n.indexOf(q) === -1 && row.c.indexOf(q) === -1) continue
+            r.push(row.e); if (r.length >= 8) break
         }
         return r
     }
@@ -1336,6 +1353,9 @@ Scope {
     }
     function clearPackageSelection() { packageSelected = [] }
     property int installedPackageCount: installedList.filter(p => p && p.installed && isRemovablePackage(p.name)).length
+    // The only debounced filter (see filterDebounce): a single pass over the
+    // 72k-row DNF catalog per keystroke would drop frames, so this settles
+    // 50ms after typing stops. All comparisons use pre-lowered fields.
     property var filteredPackages: {
         if (!showPackages) return []
         let q = _qLower()
@@ -1375,12 +1395,12 @@ Scope {
             for (let i = 0; i < fbase.length; i++) {
                 let p = fbase[i]
                 if (!p || !p.name) continue
-                let n = ("" + p.name).toLowerCase()
-                let d = ("" + (p.displayName || "")).toLowerCase()
+                let n = p.nl || ("" + p.name).toLowerCase()
+                let d = p.dl || ("" + (p.displayName || "")).toLowerCase()
                 if (n === q) fexact.push(p)
                 else if (n.startsWith(q)) fstarts.push(p)
-                else if (n.includes(q)) fsub.push(p)
-                else if (d !== "" && d.includes(q)) fname.push(p)
+                else if (n.indexOf(q) !== -1) fsub.push(p)
+                else if (d !== "" && d.indexOf(q) !== -1) fname.push(p)
             }
             return fexact.concat(fstarts, fsub, fname).slice(0, 100)
         }
@@ -1390,10 +1410,10 @@ Scope {
         for (let i = 0; i < base.length; i++) {
             let p = base[i]
             if (!p || !p.name) continue
-            let n = p.name
+            let n = p.nl || ("" + p.name).toLowerCase()
             if (n === q) exact.push(p)
             else if (n.startsWith(q)) starts.push(p)
-            else if (n.includes(q)) sub.push(p)
+            else if (n.indexOf(q) !== -1) sub.push(p)
         }
         return exact.concat(starts, sub).slice(0, 100)
     }
@@ -1475,19 +1495,19 @@ Scope {
         packageOpKernelUpdated = false
         packageOpRunning = true; packageOpActive = true
         clearPackageSelection(); clearSearch()
-        let inner
+        // Direct argv, no shell string and no `script` pty wrapper:
+        // `script` lives in util-linux-script (not installed by default),
+        // so the old ["script", "-qec", ...] never spawned (exit 127) and
+        // nothing installed. Plain pipes give line-based live output.
         {
             let tag = ((m === "flatpak" || m === "flatpakremove") ? " (Flatpak)" : (m === "gaming" ? " (Gaming)" : (m === "browser" ? " (Browser)" : " (DNF)")))
             packageOpAppend(((m === "remove" || m === "flatpakremove") ? "Removing " : "Installing ") + clean.length + " package(s)" + tag + ": " + clean.join(" "))
-            if (m === "remove") inner = "dnf remove -y " + clean.join(" ")
-            else if (m === "gaming" || m === "browser") inner = "dnf install -y " + clean.map(n => curatedSpec(n)).join(" ")
-            else if (m === "flatpak") inner = "flatpak install -y flathub " + clean.join(" ")
-            else if (m === "flatpakremove") inner = "flatpak uninstall -y " + clean.join(" ")
-            else inner = "dnf install -y " + clean.join(" ")
+            if (m === "remove") packageOpProc.command = ["pkexec", "--disable-internal-agent", "dnf", "remove", "-y"].concat(clean)
+            else if (m === "gaming" || m === "browser") packageOpProc.command = ["pkexec", "--disable-internal-agent", "dnf", "install", "-y"].concat(clean.map(n => curatedSpec(n)))
+            else if (m === "flatpak") packageOpProc.command = ["flatpak", "install", "-y", "flathub"].concat(clean)
+            else if (m === "flatpakremove") packageOpProc.command = ["flatpak", "uninstall", "-y"].concat(clean)
+            else packageOpProc.command = ["pkexec", "--disable-internal-agent", "dnf", "install", "-y"].concat(clean)
         }
-        packageOpProc.command = (m === "flatpak" || m === "flatpakremove")
-            ? ["script", "-qec", inner, "/dev/null"]
-            : ["script", "-qec", "pkexec --disable-internal-agent " + inner, "/dev/null"]
         if (!packageOpProc.running) packageOpProc.running = true
         return true
     }
@@ -1631,34 +1651,50 @@ Scope {
     }
     property var filteredApps: {
         if (isInSubmenu) return []
-        let q = _qLower(); if (q === "") return []
-        let words = queryWords()
-        let r = []
+        let q = qLower(); if (q === "") return []
+        let words = queryWordsFor(q)
+        let multi = words.length > 1
+        // _appSearchIndex is already alphabetical, so bucketing preserves
+        // order with no re-sort (the old localeCompare sort over all hits
+        // was the main per-keystroke cost). All comparisons use the
+        // pre-lowered index fields — zero toLowerCase() per keystroke.
+        let exact = [], prefix = [], sub = []
         for (let i = 0; i < _appSearchIndex.length; i++) {
             let row = _appSearchIndex[i]
-            if (matchTier(row.e.name, row.n, q, words) >= 0) r.push(row.e)
+            if (row.nl === q) exact.push(row.e)
+            else if (row.nl.indexOf(q) === 0) prefix.push(row.e)
+            else if (sub.length < 8) {
+                if (multi) {
+                    if (matchesAll(row.n, words) || matchesAll(row.c, words)) sub.push(row.e)
+                } else if (row.n.indexOf(q) !== -1 || row.c.indexOf(q) !== -1) sub.push(row.e)
+            }
+            // Safe early exit: scan is alphabetical, so once 8 top-tier
+            // (exact+prefix) hits are found, later rows can only be
+            // lower-ranked or beyond the 8-cut.
+            if (exact.length + prefix.length >= 8) break
         }
-        // No ranking: plain alphabetical order.
-        r.sort((a, b) => ((a.name || "").toLowerCase()).localeCompare(((b.name || "").toLowerCase())))
-        return r.slice(0, 8)
+        return exact.concat(prefix, sub).slice(0, 8)
     }
     // Best-first section order for top-level search: the section containing
     // the best-matching item comes first (ties keep apps/menu/categories).
+    // All inputs here are already-filtered tiny lists (<=8 apps, <=7 menus,
+    // <=~30 categories), so per-keystroke cost is negligible.
     property var searchGroupOrder: {
         let q = qLower(); if (q === "") return ["apps", "menu", "cats"]
-        let words = queryWords()
+        let words = queryWordsFor(q)
+        let apps = filteredApps, menus = filteredMenu, flats = flattenedCategoryOptions
         function best(items, getTitle): int {
             let b = 99
             for (let i = 0; i < items.length; i++) {
                 let t = matchTier(getTitle(items[i]), getTitle(items[i]), q, words)
-                if (t >= 0 && t < b) b = t
+                if (t >= 0 && t < b) { b = t; if (b === 0) break }
             }
             return b
         }
         let s = [
-            { k: "apps", s: best(filteredApps, e => (e.name || "")), n: filteredApps.length },
-            { k: "menu", s: best(filteredMenu, m => (m.title || "")), n: filteredMenu.length },
-            { k: "cats", s: best(flattenedCategoryOptions, f => (f.entry.title || "")), n: categoryOptionsCount }
+            { k: "apps", s: best(apps, e => (e.name || "")), n: apps.length },
+            { k: "menu", s: best(menus, m => (m.title || "")), n: menus.length },
+            { k: "cats", s: best(flats, f => (f.entry.title || "")), n: flats.length }
         ]
         let rank = { apps: 0, menu: 1, cats: 2 }
         s.sort((a, b) => (a.s - b.s) || (rank[a.k] - rank[b.k]))
@@ -1711,7 +1747,7 @@ Scope {
     }
 
     function runProc(p) { if (p && !p.running) p.running = true }
-    function openAbout() { Quickshell.execDetached(["bash", "-c", "kitty --class about-fastfetch --title About bash -c 'fastfetch; sleep 0.5; read -n1 -s' &"]) }
+    function openAbout() { Quickshell.execDetached(["bash", "-c", "kitty -o initial_window_width=113c -o initial_window_height=29c --class about-fastfetch --title About bash -c 'fastfetch; sleep 0.5; read -n1 -s' &"]) }
     // Session actions must use execDetached (not Process.running) because the
     // menu Loader is destroyed on dismissed(), which would kill a freshly
     // started Process before it can exec.

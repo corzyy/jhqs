@@ -13,6 +13,14 @@ import "./modules/panels" as Panels
 ShellRoot {
     id: root
 
+    // LOGGING: persist every runtime error/warning to logs/errors.log
+    // while the shell is running (services/LogService.qml).
+    QtObject { Component.onCompleted: LogService.start() }
+    Connections {
+        target: Quickshell
+        function onReloadFailed(errorString) { LogService.record("error", errorString, "reload") }
+    }
+
     Process {
         id: wallpaperGuardProc
         command: ["bash", "-c", "echo"]
@@ -145,6 +153,16 @@ ShellRoot {
         activePanel = (activePanel === p) ? panel.none : p
     }
 
+    function toggleMenuCentered(): void {
+        menuCentered = true
+        toggleExclusive(panel.menu)
+    }
+
+    function toggleMenuAtBar(): void {
+        menuCentered = false
+        toggleExclusive(panel.menu)
+    }
+
     function openSystem(): void {
         menuCentered = true
         openPanel(panel.menu)
@@ -175,7 +193,7 @@ ShellRoot {
         trayOpen: root.systemTrayVisible
         updatesOpen: root.updatesVisible
 
-        onToggleMenu: root.toggleMenuAtBar()
+        onToggleMenu: root.toggleMenuCentered()
         onToggleCalendar: root.toggleExclusive(panel.calendar)
         onToggleWeather: root.toggleExclusive(panel.weather)
         onToggleNetwork: root.toggleExclusive(panel.network)
