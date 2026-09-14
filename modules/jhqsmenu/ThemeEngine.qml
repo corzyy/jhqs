@@ -92,6 +92,39 @@ Item {
         try { return currentWallpaperFile.text().trim() } catch(e) { return "" }
     }
 
+    // Per-theme wallpaper memory: the wallpaper/monet engine and every color
+    // preset remember the last wallpaper they were used with, so switching
+    // themes restores the wallpaper belonging to that theme.
+    FileView {
+        id: themeWallpapersFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/themes/theme_wallpapers.json"
+        blockLoading: true; printErrors: false
+        adapter: JsonAdapter { property var wallpapers: ({}) }
+    }
+    function wallpaperForTheme(id: string): string {
+        try {
+            if (!id || id.length === 0) return ""
+            let map = themeWallpapersFile.adapter.wallpapers
+            if (map && typeof map === "object" && typeof map[id] === "string") return map[id]
+        } catch (e) { }
+        return ""
+    }
+    function rememberWallpaper(id: string, path: string) {
+        if (!id || !path || path.length === 0) return
+        if (path.indexOf("\n") >= 0 || path.indexOf("\r") >= 0) return
+        try {
+            let map = themeWallpapersFile.adapter.wallpapers
+            let obj = {}
+            if (map && typeof map === "object") { for (let k in map) obj[k] = map[k] }
+            if (obj[id] === path) return
+            obj[id] = path
+            themeWallpapersFile.adapter.wallpapers = obj
+            themeWallpapersFile.writeAdapter()
+        } catch (e) { }
+    }
+    // Emitted when a theme switch should also change the displayed wallpaper.
+    signal wallpaperDisplayRequested(string path)
+
     Timer {
         id: themeEngineApplyTimer
         interval: 950; running: true; repeat: false
@@ -125,10 +158,13 @@ Item {
         matugenSettingsFile.adapter.mode = mode
         matugenSettingsFile.writeAdapter()
         if (currentEngine !== "wallpaper") {
-            themeEngineFile.adapter.engine = "wallpaper"
-            themeEngineFile.writeAdapter()
+            // Switching from a preset to the wallpaper engine: run the normal
+            // theme switch so the wallpaper engine's remembered wallpaper is
+            // restored together with the new scheme.
+            setThemeEngine("wallpaper")
+        } else {
+            enqueueThemeApply("monetCurrent")
         }
-        enqueueThemeApply("monetCurrent")
     }
 
     function matugenBin(): string {
@@ -202,16 +238,23 @@ Item {
     function setThemeEngine(id: string) {
         let nid = "wallpaper"
         if (id === "everforest" || id === "tokyonight" || id === "petrichor" || id === "monochrome" || id === "catppuccin" || id === "gruvbox") nid = id
+        // Remember the wallpaper of the theme we are leaving, then restore the
+        // one the target theme was last used with (empty => keep current).
+        let outgoing = currentEngine
+        let current = currentWallpaperText()
+        if (current !== "") rememberWallpaper(outgoing, current)
+        let targetWall = wallpaperForTheme(nid)
         if (themeEngineFile.adapter.engine === nid) {
-            applyEngine(nid)
-            return
+            applyEngine(nid, targetWall)
+        } else {
+            themeEngineFile.adapter.engine = nid
+            themeEngineFile.writeAdapter()
+            applyEngine(nid, targetWall)
         }
-        themeEngineFile.adapter.engine = nid
-        themeEngineFile.writeAdapter()
-        applyEngine(nid)
+        if (targetWall !== "" && targetWall !== current) wallpaperDisplayRequested(targetWall)
     }
-    function applyEngine(nid: string) {
-        if (nid === "wallpaper") applyThemeFromWallpaper("", "")
+    function applyEngine(nid: string, wallpaper: string) {
+        if (nid === "wallpaper") applyThemeFromWallpaper(wallpaper, "")
         else applyPreset(nid)
     }
 

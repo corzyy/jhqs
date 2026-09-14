@@ -197,6 +197,7 @@ Scope {
                     lines = lines.slice(1)
                 }
                 jhqsMenuScope.wallpaperFiles = lines
+                jhqsMenuScope.ensureThemeWallpapers()
             }
         }
     }
@@ -774,6 +775,10 @@ Scope {
         if (!installNotifyProc.running) installNotifyProc.running = true
     }
     JHQ.ThemeEngine { id: themeEngine }
+    Connections {
+        target: themeEngine
+        function onWallpaperDisplayRequested(path) { jhqsMenuScope.setWallpaperDisplay(path) }
+    }
     // No debounce timer: wallpaper clicks apply immediately. Coalescing of
     // rapid clicks happens in ThemeEngine.enqueueThemeApply (a busy worker
     // keeps only the latest pending path, intermediate ones are skipped).
@@ -784,7 +789,14 @@ Scope {
     readonly property string monetType: themeEngine.monetType
     readonly property string monetMode: themeEngine.monetMode
     function applyMonetScheme(type, mode) { themeEngine.applyMonetScheme(type, mode) }
-    function setThemeEngine(id) { themeEngine.setThemeEngine(id) }
+    function setThemeEngine(id) {
+        // No remembered wallpaper for this theme yet => fall back to its first.
+        if (themeEngine.wallpaperForTheme(id) === "") {
+            let first = firstWallpaperForTheme(id)
+            if (first !== "") themeEngine.rememberWallpaper(id, first)
+        }
+        themeEngine.setThemeEngine(id)
+    }
 
     function syncQueryInput(txt) {
         try { if (queryInputRef) queryInputRef.text = txt } catch(e) { }
@@ -1049,6 +1061,39 @@ Scope {
             }
         } catch(e) { }
         return out
+    }
+    // First wallpaper belonging to a theme, using the same folder rules as
+    // engineWallpapers (root files count for every theme, "nonthemed" only
+    // for the wallpaper/monet engine).
+    function firstWallpaperForTheme(id) {
+        try {
+            let eng = normThemeName(id)
+            for (let i = 0; i < wallpaperFiles.length; i++) {
+                let p = wallpaperFiles[i]
+                let folder = wallpaperThemeFolder(p)
+                if (folder === "") return p
+                let n = normThemeName(folder)
+                if (n === "") continue
+                if (n === "nonthemed" && eng !== "wallpaper") continue
+                if (eng === "wallpaper" || n === eng) return p
+            }
+        } catch (e) { }
+        return ""
+    }
+    // Seed every theme that has no remembered wallpaper with the first
+    // wallpaper of its folder, so switching themes always lands on one.
+    function ensureThemeWallpapers() {
+        if (!wallpaperFiles || wallpaperFiles.length === 0) return
+        let ids = themeOptions || []
+        for (let i = 0; i < ids.length; i++) {
+            let id = ids[i] && ids[i].id
+            if (!id) continue
+            if (themeEngine.wallpaperForTheme(id) !== "") continue
+            // The active theme keeps whatever wallpaper is on screen; the
+            // remaining themes start with the first wallpaper of their folder.
+            let seed = (id === currentEngine) ? themeEngine.currentWallpaperText() : firstWallpaperForTheme(id)
+            if (seed !== "") themeEngine.rememberWallpaper(id, seed)
+        }
     }
 
     property var filteredWallpapers: {
@@ -1499,6 +1544,7 @@ Scope {
     }
     function setWallpaper(path, preview) {
         if (!setWallpaperDisplay(path)) return
+        themeEngine.rememberWallpaper(currentEngine, path)
         if (currentEngine === "wallpaper") {
             themeEngine.applyMonetFromPath(path)
         }
