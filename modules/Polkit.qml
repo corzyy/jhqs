@@ -42,18 +42,33 @@ Scope {
     }
     Timer {
         id: agentWatchdog
-        // STABILITY: back off after 3 failed re-registers (was D-Bus
-        // re-register loop every 8s forever, spamming the bus + logs).
+        // STABILITY: bounded retries. If another polkit agent (GNOME/KDE/
+        // hyprpolkitagent, a second shell instance, …) already owns the
+        // session, registration fails permanently with "An authentication
+        // agent already exists for the given subject". Retrying forever only
+        // spams the journal. We back off and stop, and can be re-armed with
+        // `quickshell ipc -c jhqs call polkit retry`.
         property int failures: 0
+        readonly property int maxFailures: 5
         interval: failures >= 3 ? 30000 : 8000
-        repeat: true; running: !polkitScope.agentRegistered && !polkitScope.agentActive
+        repeat: true
+        running: !polkitScope.agentRegistered && !polkitScope.agentActive && failures < maxFailures
         onTriggered: {
             try { Theme.setPolkitReady(polkitScope.agentRegistered) } catch (e) { }
             if (polkitScope.agentRegistered || polkitScope.agentActive) { failures = 0; return }
             failures++
-            console.log("[jhqs][polkit] no agent registered — retrying listener registration")
+            if (failures >= maxFailures) {
+                console.log("[jhqs][polkit] giving up after " + failures + " attempts — another authentication agent is likely already registered")
+                return
+            }
+            console.log("[jhqs][polkit] no agent registered — retrying listener registration (" + failures + "/" + maxFailures + ")")
             polkitScope.recreateAgent()
         }
+    }
+    function retryAgent(): void {
+        agentWatchdog.failures = 0
+        recreateAgent()
+        agentWatchdog.restart()
     }
 
     property var flow: agentObj ? agentObj.flow : null
@@ -127,7 +142,7 @@ Scope {
     IpcHandler {
         target: "polkit"
         function status(): string {
-            if (!polkitScope.agentRegistered) return "agent not registered (watchdog retries every 8s; path=" + polkitScope.agentPath + ")"
+            if (!polkitScope.agentRegistered) return "agent not registered (attempts=" + agentWatchdog.failures + "/" + agentWatchdog.maxFailures + "; path=" + polkitScope.agentPath + ")"
             if (!polkitScope.agentActive || !flow) return "idle registered=" + polkitScope.agentRegistered + " active=" + polkitScope.agentActive
             let s = "active action=" + (flow.actionId || "?") + " msg=" + (flow.message || "").substring(0,60)
             s += " prompt=" + (flow.inputPrompt || "") + " needResponse=" + flow.isResponseRequired + " visible=" + flow.responseVisible
@@ -147,6 +162,7 @@ Scope {
             return s
         }
         function cancel(): string { if (flow) flow.cancelAuthenticationRequest(); return "cancel sent" }
+        function retry(): string { polkitScope.retryAgent(); return "polkit agent re-register requested" }
         function trigger(): string { return "run: ~/.config/quickshell/jhqs/scripts/test-polkit.sh  or  pkexec --disable-internal-agent id" }
     }
 
@@ -311,7 +327,7 @@ Scope {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                     Layout.fillWidth: true
-                                    text: "Authentifizierung erforderlich"
+                                    text: "Authentication required"
                                     color: Theme.textPrimary
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fs(13)
@@ -506,7 +522,7 @@ Scope {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                                 visible: polkitScope.flow && polkitScope.flow.identities && polkitScope.flow.identities[0] && polkitScope.flow.identities[0].isGroup
-                                text: "(Gruppe)"
+                                text: "(Group)"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fs(10)
                                 color: Theme.textMuted
@@ -684,7 +700,7 @@ Scope {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                     anchors.centerIn: parent
-                                    text: "Authentifizieren"
+                                    text: "Authenticate"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fs(11)
                                     font.weight: Font.Medium
