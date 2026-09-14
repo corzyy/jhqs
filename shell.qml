@@ -175,7 +175,7 @@ ShellRoot {
         trayOpen: root.systemTrayVisible
         updatesOpen: root.updatesVisible
 
-        onToggleMenu: { root.menuCentered = true; root.toggleExclusive(panel.menu) }
+        onToggleMenu: root.toggleMenuAtBar()
         onToggleCalendar: root.toggleExclusive(panel.calendar)
         onToggleWeather: root.toggleExclusive(panel.weather)
         onToggleNetwork: root.toggleExclusive(panel.network)

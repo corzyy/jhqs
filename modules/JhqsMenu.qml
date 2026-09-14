@@ -1679,7 +1679,7 @@ Scope {
                 Quickshell.execDetached(["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1 || loginctl lock-session >/dev/null 2>&1 || true"])
                 return true
             } else if (title === "Abmelden") {
-                Quickshell.execDetached(["bash", "-c", "mmsg -q >/dev/null 2>&1 || uwsm stop >/dev/null 2>&1 || loginctl terminate-user \"$USER\" >/dev/null 2>&1 || true"])
+                Quickshell.execDetached(["bash", "-c", "mmsg dispatch quit >/dev/null 2>&1; loginctl terminate-user \"$USER\" >/dev/null 2>&1 || true"])
                 return true
             } else if (title === "Ruhezustand") {
                 Quickshell.execDetached(["bash", "-c", "systemctl suspend >/dev/null 2>&1 || loginctl suspend >/dev/null 2>&1 || true"])

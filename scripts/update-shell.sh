@@ -105,7 +105,7 @@ if [[ -d "$KEEP/themes/snapshots" ]]; then
     cp -a "$KEEP/themes/snapshots" "$DEST/themes/snapshots"
 fi
 
-chmod +x "$DEST/scripts/"*.sh 2>/dev/null || true
+chmod +x "$DEST/scripts/"*.sh "$DEST/scripts/jhqs" 2>/dev/null || true
 
 # Restart the shell so the new files take effect immediately.
 # Skipped for test installs (JHQS_DEST) unless explicitly allowed.

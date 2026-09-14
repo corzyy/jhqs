@@ -13,8 +13,8 @@ Scope {
     property string pinInput: ""
     property bool failed: false
     property string errorText: ""
-    property int lockGen: 0
-    property bool hasScreenshot: false
+    property string wallpaperPath: ""
+    readonly property string wallpaperSource: wallpaperPath !== "" ? "file://" + wallpaperPath : ""
 
     signal unlocked()
     signal lockRequested()
@@ -24,19 +24,18 @@ Scope {
         pinInput = ""
         failed = false
         errorText = ""
-        lockGen++
-        hasScreenshot = false
-        if (!grimProc.running) grimProc.running = true
-        else hasScreenshot = true
+        refreshWallpaper()
+        locked = true
     }
     function unlock(): void {
         locked = false
         pinInput = ""
         failed = false
         errorText = ""
-        hasScreenshot = false
-        if (!cleanupProc.running) cleanupProc.running = true
         unlocked()
+    }
+    function refreshWallpaper(): void {
+        if (!wallpaperResolveProc.running) wallpaperResolveProc.running = true
     }
     function submitPin(): void {
         if (pinInput.length === 0) return
@@ -47,25 +46,14 @@ Scope {
     }
 
     Process {
-        id: cleanupProc
-        command: ["bash", "-c", "rm -f /tmp/quickshell-lock-*.png &"]
-    }
-    Process {
-        id: grimProc
-        command: ["bash", "-c", "rm -f /tmp/quickshell-lock-*.png; mons=$(mmsg get all-monitors 2>/dev/null | jq -r '.monitors[]?.name' 2>/dev/null); if [ -z \"$mons\" ]; then mons=\"DP-1\"; fi; for mon in $mons; do grim -o \"$mon\" \"/tmp/quickshell-lock-${mon}.png\" 2>/dev/null || grim \"/tmp/quickshell-lock-${mon}.png\" 2>/dev/null || true; done; grim /tmp/quickshell-lock-fallback.png 2>/dev/null || true; echo done"]
+        id: wallpaperResolveProc
+        command: ["bash", "-c", "for f in \"$(cat ~/.config/quickshell/jhqs/config/current_wallpaper.txt 2>/dev/null)\" \"$(cat ~/.cache/swaybg/current 2>/dev/null)\" \"$(cat ~/.cache/awww/current 2>/dev/null)\"; do f=\"${f#file://}\"; if [ -n \"$f\" ] && [ -f \"$f\" ]; then printf '%s' \"$f\"; exit 0; fi; done"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                lockScope.hasScreenshot = true
-                lockScope.locked = true
-            }
-        }
-        onExited: (code) => {
-            if (!lockScope.locked) {
-                lockScope.hasScreenshot = true
-                lockScope.locked = true
-            }
+            waitForEnd: true
+            onStreamFinished: lockScope.wallpaperPath = String(text || "").trim()
         }
     }
+    Component.onCompleted: refreshWallpaper()
 
     Process {
         id: authProc
@@ -116,7 +104,7 @@ Scope {
                     id: bgImage
                     anchors.fill: parent
                     anchors.margins: -64
-                    source: lockScope.locked && lockScope.hasScreenshot ? "file:///tmp/quickshell-lock-" + modelData.name + ".png" : ""
+                    source: lockScope.wallpaperSource
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: false
@@ -124,41 +112,6 @@ Scope {
                     sourceSize.height: 540
                     scale: lockScope.locked ? 1.0 : 1.06
                     opacity: lockScope.locked ? 1 : 0.85
-                    // PERF: blur only while locked AND decoded (was live
-                    // fullscreen blur pass per screen while locked).
-                    layer.enabled: lockScope.locked && status === Image.Ready
-                    layer.effect: MultiEffect {
-                        blurEnabled: true
-                        blur: 0.6
-                        blurMax: 8
-                        autoPaddingEnabled: true
-                    }
-                    onStatusChanged: {
-                        if (status === Image.Error) {
-                            let fb = "file:///tmp/quickshell-lock-fallback.png"
-                            if (source !== fb && source !== "") {
-                                source = fb
-                            }
-                        }
-                    }
-                }
-                Connections {
-                    target: lockScope
-                    function onLockedChanged() {
-                        if (lockScope.locked && lockScope.hasScreenshot) {
-                            let src = "file:///tmp/quickshell-lock-" + modelData.name + ".png"
-                            bgImage.source = ""
-                            Qt.callLater(() => bgImage.source = src)
-                        } else if (!lockScope.locked) {
-                            bgImage.source = ""
-                        }
-                    }
-                    function onHasScreenshotChanged() {
-                        if (lockScope.locked && lockScope.hasScreenshot) {
-                            let src = "file:///tmp/quickshell-lock-" + modelData.name + ".png"
-                            bgImage.source = src
-                        }
-                    }
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa

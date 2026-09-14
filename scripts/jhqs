@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# jhqs — command-line control for the jhqs quickshell.
+set -u
+
+QS_BIN="${JHQS_QS:-}"
+if [[ -z "$QS_BIN" ]]; then
+    if command -v quickshell >/dev/null 2>&1; then
+        QS_BIN=quickshell
+    elif command -v qs >/dev/null 2>&1; then
+        QS_BIN=qs
+    else
+        echo "jhqs: quickshell binary not found (set JHQS_QS)" >&2
+        exit 127
+    fi
+fi
+INSTANCE="${JHQS_INSTANCE:-jhqs}"
+
+call() {
+    local target="$1" func="$2"
+    shift 2
+    "$QS_BIN" ipc -c "$INSTANCE" call "$target" "$func" "$@" 2>&1
+}
+
+is_running() {
+    "$QS_BIN" list -c "$INSTANCE" 2>/dev/null | grep -q "Process ID"
+}
+
+module_call() {
+    local module="$1" action="$2" extra="${3:-}"
+    case "$module" in
+        launcher)
+            case "$action" in
+                toggle) call jhqs toggleMenu ;;
+                open)   call jhqs showMenu ;;
+                close)  call jhqs hideMenu ;;
+            esac ;;
+        calendar)
+            case "$action" in
+                toggle) call jhqs toggleCalendar ;;
+                open)   call jhqs showCalendar ;;
+                close)  call jhqs hideCalendar ;;
+            esac ;;
+        weather)
+            case "$action" in
+                toggle) call jhqs toggleWeather ;;
+                open)   call jhqs showWeather ;;
+                close)  call jhqs hideWeather ;;
+            esac ;;
+        network)
+            case "$action" in
+                toggle) call jhqs toggleNetwork ;;
+                open)   call jhqs showNetwork ;;
+                close)  call jhqs hideNetwork ;;
+            esac ;;
+        volume)
+            case "$action" in
+                toggle) call jhqs toggleVolume ;;
+                open)   call jhqs showVolume ;;
+                close)  call jhqs hideVolume ;;
+            esac ;;
+        bluetooth)
+            case "$action" in
+                toggle) call jhqs toggleBluetooth ;;
+                open)   call jhqs showBluetooth ;;
+                close)  call jhqs hideBluetooth ;;
+            esac ;;
+        vitals)
+            case "$action" in
+                toggle) call jhqs toggleVitals ;;
+                open)   call jhqs showVitals ;;
+                close)  call jhqs hideVitals ;;
+            esac ;;
+        systemtray)
+            case "$action" in
+                toggle) call jhqs toggleSystemTray ;;
+                open)   call jhqs showSystemTray ;;
+                close)  call jhqs hideSystemTray ;;
+            esac ;;
+        updates)
+            case "$action" in
+                toggle) call jhqs toggleUpdates ;;
+                open)   call jhqs openUpdates ;;
+                close)  call jhqs hideMenu ;;
+            esac ;;
+        settings)
+            case "$action" in
+                toggle) call jhqs toggleSettings ;;
+                open)   call jhqs showSettings "${extra:-global}" ;;
+                close)  call jhqs hideSettings ;;
+            esac ;;
+        system)
+            case "$action" in
+                toggle) call jhqs toggleSystem ;;
+                open)   call jhqs openSystem ;;
+                close)  call jhqs hideMenu ;;
+            esac ;;
+        *)
+            echo "jhqs: unknown module '$module'" >&2
+            echo "modules: $MODULES" >&2
+            exit 2 ;;
+    esac
+}
+
+MODULES="launcher calendar weather network volume bluetooth vitals systemtray updates settings system"
+
+usage() {
+    cat <<EOF
+jhqs — control the jhqs quickshell from the terminal or a keybind.
+
+Usage: jhqs <command> [args...]
+
+Lifecycle:
+  start                       Start the shell (daemonized)
+  stop                        Stop the shell
+  reload                      Reload the shell config (starts it if stopped)
+  state                       Print open/closed state of every panel
+  lock                        Show the lockscreen
+
+Panels:
+  module <name> <action>      action: toggle | open | close
+  module settings open <section>   sections: global mango bar vitals
+                                   workspaces calendar notif
+  Modules: $MODULES
+
+Raw:
+  call <target> <func> [args...]      Direct IPC call
+  targets                             List IPC targets and functions
+  help | -h | --help                  This help
+
+Environment:
+  JHQS_QS         quickshell binary (default: quickshell, else qs)
+  JHQS_INSTANCE   IPC instance name (default: jhqs)
+EOF
+}
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+    start)
+        if is_running; then
+            echo "jhqs: already running"
+        else
+            "$QS_BIN" -d -c "$INSTANCE" >/dev/null 2>&1
+            echo "jhqs: started"
+        fi ;;
+    stop)
+        if is_running; then
+            "$QS_BIN" kill -c "$INSTANCE" >/dev/null 2>&1
+            echo "jhqs: stopped"
+        else
+            echo "jhqs: not running"
+        fi ;;
+    reload)
+        if is_running; then
+            call jhqs reload
+        else
+            "$QS_BIN" -d -c "$INSTANCE" >/dev/null 2>&1
+            echo "jhqs: started"
+        fi ;;
+    state)
+        if is_running; then call jhqs state; else echo "jhqs: not running"; fi ;;
+    lock)
+        if is_running; then
+            call lockscreen lock
+        else
+            loginctl lock-session >/dev/null 2>&1 || echo "jhqs: not running" >&2
+        fi ;;
+
+    module)
+        [[ $# -ge 1 ]] || { echo "jhqs: module <name> <toggle|open|close>" >&2; exit 2; }
+        module_call "$1" "${2:-toggle}" "${3:-}" ;;
+
+    call)    call "$@" ;;
+    targets) "$QS_BIN" ipc -c "$INSTANCE" show 2>&1 ;;
+    help|-h|--help|"") usage ;;
+    *)
+        echo "jhqs: unknown command '$cmd'" >&2
+        echo "Run 'jhqs help'." >&2
+        exit 2 ;;
+esac
