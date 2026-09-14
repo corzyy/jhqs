@@ -20,7 +20,7 @@ Item {
     readonly property int navCount: bodyRoot.scope.filteredKeybinds.length
     readonly property string updatedAt: bodyRoot.scope.keybindUpdated
     readonly property string countLabel: {
-        if (root.isLoading && root.navCount === 0) return "Lade Keybinds…"
+        if (root.isLoading && root.navCount === 0) return "Loading keybinds…"
         let n = root.navCount
         let base = n === 0 ? "Keybinds" : n + (n === 1 ? " Shortcut" : " Shortcuts")
         if (root.updatedAt !== "") base += " • " + root.updatedAt
@@ -69,7 +69,7 @@ Item {
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                text: root.isLoading ? "…" : "󰑓 Neu laden"
+                text: root.isLoading ? "…" : "󰑓 Reload"
                 color: reloadMouse.containsMouse && !root.isLoading ? Theme.textPrimary : Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fs(10)
@@ -239,7 +239,7 @@ Item {
                     renderType: Theme.textRenderType
                 }
                 Text {
-                    text: root.isLoading ? "Lade Keybinds…" : "Keine Treffer"
+                    text: root.isLoading ? "Loading keybinds…" : "No results"
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(13)
@@ -250,7 +250,7 @@ Item {
                 }
                 Text {
                     visible: !root.isLoading
-                    text: "Versuche einen anderen Suchbegriff"
+                    text: "Try a different search term"
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(11)

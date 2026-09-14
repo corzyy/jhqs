@@ -200,8 +200,8 @@ Item {
         // GTK settings.ini/css catch-up runs detached: the serial proc
         // returns as soon as matugen is done (~0.3s).
         cmd += " (bash \"$HOME/.config/quickshell/jhqs/scripts/apply-gtk.sh\" \"$MODE\" 2>&1 | logger -t gtk) >/dev/null 2>&1 < /dev/null &"
-        cmd += " notify-send -u low \"Monet\" \"Farbschema $TYPE • $MODE\" 2>/dev/null || true;"
-        cmd += " else echo \"[ThemeEngine] no wallpaper found, Monet skipped\" | logger -t monet; notify-send -u critical \"Monet\" \"Kein Wallpaper gefunden — Farben unverändert\" 2>/dev/null || true; fi; echo done"
+        cmd += " notify-send -u low \"Monet\" \"Color scheme $TYPE • $MODE\" 2>/dev/null || true;"
+        cmd += " else echo \"[ThemeEngine] no wallpaper found, Monet skipped\" | logger -t monet; notify-send -u critical \"Monet\" \"No wallpaper found — colors unchanged\" 2>/dev/null || true; fi; echo done"
         if (themeSerialProc.running) { _pendingSpec = "monet:" + wall; return }
         themeSerialProc.command = ["bash", "-c", cmd, "jhqs-monet", wall, type, mode]
         themeSerialProc.running = true

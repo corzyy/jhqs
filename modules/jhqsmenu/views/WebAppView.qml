@@ -140,7 +140,7 @@ Item {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
-                    text: root.isInstall ? "Web App installieren" : "Web App entfernen"
+                    text: root.isInstall ? "Install Web App" : "Remove Web App"
                     color: Theme.textPrimary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Bold
                     elide: Text.ElideRight
                 }
@@ -148,7 +148,7 @@ Item {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
-                    text: (root.isInstall ? "Chromium --app Launcher (.desktop) erstellen" : (bodyRoot.scope.webAppLoading ? "Lade Web Apps…" : bodyRoot.scope.webAppList.length + (bodyRoot.scope.webAppList.length === 1 ? " Web App" : " Web Apps") + " — tippen zum Filtern")).toUpperCase()
+                    text: (root.isInstall ? "Create Chromium --app launcher (.desktop)" : (bodyRoot.scope.webAppLoading ? "Loading web apps…" : bodyRoot.scope.webAppList.length + (bodyRoot.scope.webAppList.length === 1 ? " Web App" : " Web Apps") + " — type to filter")).toUpperCase()
                     color: Theme.textSecondary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold
                     font.letterSpacing: 1.2
                     elide: Text.ElideRight
@@ -238,7 +238,7 @@ Item {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
                 visible: urlInput.text.length === 0 && !urlInput.activeFocus
-                text: "https://… (https:// wird ergänzt)"
+                text: "https://… (https:// will be added)"
                 color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
                 Layout.leftMargin: 42; Layout.topMargin: -32; Layout.bottomMargin: 12
             }
@@ -276,7 +276,7 @@ Item {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
                 visible: iconInput.text.length === 0 && !iconInput.activeFocus
-                text: "Leer = Icon automatisch holen · sonst PNG-URL, Datei oder Icon-Name"
+                text: "Empty = fetch icon automatically · otherwise PNG URL, file or icon name"
                 color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); opacity: 0.7
                 Layout.leftMargin: 42; Layout.topMargin: -32; Layout.bottomMargin: 12
             }
@@ -368,7 +368,7 @@ Item {
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                             anchors.centerIn: parent
-                            text: "Entfernen"
+                            text: "Remove"
                             font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10)
                             color: delMouse.containsMouse ? Theme.onAccent : Theme.textSecondary
                         }
@@ -395,7 +395,7 @@ Item {
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: bodyRoot.scope.webAppLoading ? "Lade Web Apps…" : (bodyRoot.scope.filterText.length > 0 ? "Keine Treffer" : "Keine Web Apps installiert")
+                    text: bodyRoot.scope.webAppLoading ? "Loading web apps…" : (bodyRoot.scope.filterText.length > 0 ? "No results" : "No web apps installed")
                     color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
                 }
             }
@@ -467,7 +467,7 @@ Item {
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
                     elide: Text.ElideRight
-                    text: root.isInstall ? (root.busy ? "Installiere…" : "Enter: installieren · Tab: Feld wechseln") : (bodyRoot.scope.filteredWebApps.length + " Web Apps · Enter: entfernen")
+                    text: root.isInstall ? (root.busy ? "Installing…" : "Enter: install · Tab: switch field") : (bodyRoot.scope.filteredWebApps.length + " Web Apps · Enter: remove")
                     font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
                     color: Theme.textMuted
                 }
@@ -496,7 +496,7 @@ Item {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                         id: primaryLabel; anchors.centerIn: parent
-                        text: root.busy ? "Arbeite…" : (root.isInstall ? "Installieren" : "Entfernen")
+                        text: root.busy ? "Working…" : (root.isInstall ? "Install" : "Remove")
                         font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium; color: Theme.onAccent
                     }
                     MouseArea {

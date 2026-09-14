@@ -7,17 +7,17 @@ STATUS=$(quickshell ipc -c jhqs call polkit status 2>&1 || echo "  (quickshell n
 echo "  $STATUS"
 echo ""
 if echo "$STATUS" | grep -qi "not registered"; then
-    echo "[test] ✗ Kein Agent registriert — Dialog kann nicht erscheinen."
-    echo "      1) Shell neu starten (Agent meldet sich beim Start + per Watchdog alle 8s an)."
-    echo "      2) Falls dauerhaft (polkitd hält einen toten Eintrag):"
-    echo "         sudo systemctl restart polkit   # EINMALIG, dann Shell neu starten"
+    echo "[test] ✗ No agent registered — dialog cannot appear."
+    echo "      1) Restart the shell (the agent registers on start and via watchdog every 8s)."
+    echo "      2) If it persists (polkitd holds a dead entry):"
+    echo "         sudo systemctl restart polkit   # ONCE, then restart the shell"
     exit 3
 fi
 
 if command -v pkexec >/dev/null 2>&1; then
     echo "-> Triggering: pkexec --disable-internal-agent bash -c 'echo SUCCESS; id; sleep 1'"
     echo "   -> Dialog should appear centered on DP-1 (Theme.bg, radius 24, Themed)."
-    echo "   -> Enter your user password. Cancel with Esc or Abbrechen."
+    echo "   -> Enter your user password. Cancel with Esc or the Cancel button."
     echo ""
     set +e
     pkexec --disable-internal-agent bash -c 'echo ""; echo "[polkit] ✓ SUCCESS — authenticated"; echo "user=$(whoami) uid=$(id -u)"; id; echo ""; sleep 1'

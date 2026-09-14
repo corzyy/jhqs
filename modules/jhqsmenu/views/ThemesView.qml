@@ -232,7 +232,7 @@ Item {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    Text { text: "Keine Treffer"; color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); width: parent.width; horizontalAlignment: Text.AlignHCenter
+                    Text { text: "No results"; color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(13); width: parent.width; horizontalAlignment: Text.AlignHCenter
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
@@ -335,7 +335,7 @@ Item {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    Text { text: bodyRoot.scope.monetMode === "dark" ? "Dunkel" : "Hell"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textMuted; Layout.preferredWidth: 52; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
+                    Text { text: bodyRoot.scope.monetMode === "dark" ? "Dark" : "Light"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textMuted; Layout.preferredWidth: 52; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }

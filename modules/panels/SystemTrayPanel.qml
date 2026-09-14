@@ -152,7 +152,7 @@ Scope {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                                 Layout.fillWidth: true
-                                text: "Angeheftet bleibt sichtbar · Versteckt nie"
+                                text: "Pinned stays visible · never hidden"
                                 font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
                                 color: Theme.textSecondary
                                 elide: Text.ElideRight
@@ -165,7 +165,7 @@ Scope {
                             Layout.fillWidth: true
                             horizontalAlignment: Text.AlignHCenter
                             topPadding: 12
-                            text: "Keine Tray-Icons aktiv"
+                            text: "No tray icons active"
                             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.italic: true
                             color: Theme.textMuted
                         }

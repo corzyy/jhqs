@@ -105,7 +105,7 @@ Item {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
-            Text { text: bodyRoot.scope.filterText.length > 0 ? "Keine Treffer" : "Keine Apps"; color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
+            Text { text: bodyRoot.scope.filterText.length > 0 ? "No results" : "No apps"; color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
@@ -166,7 +166,7 @@ Item {
                     RowLayout { anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8; Text { text: "↗"; font.pixelSize: Theme.fs(12); color: Theme.textMuted
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
-                        } Text { text: "Öffnen"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: root.contextMenuSelectedIndex === 0 ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true
+                        } Text { text: "Open"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: root.contextMenuSelectedIndex === 0 ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                         } }

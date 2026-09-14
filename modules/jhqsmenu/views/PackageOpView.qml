@@ -19,7 +19,7 @@ Item {
 
     readonly property bool isRemove: bodyRoot.scope.packageOpMode === "remove" || bodyRoot.scope.packageOpMode === "flatpakremove"
     readonly property bool isFlatpak: bodyRoot.scope.packageOpMode === "flatpak" || bodyRoot.scope.packageOpMode === "flatpakremove"
-    readonly property string opTitle: (root.isRemove ? "Entferne " : "Installiere ") + bodyRoot.scope.packageOpPkgs.length + (bodyRoot.scope.packageOpPkgs.length === 1 ? (root.isFlatpak ? " Flatpak" : " Paket") : (root.isFlatpak ? " Flatpaks" : " Pakete"))
+    readonly property string opTitle: (root.isRemove ? "Removing " : "Installing ") + bodyRoot.scope.packageOpPkgs.length + (bodyRoot.scope.packageOpPkgs.length === 1 ? (root.isFlatpak ? " Flatpak" : " Package") : (root.isFlatpak ? " Flatpaks" : " Packages"))
     readonly property bool running: bodyRoot.scope.packageOpRunning
     readonly property bool success: bodyRoot.scope.packageOpSuccess
 
@@ -75,7 +75,7 @@ Item {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                     Layout.fillWidth: true
-                    text: (root.running ? "Läuft im Hintergrund – Esc für Liste" : (root.success ? "✓ Erfolgreich abgeschlossen" : "✗ Fehlgeschlagen (Code " + bodyRoot.scope.packageOpExit + ")") + " – Enter zum Schließen").toUpperCase()
+                    text: (root.running ? "Running in background – Esc for list" : (root.success ? "✓ Completed successfully" : "✗ Failed (code " + bodyRoot.scope.packageOpExit + ")") + " – Enter to close").toUpperCase()
                     color: root.running ? Theme.textSecondary : root.success ? Theme.accent : Theme.errorColor
                     font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold
                     font.letterSpacing: 1.2
@@ -140,7 +140,7 @@ Item {
             Layout.fillWidth: true; Layout.preferredHeight: 36; radius: 0
             color: backMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
             border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1
-            Text { anchors.centerIn: parent; text: root.running ? "Zur Liste (läuft weiter)" : "Zurück zur Liste"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Medium; color: Theme.textPrimary
+            Text { anchors.centerIn: parent; text: root.running ? "Back to list (still running)" : "Back to list"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Medium; color: Theme.textPrimary
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }

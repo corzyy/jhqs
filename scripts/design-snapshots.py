@@ -104,7 +104,7 @@ def current_state() -> dict:
 
 def display_name(state: dict) -> str:
     now = datetime.datetime.now().strftime("%d.%m. %H:%M")
-    mode_label = "Hell" if state["mode"] == "light" else "Dunkel"
+    mode_label = "Light" if state["mode"] == "light" else "Dark"
     if state["engine"] == "wallpaper":
         short = state["type"].replace("scheme-", "").replace("-", " ")
         short = " ".join(w[:1].upper() + w[1:] for w in short.split())
@@ -153,7 +153,7 @@ def cmd_save() -> int:
         shutil.rmtree(SNAP_BASE / old["id"], ignore_errors=True)
     del entries[MAX_KEEP:]
     write_index(entries)
-    notify(f"Gesichert: {meta['name']}")
+    notify(f"Saved: {meta['name']}")
     print(snap_id)
     return 0
 
@@ -203,7 +203,7 @@ def cmd_restore(snap_id: str) -> int:
            "wallpaper_copy": copy_path}
     if out["engine"] not in ("wallpaper",) + PRESET_IDS:
         out["engine"] = "wallpaper"
-    notify(f"Wiederhergestellt: {out['name']}")
+    notify(f"Restored: {out['name']}")
     print(json.dumps(out, ensure_ascii=False))
     return 0
 

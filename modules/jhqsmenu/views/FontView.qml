@@ -27,10 +27,10 @@ Item {
     property int selectedIndex: 0
     readonly property bool isLoading: bodyRoot.scope.fontLoading || bodyRoot.scope.fontRescanning
     readonly property string countLabel: {
-        if (root.isLoading) return bodyRoot.scope.fontRescanning ? "Scanne Fonts…" : "Lade Fonts…"
+        if (root.isLoading) return bodyRoot.scope.fontRescanning ? "Scanning fonts…" : "Loading fonts…"
         let n = root.navCount
-        if (n === 0) return "Schriften"
-        return n + (n === 1 ? " Schrift" : " Schriften")
+        if (n === 0) return "Fonts"
+        return n + (n === 1 ? " Font" : " Fonts")
     }
     onNavCountChanged: { if (root.selectedIndex > root.navCount - 1) root.selectedIndex = Math.max(0, root.navCount - 1); root.ensureVisible() }
     onSelectedIndexChanged: root.ensureVisible()
@@ -105,7 +105,7 @@ Item {
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                text: root.isLoading ? "…" : "󰑓 Neu laden"
+                text: root.isLoading ? "…" : "󰑓 Reload"
                 color: reloadMouse.containsMouse && !root.isLoading ? Theme.textPrimary : Theme.textMuted
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fs(10)
@@ -255,7 +255,7 @@ Item {
                     renderType: Theme.textRenderType
                 }
                 Text {
-                    text: root.isLoading ? "Lade Fonts…" : "Keine Treffer"
+                    text: root.isLoading ? "Loading fonts…" : "No results"
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(13)
@@ -266,7 +266,7 @@ Item {
                 }
                 Text {
                     visible: !root.isLoading
-                    text: "Versuche einen anderen Suchbegriff"
+                    text: "Try a different search term"
                     color: Theme.textMuted
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(11)

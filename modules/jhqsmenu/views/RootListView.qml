@@ -310,11 +310,11 @@ Item {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
         }
-        Text { text: "Keine Treffer"; color: Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); width: parent.width; horizontalAlignment: Text.AlignHCenter
+        Text { text: "No results"; color: Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); width: parent.width; horizontalAlignment: Text.AlignHCenter
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
         }
-        Text { text: "Versuche einen anderen Suchbegriff"; color: Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); width: parent.width; horizontalAlignment: Text.AlignHCenter; opacity: 0.7
+        Text { text: "Try a different search term"; color: Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); width: parent.width; horizontalAlignment: Text.AlignHCenter; opacity: 0.7
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
         }

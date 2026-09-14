@@ -54,7 +54,7 @@ Singleton {
                 if (id.length > 0) root.saveFinished(id)
             }
         }
-        onExited: (code) => { if (code !== 0) root.actionFailed("Design konnte nicht gesichert werden.") }
+        onExited: (code) => { if (code !== 0) root.actionFailed("Could not save design.") }
     }
     Process {
         id: restoreProc
@@ -62,15 +62,15 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 let line = (text || "").trim().split("\n").pop().trim()
-                if (line.length === 0) { root.restoreFailed("Leere Antwort vom Backend."); return }
+                if (line.length === 0) { root.restoreFailed("Empty response from backend."); return }
                 try {
                     let meta = JSON.parse(line)
                     if (meta && meta.id) root.restoreReady(meta)
-                    else root.restoreFailed("Ungültige Snapshot-Daten.")
-                } catch (e) { root.restoreFailed("Ungültige Snapshot-Daten.") }
+                    else root.restoreFailed("Invalid snapshot data.")
+                } catch (e) { root.restoreFailed("Invalid snapshot data.") }
             }
         }
-        onExited: (code) => { if (code !== 0) root.restoreFailed("Design konnte nicht wiederhergestellt werden.") }
+        onExited: (code) => { if (code !== 0) root.restoreFailed("Could not restore design.") }
     }
     Process { id: deleteProc; command: ["bash", "-c", "echo"] }
 
@@ -82,7 +82,7 @@ Singleton {
     function restoreSnapshot(id: string): void {
         if (restoreProc.running) return
         let clean = (id || "").replace(/[^A-Za-z0-9_-]/g, "")
-        if (clean.length === 0) { restoreFailed("Ungültige Snapshot-ID."); return }
+        if (clean.length === 0) { restoreFailed("Invalid snapshot ID."); return }
         restoreProc.command = ["python3", scriptPath, "restore", clean]
         restoreProc.running = true
     }

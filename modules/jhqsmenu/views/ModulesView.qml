@@ -65,8 +65,8 @@ Item {
     property var rootModel: {
         let a = addList.length, r = removeList.length
         return [
-            {id: "add", title: "Module enable", icon: "󰐕", sub: a === 0 ? "alle aktiv" : a + " verfügbar"},
-            {id: "remove", title: "Module remove", icon: "󰐖", sub: r === 0 ? "keine aktiv" : r + " aktiv"}
+            {id: "add", title: "Module enable", icon: "󰐕", sub: a === 0 ? "all active" : a + " available"},
+            {id: "remove", title: "Module remove", icon: "󰐖", sub: r === 0 ? "none active" : r + " active"}
         ]
     }
     function matchesRoot(e, q) {
@@ -76,9 +76,9 @@ Item {
         // Word-based AND match (any order), like the top-level menu search.
         let eid = ("" + (e.id || "")).toLowerCase()
         let hay = ((("" + (e.title || "")) + " " + eid)).toLowerCase()
-        // Aliases so both views stay discoverable (EN + legacy DE + module/modul)
-        hay += eid === "remove" ? " delete entfernen" : " add hinzufügen hinzufuegen"
-        hay += " module modules modul"
+        // Aliases so both views stay discoverable (module/modules).
+        hay += eid === "remove" ? " delete remove uninstall disable" : " add enable install"
+        hay += " module modules"
         for (let i = 0; i < words.length; i++) if (hay.indexOf(words[i]) === -1) return false
         return true
     }
@@ -91,11 +91,11 @@ Item {
     onNavCountChanged: { if (selectedIndex >= navCount) selectedIndex = Math.max(0, navCount - 1) }
     function sectionLabel(id: string): string {
         let s = Theme.barSectionOf(id)
-        if (s === "left") return "Links"
+        if (s === "left") return "Left"
         if (s === "twofifths") return "2/5"
-        if (s === "center") return "Mitte"
+        if (s === "center") return "Center"
         if (s === "fourfifths") return "4/5"
-        if (s === "right") return "Rechts"
+        if (s === "right") return "Right"
         return ""
     }
     function openSubview(v: string) { subview = v; selectedIndex = 0; status = ""; Qt.callLater(() => listFlick.ensureVisible(0)) }
@@ -207,7 +207,7 @@ Item {
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: root.query !== "" ? "Keine Treffer für “" + bodyRoot.scope.filterText.trim() + "”" : "Keine Module"
+                    text: root.query !== "" ? "No results for “" + bodyRoot.scope.filterText.trim() + "”" : "No modules"
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(13)
                     color: Theme.textMuted
@@ -233,7 +233,7 @@ Item {
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: root.query !== "" ? "Keine Treffer für “" + bodyRoot.scope.filterText.trim() + "”" : "Alle Module aktiv"
+                    text: root.query !== "" ? "No results for “" + bodyRoot.scope.filterText.trim() + "”" : "All modules active"
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(13)
                     color: Theme.textMuted
@@ -269,7 +269,7 @@ Item {
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: root.query !== "" ? "Keine Treffer für “" + bodyRoot.scope.filterText.trim() + "”" : "Keine Module aktiv"
+                    text: root.query !== "" ? "No results for “" + bodyRoot.scope.filterText.trim() + "”" : "No modules active"
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fs(13)
                     color: Theme.textMuted

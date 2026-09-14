@@ -24,7 +24,7 @@ Item {
     readonly property bool isCurated: bodyRoot.scope.packageMode === "gaming" || bodyRoot.scope.packageMode === "browser"
     readonly property bool isBrowser: bodyRoot.scope.packageMode === "browser"
     readonly property int selCount: bodyRoot.scope.packageSelected.length
-    readonly property string primaryLabel: ((isRemove || isFlatpakRemove) ? "Entfernen" : "Installieren") + (selCount > 0 ? " (" + selCount + ")" : "")
+    readonly property string primaryLabel: ((isRemove || isFlatpakRemove) ? "Remove" : "Install") + (selCount > 0 ? " (" + selCount + ")" : "")
 
     function toggleCurrent() {
         let p = bodyRoot.scope.filteredPackages[bodyRoot.selectedIndex]
@@ -45,25 +45,25 @@ Item {
 
     function emptyText(): string {
         if (root.isCurated) {
-            if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer bei " + bodyRoot.scope.curatedTitle()
-            return bodyRoot.scope.curatedSize() + (root.isBrowser ? " Browser" : " Gaming-Apps") + " – Space: auswählen, Enter: installieren"
+            if (bodyRoot.scope.filterText.length > 0) return "No results in " + bodyRoot.scope.curatedTitle()
+            return bodyRoot.scope.curatedSize() + (root.isBrowser ? " Browser" : " Gaming Apps") + " – Space: select, Enter: install"
         }
         if (root.isInstall) {
-            if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer bei DNF"
-            if (bodyRoot.scope.availableLoading) return "Lade Pakete…"
-            return bodyRoot.scope.availableList.length + " Pakete – tippen zum Filtern"
+            if (bodyRoot.scope.filterText.length > 0) return "No results in DNF"
+            if (bodyRoot.scope.availableLoading) return "Loading packages…"
+            return bodyRoot.scope.availableList.length + " packages – type to filter"
         }
         if (root.isFlatpak) {
-            if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer bei Flathub"
-            return bodyRoot.scope.flatpakLoading ? "Lade Flatpaks von Flathub…" : (bodyRoot.scope.flatpakList.length === 0 ? "Keine Flatpaks gefunden" : bodyRoot.scope.flatpakList.length + " Flatpaks – tippen zum Filtern")
+            if (bodyRoot.scope.filterText.length > 0) return "No results in Flathub"
+            return bodyRoot.scope.flatpakLoading ? "Loading Flatpaks from Flathub…" : (bodyRoot.scope.flatpakList.length === 0 ? "No Flatpaks found" : bodyRoot.scope.flatpakList.length + " Flatpaks – type to filter")
         }
         if (root.isFlatpakRemove) {
-            if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer"
-            return bodyRoot.scope.flatpakInstalledLoading ? "Lade installierte Flatpaks…" : (bodyRoot.scope.flatpakInstalledPackages.length === 0 ? "Keine Flatpaks installiert" : bodyRoot.scope.flatpakInstalledPackages.length + " Flatpaks – tippen zum Filtern")
+            if (bodyRoot.scope.filterText.length > 0) return "No results"
+            return bodyRoot.scope.flatpakInstalledLoading ? "Loading installed Flatpaks…" : (bodyRoot.scope.flatpakInstalledPackages.length === 0 ? "No Flatpaks installed" : bodyRoot.scope.flatpakInstalledPackages.length + " Flatpaks – type to filter")
         }
-        if (bodyRoot.scope.filterText.length > 0) return "Keine Treffer"
-        if (bodyRoot.scope.installedList.length === 0) return "Lade Pakete..."
-        if (root.isRemove) return "Keine installierten Pakete"
+        if (bodyRoot.scope.filterText.length > 0) return "No results"
+        if (bodyRoot.scope.installedList.length === 0) return "Loading packages…"
+        if (root.isRemove) return "No installed packages"
     }
 
     ScrollIndicator { flick: packageList }
@@ -187,7 +187,7 @@ Item {
             Text {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                text: root.selCount > 0 ? root.selCount + " ausgewählt" : (root.isCurated ? (bodyRoot.scope.filteredPackages.length + (root.isBrowser ? " Browser – Space: auswählen" : " Gaming-Apps – Space: auswählen")) : (root.isInstall ? (bodyRoot.scope.availableLoading ? "Lade Pakete…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.availableList.length + " Pakete – Space: auswählen" : "Space: auswählen")) : root.isFlatpak ? (bodyRoot.scope.flatpakLoading ? "Lade Flatpaks…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.flatpakList.length + " Flatpaks – Space: auswählen" : "Space: auswählen")) : root.isFlatpakRemove ? (bodyRoot.scope.flatpakInstalledLoading ? "Lade installierte Flatpaks…" : bodyRoot.scope.flatpakInstalledPackages.length + " installiert – Space: auswählen") : (root.isRemove ? bodyRoot.scope.installedPackageCount + " installiert – Space: auswählen" : "Space: auswählen")))
+                text: root.selCount > 0 ? root.selCount + " selected" : (root.isCurated ? (bodyRoot.scope.filteredPackages.length + (root.isBrowser ? " Browser – Space: select" : " Gaming Apps – Space: select")) : (root.isInstall ? (bodyRoot.scope.availableLoading ? "Loading packages…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.availableList.length + " packages – Space: select" : "Space: select")) : root.isFlatpak ? (bodyRoot.scope.flatpakLoading ? "Loading Flatpaks…" : (bodyRoot.scope.filterText.length === 0 ? bodyRoot.scope.flatpakList.length + " Flatpaks – Space: select" : "Space: select")) : root.isFlatpakRemove ? (bodyRoot.scope.flatpakInstalledLoading ? "Loading installed Flatpaks…" : bodyRoot.scope.flatpakInstalledPackages.length + " installed – Space: select") : (root.isRemove ? bodyRoot.scope.installedPackageCount + " installed – Space: select" : "Space: select")))
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11)
                 color: root.selCount > 0 ? Theme.textPrimary : Theme.textMuted
                 font.weight: root.selCount > 0 ? Font.Medium : Font.Normal
@@ -199,7 +199,7 @@ Item {
                 Layout.preferredWidth: clearLabel.implicitWidth + 20; Layout.preferredHeight: 30; radius: 0
                 color: clearMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : "transparent"
                 border.color: Theme.withAlpha(Theme.textPrimary, 0.25); border.width: 1
-                Text { id: clearLabel; anchors.centerIn: parent; text: "Zurücksetzen"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textSecondary
+                Text { id: clearLabel; anchors.centerIn: parent; text: "Reset"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); color: Theme.textSecondary
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }

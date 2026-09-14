@@ -111,7 +111,7 @@ ColumnLayout {
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
-            Text { text: "Ordner"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); color: Theme.textSecondary; Layout.preferredWidth: 64; elide: Text.ElideRight
+            Text { text: "Folder"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); color: Theme.textSecondary; Layout.preferredWidth: 64; elide: Text.ElideRight
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
             }
@@ -134,7 +134,7 @@ ColumnLayout {
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
         Layout.fillWidth: true
-        text: "swaybg schaltet ohne Übergang"
+        text: "swaybg switches without a transition"
         font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); color: Theme.textMuted
         horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
     }
@@ -143,7 +143,7 @@ ColumnLayout {
         Layout.fillWidth: true; Layout.preferredHeight: 36; radius: Theme.cornerRadiusSmall
         color: previewMouse.containsMouse ? Theme.bgHover : Theme.panelSurface
         border.color: Theme.divider; border.width: 1
-        Text { anchors.centerIn: parent; text: "Vorschau anwenden"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Medium; color: Theme.textPrimary
+        Text { anchors.centerIn: parent; text: "Apply preview"; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.Medium; color: Theme.textPrimary
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
         }
@@ -156,11 +156,11 @@ Column {
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
     }
-    Text { text:bodyRoot.scope.engineWallpapers.length===0?("Keine Wallpaper in " + bodyRoot.scope.wallpaperDirDisplay):"Keine Treffer"; color:Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); horizontalAlignment:Text.AlignHCenter; wrapMode:Text.WordWrap; width:parent.width
+    Text { text:bodyRoot.scope.engineWallpapers.length===0?("No wallpapers in " + bodyRoot.scope.wallpaperDirDisplay):"No results"; color:Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); horizontalAlignment:Text.AlignHCenter; wrapMode:Text.WordWrap; width:parent.width
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
     }
-    Text { visible:bodyRoot.scope.engineWallpapers.length===0; text:"Lege Bilder in den Ordner um sie hier zu sehen"; color:Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); opacity:0.5; width:parent.width; horizontalAlignment:Text.AlignHCenter
+    Text { visible:bodyRoot.scope.engineWallpapers.length===0; text:"Put images in the folder to see them here"; color:Theme.textMuted; font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); opacity:0.5; width:parent.width; horizontalAlignment:Text.AlignHCenter
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
     }

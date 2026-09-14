@@ -827,11 +827,11 @@ Singleton {
     readonly property var barLayoutFourFifths: barLayoutCached.fourfifths
     readonly property var barLayoutRight: barLayoutCached.right
     readonly property var barModuleMetaList: [
-        {id: "launcher", title: "Menü", icon: "󰀻"},
+        {id: "launcher", title: "Menu", icon: "󰀻"},
         {id: "workspaces", title: "Workspaces", icon: ""},
-        {id: "activewindow", title: "Aktives Fenster", icon: "󰍹"},
-        {id: "clock", title: "Uhr", icon: ""},
-        {id: "weather", title: "Wetter", icon: "\ue302"},
+        {id: "activewindow", title: "Active Window", icon: "󰍹"},
+        {id: "clock", title: "Clock", icon: ""},
+        {id: "weather", title: "Weather", icon: "\ue302"},
         {id: "updates", title: "Updates", icon: ""},
         {id: "network", title: "Network", icon: "󰤨"},
         {id: "volume", title: "Volume", icon: "󰕾"},
@@ -1055,9 +1055,9 @@ Singleton {
     readonly property string powerMode: powerModeFile.adapter.mode || "balanced"
     function powerModeLabel(): string {
         let m = (powerMode || "").toLowerCase()
-        if (m === "performance") return "Leistung"
-        if (m === "power-saver") return "Sparen"
-        return "Ausgeglichen"
+        if (m === "performance") return "Performance"
+        if (m === "power-saver") return "Power Saver"
+        return "Balanced"
     }
     function powerModeIcon(): string {
         let m = (powerMode || "").toLowerCase()

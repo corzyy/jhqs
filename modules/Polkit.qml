@@ -406,7 +406,7 @@ Scope {
                             Text {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
-                                text: "Authentifizieren als:"
+                                text: "Authenticate as:"
                                 color: Theme.textMuted
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fs(10)
@@ -522,7 +522,7 @@ Scope {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                                 Layout.fillWidth: true
-                                text: polkitScope.flow ? (polkitScope.flow.inputPrompt.length > 0 ? polkitScope.flow.inputPrompt : "Passwort:") : "Passwort:"
+                                text: polkitScope.flow ? (polkitScope.flow.inputPrompt.length > 0 ? polkitScope.flow.inputPrompt : "Password:") : "Password:"
                                 color: Theme.textSecondary
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fs(11)
@@ -629,7 +629,7 @@ Scope {
                             renderType: Theme.textRenderType
                             Layout.fillWidth: true
                             visible: polkitScope.flow && !polkitScope.flow.isResponseRequired && (!polkitScope.flow.supplementaryMessage || polkitScope.flow.supplementaryMessage.length === 0)
-                            text: "Drücke „Authentifizieren“ um fortzufahren."
+                            text: "Press “Authenticate” to continue."
                             color: Theme.textMuted
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fs(11)
@@ -655,7 +655,7 @@ Scope {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                     anchors.centerIn: parent
-                                    text: "Abbrechen"
+                                    text: "Cancel"
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fs(11)
                                     font.weight: Font.Medium
@@ -709,7 +709,7 @@ Scope {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                                 visible: polkitScope.flow && polkitScope.flow.failed
-                                text: "Authentifizierung fehlgeschlagen — erneut versuchen"
+                                text: "Authentication failed — try again"
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fs(10)
                                 color: Theme.errorColor

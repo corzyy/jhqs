@@ -66,7 +66,7 @@ Scope {
                 lockScope.unlock()
             } else {
                 lockScope.failed = true
-                lockScope.errorText = "Falscher PIN"
+                lockScope.errorText = "Wrong PIN"
                 lockScope.pinInput = ""
                 failTimer.restart()
             }
@@ -295,7 +295,7 @@ Scope {
                                 renderType: Theme.textRenderType
                                 anchors.centerIn: parent
                                 visible: lockScope.pinInput.length === 0
-                                text: lockScope.failed ? lockScope.errorText : "PIN eingeben  •  Enter"
+                                text: lockScope.failed ? lockScope.errorText : "Enter PIN  •  Enter"
                                 color: lockScope.failed ? Theme.errorColor : Theme.withAlpha(Theme.textPrimary, 0.62)
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fs(13)
@@ -323,7 +323,7 @@ Scope {
                             renderType: Theme.textRenderType
                             Layout.alignment: Qt.AlignHCenter
                             visible: !lockScope.failed && lockScope.pinInput.length === 0
-                            text: "Entsperren mit PIN oder System-Passwort"
+                            text: "Unlock with PIN or system password"
                             color: Theme.withAlpha(Theme.textPrimary, 0.42)
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fs(11)

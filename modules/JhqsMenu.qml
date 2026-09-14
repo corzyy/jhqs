@@ -111,17 +111,17 @@ Scope {
     // Setup targets open the matching mango config in the default editor
     // (VSCodium, with xdg-open/nvim fallbacks). Bindings point at the user
     // file; monitors at the active monitors.conf.
-    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim \"$HOME/.config/mango/configs/monitors.conf\"; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupBindsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim \"$HOME/.config/mango/configs/binds-user.conf\"; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupAutostartProc; command: ["bash", "-c", "codium ~/.config/mango/configs/autostart.conf 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim ~/.config/mango/configs/autostart.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupKittyProc; command: ["bash", "-c", "codium ~/.config/kitty/kitty.conf 2>/dev/null || kitty --class setup-kitty --title \"Kitty Config\" bash -c 'nvim ~/.config/kitty/kitty.conf; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupFishProc; command: ["bash", "-c", "kitty --class setup-fish --title \"Fish Config\" bash -c 'nvim ~/.config/fish/config.fish; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
-    Process { id: setupAppearanceProc; command: ["bash", "-c", "nwg-look 2>/dev/null || codium ~/.config/gtk-3.0/settings.ini 2>/dev/null || kitty --class setup-gtk --title \"GTK Appearance\" bash -c 'echo \"nwg-look nicht gefunden\"; echo \"GTK Settings: ~/.config/gtk-3.0/settings.ini\"; cat ~/.config/gtk-3.0/settings.ini 2>/dev/null; read -n1 -s' &"] }
+    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim \"$HOME/.config/mango/configs/monitors.conf\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupBindsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim \"$HOME/.config/mango/configs/binds-user.conf\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupAutostartProc; command: ["bash", "-c", "codium ~/.config/mango/configs/autostart.conf 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim ~/.config/mango/configs/autostart.conf; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupKittyProc; command: ["bash", "-c", "codium ~/.config/kitty/kitty.conf 2>/dev/null || kitty --class setup-kitty --title \"Kitty Config\" bash -c 'nvim ~/.config/kitty/kitty.conf; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupFishProc; command: ["bash", "-c", "kitty --class setup-fish --title \"Fish Config\" bash -c 'nvim ~/.config/fish/config.fish; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupAppearanceProc; command: ["bash", "-c", "nwg-look 2>/dev/null || codium ~/.config/gtk-3.0/settings.ini 2>/dev/null || kitty --class setup-gtk --title \"GTK Appearance\" bash -c 'echo \"nwg-look not found\"; echo \"GTK Settings: ~/.config/gtk-3.0/settings.ini\"; cat ~/.config/gtk-3.0/settings.ini 2>/dev/null; read -n1 -s' &"] }
     Process { id: setupAudioProc; command: ["bash", "-c", "pavucontrol 2>/dev/null || kitty --class setup-audio --title Audio bash -c 'wpctl status 2>/dev/null || pactl info; read -n1 -s' &"] }
     // Runs the shell updater (git clone + rsync over the live install, keeping
     // config/) in a terminal so progress is visible; the script restarts the
     // shell itself on success.
-    Process { id: setupShellUpdateProc; command: ["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Fertig ---\"; read -n1 -s' &"] }
+    Process { id: setupShellUpdateProc; command: ["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
     readonly property string shellPosition: Theme.barPosition
     FileView {
         id: wallpaperSettingsFile
@@ -712,13 +712,13 @@ Scope {
         let u = ("" + (url || "")).trim()
         let icon = ("" + (iconRef || "")).trim()
         if (webAppBusy) return false
-        if (n.length === 0) { webAppStatus = "Name fehlt"; webAppSuccess = false; return false }
-        if (n.indexOf("/") !== -1) { webAppStatus = "Name darf kein '/' enthalten"; webAppSuccess = false; return false }
-        if (u.length === 0) { webAppStatus = "URL fehlt"; webAppSuccess = false; return false }
+        if (n.length === 0) { webAppStatus = "Name missing"; webAppSuccess = false; return false }
+        if (n.indexOf("/") !== -1) { webAppStatus = "Name must not contain '/'"; webAppSuccess = false; return false }
+        if (u.length === 0) { webAppStatus = "URL missing"; webAppSuccess = false; return false }
         if (!/^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(u)) u = "https://" + u
-        webAppBusy = true; webAppSuccess = false; webAppStatus = "Installiere '" + n + "'…"; webAppLog = ""
+        webAppBusy = true; webAppSuccess = false; webAppStatus = "Installing '" + n + "'…"; webAppLog = ""
         webAppLastName = n
-        webAppOpAppend("Installiere '" + n + "' (" + u + ")…")
+        webAppOpAppend("Installing '" + n + "' (" + u + ")…")
         webAppOpProc.command = [webAppBin("install"), n, u, icon]
         if (!webAppOpProc.running) webAppOpProc.running = true
         return true
@@ -726,10 +726,10 @@ Scope {
     function removeWebApp(name) {
         let n = ("" + (name || "")).trim()
         if (webAppBusy) return false
-        if (n.length === 0) { webAppStatus = "Keine Auswahl"; webAppSuccess = false; return false }
-        webAppBusy = true; webAppSuccess = false; webAppStatus = "Entferne '" + n + "'…"
+        if (n.length === 0) { webAppStatus = "No selection"; webAppSuccess = false; return false }
+        webAppBusy = true; webAppSuccess = false; webAppStatus = "Removing '" + n + "'…"
         webAppLastName = n
-        webAppOpAppend("Entferne '" + n + "'…")
+        webAppOpAppend("Removing '" + n + "'…")
         webAppOpProc.command = [webAppBin("remove"), n]
         if (!webAppOpProc.running) webAppOpProc.running = true
         return true
@@ -737,18 +737,18 @@ Scope {
     function finishWebAppOp(code) {
         webAppBusy = false; webAppSuccess = (code === 0)
         if (code === 0) {
-            webAppOpAppend("✓ Fertig (Code 0)")
-            webAppStatus = webAppMode === "remove" ? "✓ Entfernt" : "✓ Installiert — findest du im App-Launcher"
+            webAppOpAppend("✓ Done (code 0)")
+            webAppStatus = webAppMode === "remove" ? "✓ Removed" : "✓ Installed — find it in the app launcher"
             if (webAppMode !== "remove") {
                 let label = webAppLastName !== "" ? " '" + webAppLastName + "'" : ""
-                sendInstallNotification("✓ Web App installiert" + label, "findest du im App-Launcher")
+                sendInstallNotification("✓ Web App installed" + label, "find it in the app launcher")
             }
         } else if (code === 127) {
-            webAppOpAppend("✗ Installations-Skript nicht gefunden (Code 127)")
-            webAppStatus = "✗ Skript fehlt: scripts/webapp-install.sh prüfen"
+            webAppOpAppend("✗ Install script not found (code 127)")
+            webAppStatus = "✗ Script missing: check scripts/webapp-install.sh"
         } else {
-            webAppOpAppend("✗ Fehlgeschlagen (Code " + code + ")")
-            if (webAppStatus === "" || webAppStatus.endsWith("…")) webAppStatus = "✗ Fehlgeschlagen (Code " + code + ")"
+            webAppOpAppend("✗ Failed (code " + code + ")")
+            if (webAppStatus === "" || webAppStatus.endsWith("…")) webAppStatus = "✗ Failed (code " + code + ")"
         }
         refreshWebApps()
         try { Theme.notifyAppsChanged() } catch (e) { }
@@ -997,8 +997,8 @@ Scope {
     property string modulesSubview: "root"
     function moduleSubviewHaystack(entry): string {
         let s = ("" + (entry.title || "") + " " + (entry.modulesSubview || "")).toLowerCase()
-        s += entry.modulesSubview === "remove" ? " delete entfernen" : " add hinzufügen hinzufuegen"
-        return s + " module modules modul"
+        s += entry.modulesSubview === "remove" ? " delete remove uninstall disable" : " add enable install"
+        return s + " module modules"
     }
     function openModules(sub) {
         modulesSubview = (sub === "remove") ? "remove" : ((sub === "root") ? "root" : "add")
@@ -1420,7 +1420,7 @@ Scope {
         if (m === "flatpak" || m === "flatpakremove") return true
         try { return !!Theme.polkitReady } catch (e) { return false }
     }
-    function noAgentMessage(): string { return "Kein Authentifizierungs-Agent aktiv — Passwort-Dialog kann nicht erscheinen. Kurz warten (Agent meldet sich selbst an) und erneut versuchen. Falls dauerhaft: Shell neu starten, dann `sudo systemctl restart polkit`." }
+    function noAgentMessage(): string { return "No authentication agent is active — the password dialog cannot appear. Wait a moment (the agent registers itself) and try again. If it persists: restart the shell, then run `sudo systemctl restart polkit`." }
     property bool packageOpActive: false
     property string packageOpMode: "install"
     property var packageOpPkgs: []
@@ -1478,7 +1478,7 @@ Scope {
         let inner
         {
             let tag = ((m === "flatpak" || m === "flatpakremove") ? " (Flatpak)" : (m === "gaming" ? " (Gaming)" : (m === "browser" ? " (Browser)" : " (DNF)")))
-            packageOpAppend(((m === "remove" || m === "flatpakremove") ? "Entferne " : "Installiere ") + clean.length + " Paket(e)" + tag + ": " + clean.join(" "))
+            packageOpAppend(((m === "remove" || m === "flatpakremove") ? "Removing " : "Installing ") + clean.length + " package(s)" + tag + ": " + clean.join(" "))
             if (m === "remove") inner = "dnf remove -y " + clean.join(" ")
             else if (m === "gaming" || m === "browser") inner = "dnf install -y " + clean.map(n => curatedSpec(n)).join(" ")
             else if (m === "flatpak") inner = "flatpak install -y flathub " + clean.join(" ")
@@ -1494,18 +1494,18 @@ Scope {
     function finishPackageOp(code) {
         packageOpRunning = false; packageOpExit = code; packageOpSuccess = (code === 0)
         if (code === 0) {
-            packageOpAppend("✓ Fertig (Code 0)")
+            packageOpAppend("✓ Done (code 0)")
             if (packageOpMode === "install" || packageOpMode === "flatpak" || packageOpMode === "gaming" || packageOpMode === "browser") {
                 let names = (packageOpPkgs || []).join(", ").slice(0, 180)
                 let tag = (packageOpMode === "flatpak" ? " (Flatpak)" : (packageOpMode === "gaming" ? " (Gaming)" : (packageOpMode === "browser" ? " (Browser)" : " (DNF)")))
-                if (names !== "") sendInstallNotification("✓ Installiert: " + names + tag, "findest du im App-Launcher")
+                if (names !== "") sendInstallNotification("✓ Installed: " + names + tag, "find it in the app launcher")
             }
         }
-        else if (code === 127) { packageOpAppend("✗ Abgebrochen (Code 127)"); packageOpAppend("Hinweis: Authentifizierung abgebrochen oder kein Agent verfügbar.") }
-        else packageOpAppend("✗ Fehlgeschlagen (Code " + code + ")")
+        else if (code === 127) { packageOpAppend("✗ Cancelled (code 127)"); packageOpAppend("Note: authentication was cancelled or no agent is available.") }
+        else packageOpAppend("✗ Failed (code " + code + ")")
         if (code === 0 && packageOpKernelUpdated) {
-            packageOpAppend("Kernel wurde aktualisiert — Neustart empfohlen")
-            packageOpAppend("System → Neustarten (oder: systemctl reboot)")
+            packageOpAppend("Kernel was updated — restart recommended")
+            packageOpAppend("System → Restart (or: systemctl reboot)")
         }
         refreshPackagesForce()
         refreshAvailableForce()
@@ -1537,7 +1537,7 @@ Scope {
         wpCmd += "if command -v swaybg >/dev/null 2>&1 && [ -f \"$WALL\" ]; then nohup swaybg -i \"$WALL\" -m \"$MODE\" >/dev/null 2>&1 < /dev/null & NEW=$!; sleep 0.5;"
         wpCmd += " if kill -0 \"$NEW\" 2>/dev/null; then for p in $(pgrep -x swaybg 2>/dev/null); do [ \"$p\" = \"$NEW\" ] || kill \"$p\" 2>/dev/null || true; done;"
         wpCmd += " else echo \"[jhqs] swaybg start failed, keeping current wallpaper\" >&2; fi; "
-        wpCmd += "else echo \"[jhqs] swaybg fehlt oder Wallpaper ungültig — Wallpaper unverändert\" >&2; fi; "
+        wpCmd += "else echo \"[jhqs] swaybg missing or wallpaper invalid — wallpaper unchanged\" >&2; fi; "
         wpCmd += "mkdir -p ~/.cache/swaybg ~/.cache/awww ~/.config/quickshell/jhqs/config 2>/dev/null; printf '%s' \"$WALL\" > ~/.cache/swaybg/current 2>/dev/null; printf '%s' \"$WALL\" > ~/.cache/awww/current 2>/dev/null; printf '%s' \"$WALL\" > ~/.config/quickshell/jhqs/config/current_wallpaper.txt 2>/dev/null"
         Quickshell.execDetached(["bash", "-c", wpCmd, "jhqs-wallpaper", path, mode])
         return true
@@ -1721,19 +1721,19 @@ Scope {
         let title = ("" + (t || "")).trim()
         if (title === "") return false
         try {
-            if (title === "Sperren") {
+            if (title === "Lock") {
                 Quickshell.execDetached(["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1 || loginctl lock-session >/dev/null 2>&1 || true"])
                 return true
-            } else if (title === "Abmelden") {
+            } else if (title === "Log Out") {
                 Quickshell.execDetached(["bash", "-c", "mmsg dispatch quit >/dev/null 2>&1; loginctl terminate-user \"$USER\" >/dev/null 2>&1 || true"])
                 return true
-            } else if (title === "Ruhezustand") {
+            } else if (title === "Suspend") {
                 Quickshell.execDetached(["bash", "-c", "systemctl suspend >/dev/null 2>&1 || loginctl suspend >/dev/null 2>&1 || true"])
                 return true
-            } else if (title === "Neustarten") {
+            } else if (title === "Restart") {
                 Quickshell.execDetached(["bash", "-c", "systemctl reboot >/dev/null 2>&1 || loginctl reboot >/dev/null 2>&1 || true"])
                 return true
-            } else if (title === "Herunterfahren") {
+            } else if (title === "Shut Down") {
                 Quickshell.execDetached(["bash", "-c", "systemctl poweroff >/dev/null 2>&1 || loginctl poweroff >/dev/null 2>&1 || true"])
                 return true
             }
@@ -2089,7 +2089,7 @@ Scope {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                                 anchors.left: parent.left; anchors.leftMargin: 0; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                text: (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showNewAppMenu ? "Search apps…" : bodyRoot.scope.showWallpaper ? "Wallpaper…" : bodyRoot.scope.showThemes ? "Themes…" : bodyRoot.scope.showFont ? "Fonts suchen…" : bodyRoot.scope.showModules ? "Modules…" : bodyRoot.scope.showStyle ? "Style…" : bodyRoot.scope.showSetup ? "Setup…" : bodyRoot.scope.showInstall ? "Install…" : bodyRoot.scope.showRemove ? "Remove…" : bodyRoot.scope.showSession ? "System…" : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Web Apps filtern…" : "Web App installieren…") : bodyRoot.scope.showPackages ? "Packages…" : "Go…") : "Go…")
+                                text: (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showNewAppMenu ? "Search apps…" : bodyRoot.scope.showWallpaper ? "Wallpaper…" : bodyRoot.scope.showThemes ? "Themes…" : bodyRoot.scope.showFont ? "Search fonts…" : bodyRoot.scope.showModules ? "Modules…" : bodyRoot.scope.showStyle ? "Style…" : bodyRoot.scope.showSetup ? "Setup…" : bodyRoot.scope.showInstall ? "Install…" : bodyRoot.scope.showRemove ? "Remove…" : bodyRoot.scope.showSession ? "System…" : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Filter Web Apps…" : "Install Web App…") : bodyRoot.scope.showPackages ? "Packages…" : "Go…") : "Go…")
                                 color: Theme.textPrimary; opacity: 0.58; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16)
                                 elide: Text.ElideRight
                                 visible: bodyRoot.filterText.length === 0

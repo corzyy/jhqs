@@ -22,7 +22,7 @@ Singleton {
     // ---- Compat state (read by widget/bar/panel) ----
     readonly property bool btAvailable: adapter !== null
     readonly property bool btActive: !!adapter && adapter.enabled
-    readonly property string btStatus: btActive ? "Ein" : "Aus"
+    readonly property string btStatus: btActive ? "On" : "Off"
     readonly property bool btScanning: !!adapter && adapter.discovering
     property var btDevices: []
     // Cold start: BlueZ enumeration takes ~2-3s after shell start, during

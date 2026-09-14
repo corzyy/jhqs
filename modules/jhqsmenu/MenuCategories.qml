@@ -14,7 +14,7 @@ QtObject {
         {title: "Modules", icon: "󰐱", arrow: "›"}
     ]
     readonly property var themeOptions: [
-        {id: "wallpaper", title: "Wallpaper / Monet", icon: "󰸉", subtitle: "Automatisch aus Wallpaper", placeholder: false},
+        {id: "wallpaper", title: "Wallpaper / Monet", icon: "󰸉", subtitle: "Automatic from wallpaper", placeholder: false},
         {id: "everforest", title: "Everforest", icon: "󰇧", subtitle: "Everforest Soft • #A7C080", placeholder: false},
         {id: "tokyonight", title: "Tokyo Night", icon: "󰖔", subtitle: "Tokyo Night • #7aa2f7 / #1a1b26", placeholder: false},
         {id: "petrichor", title: "Petrichor", icon: "󰋊", subtitle: "Omarchy Petrichor • #93a06b / #171a15", placeholder: false},
@@ -47,10 +47,10 @@ QtObject {
     ]
 
     readonly property var sessionMenu: [
-        {title: "Sperren", icon: "󰌾", arrow: ""},
-        {title: "Abmelden", icon: "󰍃", arrow: ""},
-        {title: "Ruhezustand", icon: "󰒲", arrow: ""},
-        {title: "Neustarten", icon: "󰜉", arrow: ""},
-        {title: "Herunterfahren", icon: "󰐥", arrow: ""}
+        {title: "Lock", icon: "󰌾", arrow: ""},
+        {title: "Log Out", icon: "󰍃", arrow: ""},
+        {title: "Suspend", icon: "󰒲", arrow: ""},
+        {title: "Restart", icon: "󰜉", arrow: ""},
+        {title: "Shut Down", icon: "󰐥", arrow: ""}
     ]
 }
