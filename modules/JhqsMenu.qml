@@ -27,7 +27,8 @@ Scope {
     // NOTE: session actions intentionally use Quickshell.execDetached in
     // doSessionAction() — never Process.running here. This Scope lives inside
     // a Loader that is destroyed on dismissed(), which would kill a freshly
-    // started Process before it can exec.
+    // started Process before it can exec. Same applies to Shell Update
+    // (runShellUpdate()) for the identical reason.
     property bool showWebApp: false
     property string webAppMode: "install"
     property var webAppList: []
@@ -118,10 +119,14 @@ Scope {
     Process { id: setupFishProc; command: ["bash", "-c", "kitty --class setup-fish --title \"Fish Config\" bash -c 'nvim ~/.config/fish/config.fish; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
     Process { id: setupAppearanceProc; command: ["bash", "-c", "nwg-look 2>/dev/null || codium ~/.config/gtk-3.0/settings.ini 2>/dev/null || kitty --class setup-gtk --title \"GTK Appearance\" bash -c 'echo \"nwg-look not found\"; echo \"GTK Settings: ~/.config/gtk-3.0/settings.ini\"; cat ~/.config/gtk-3.0/settings.ini 2>/dev/null; read -n1 -s' &"] }
     Process { id: setupAudioProc; command: ["bash", "-c", "pavucontrol 2>/dev/null || kitty --class setup-audio --title Audio bash -c 'wpctl status 2>/dev/null || pactl info; read -n1 -s' &"] }
-    // Runs the shell updater (git clone + rsync over the live install, keeping
+    // Runs the shell updater (git clone over the live install, keeping
     // config/) in a terminal so progress is visible; the script restarts the
-    // shell itself on success.
-    Process { id: setupShellUpdateProc; command: ["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    // shell itself on success. Must use execDetached (see NOTE above): the
+    // menu Loader is destroyed on dismissed(), which would kill a Process
+    // before kitty can spawn.
+    function runShellUpdate() {
+        Quickshell.execDetached(["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Done ---\"; read -n1 -s' &"])
+    }
     readonly property string shellPosition: Theme.barPosition
     FileView {
         id: wallpaperSettingsFile
@@ -1812,7 +1817,7 @@ Scope {
             else if (t === "Keybindings") runProc(setupBindsProc)
             else if (t === "Autostart") runProc(setupAutostartProc)
             else if (t === "Audio") runProc(setupAudioProc)
-            else if (t === "Shell Update") runProc(setupShellUpdateProc)
+            else if (t === "Shell Update") runShellUpdate()
             dismissed()
         } else { dismissed() }
     }
@@ -1868,7 +1873,7 @@ Scope {
                 else if (m.title==="Keybindings") runProc(setupBindsProc)
                 else if (m.title==="Autostart") runProc(setupAutostartProc)
                 else if (m.title==="Audio") runProc(setupAudioProc)
-                else if (m.title==="Shell Update") runProc(setupShellUpdateProc)
+                else if (m.title==="Shell Update") runShellUpdate()
                 dismissed(); return
             }
         }

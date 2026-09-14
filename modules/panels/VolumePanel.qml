@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "../../themes"
 import "../../services"
+import "../../Commons"
 import "../../Ui"
 
 Scope {
@@ -66,7 +67,7 @@ Scope {
     }
     Process {
         id: sinksProc
-        command: ["bash", "-c", "def=$(pactl get-default-sink 2>/dev/null); pactl list sinks 2>/dev/null | awk 'BEGIN{n=\"\";d=\"\";v=0;m=\"no\"} /^[ \\t]*Name:/{n=$2} /^[ \\t]*Description:/{sub(/^[ \\t]*Description: /,\" \");d=$0} /front-left.*\\/.*%/{for(i=1;i<=NF;i++) if($i ~ /%$/) {v=$i; break}} /^[ \\t]*Mute:/{m=$2} /^$/{if(n!=\"\"){print n\"|\"d\"|\"v\"|\"m; n=\"\";d=\"\";v=0;m=\"no\"}} END{if(n!=\"\")print n\"|\"d\"|\"v\"|\"m}'; echo \"DEF:$def\""]
+        command: ["bash", "-c", "def=$(LC_ALL=C pactl get-default-sink 2>/dev/null); LC_ALL=C pactl list sinks 2>/dev/null | awk 'BEGIN{n=\"\";d=\"\";v=0;m=\"no\"} /^[ \\t]*Name:/{n=$2} /^[ \\t]*(Description|Beschreibung):/{sub(/^[ \\t]*(Description|Beschreibung): /,\" \");d=$0} /front-left.*\\/.*%/{for(i=1;i<=NF;i++) if($i ~ /%$/) {v=$i; break}} /^[ \\t]*(Mute|Stumm):/{m=$2} /^$/{if(n!=\"\"){print n\"|\"d\"|\"v\"|\"m; n=\"\";d=\"\";v=0;m=\"no\"}} END{if(n!=\"\")print n\"|\"d\"|\"v\"|\"m}'; echo \"DEF:$def\""]
         stdout: StdioCollector {
             onStreamFinished: {
                 let sinks = []
@@ -75,7 +76,7 @@ Scope {
                     if (l.indexOf("DEF:") === 0) { scope.defaultSink = l.substring(4).trim(); continue }
                     let p = l.split("|")
                     if (p.length < 2 || (p[0] || "").trim().length === 0) continue
-                    sinks.push({ name: (p[0] || "").trim(), desc: (p[1] || "").trim() || (p[0] || "").trim(), vol: (p[2] || "").trim(), muted: ((p[3] || "no").trim().toLowerCase() === "yes") })
+                    sinks.push({ name: (p[0] || "").trim(), desc: Util.cleanAudioName((p[1] || "").trim(), (p[0] || "").trim()), vol: (p[2] || "").trim(), muted: ((p[3] || "no").trim().toLowerCase() === "yes" || (p[3] || "").trim().toLowerCase() === "ja") })
                 }
                 if (!sameAudioNodes(scope.audioSinks, sinks)) scope.audioSinks = sinks
             }
@@ -83,7 +84,7 @@ Scope {
     }
     Process {
         id: sourcesProc
-        command: ["bash", "-c", "def=$(pactl get-default-source 2>/dev/null); pactl list sources 2>/dev/null | grep -v '\\.monitor' | awk 'BEGIN{n=\"\";d=\"\";v=0;m=\"no\"} /^[ \\t]*Name:/{n=$2} /^[ \\t]*Description:/{sub(/^[ \\t]*Description: /,\" \");d=$0} /front-left.*\\/.*%/{for(i=1;i<=NF;i++) if($i ~ /%$/) {v=$i; break}} /^[ \\t]*Mute:/{m=$2} /^$/{if(n!=\"\"){print n\"|\"d\"|\"v\"|\"m; n=\"\";d=\"\";v=0;m=\"no\"}} END{if(n!=\"\")print n\"|\"d\"|\"v\"|\"m}'; echo \"DEF:$def\"; vol=$(pactl get-source-volume \"$def\" 2>/dev/null | grep -oP '\\d+%' | head -1); mute=$(pactl get-source-mute \"$def\" 2>/dev/null | grep -oP '(yes|no)' | head -1); echo \"VOL:$vol|$mute\""]
+        command: ["bash", "-c", "def=$(LC_ALL=C pactl get-default-source 2>/dev/null); LC_ALL=C pactl list sources 2>/dev/null | grep -v '\\.monitor' | awk 'BEGIN{n=\"\";d=\"\";v=0;m=\"no\"} /^[ \\t]*Name:/{n=$2} /^[ \\t]*(Description|Beschreibung):/{sub(/^[ \\t]*(Description|Beschreibung): /,\" \");d=$0} /front-left.*\\/.*%/{for(i=1;i<=NF;i++) if($i ~ /%$/) {v=$i; break}} /^[ \\t]*(Mute|Stumm):/{m=$2} /^$/{if(n!=\"\"){print n\"|\"d\"|\"v\"|\"m; n=\"\";d=\"\";v=0;m=\"no\"}} END{if(n!=\"\")print n\"|\"d\"|\"v\"|\"m}'; echo \"DEF:$def\"; vol=$(LC_ALL=C pactl get-source-volume \"$def\" 2>/dev/null | grep -oP '\\d+%' | head -1); mute=$(LC_ALL=C pactl get-source-mute \"$def\" 2>/dev/null | grep -oP '(yes|no)' | head -1); echo \"VOL:$vol|$mute\""]
         stdout: StdioCollector {
             onStreamFinished: {
                 let srcs = []
@@ -99,7 +100,7 @@ Scope {
                     }
                     let p = l.split("|")
                     if (p.length < 2 || (p[0] || "").trim().length === 0) continue
-                    srcs.push({ name: (p[0] || "").trim(), desc: (p[1] || "").trim() || (p[0] || "").trim() })
+                    srcs.push({ name: (p[0] || "").trim(), desc: Util.cleanAudioName((p[1] || "").trim(), (p[0] || "").trim()) })
                 }
                 if (!sameAudioNodes(scope.audioSources, srcs)) scope.audioSources = srcs
             }
@@ -228,11 +229,12 @@ Scope {
         if (Object.keys(_pendingStreamVols).length > 0) streamVolThrottle.restart()
     }
     function toggleStreamMute(idx: int): void { audioAct("pactl set-sink-input-mute " + idx + " toggle 2>/dev/null; echo done") }
-    function sinkGlyph(desc: string): string {
-        let d = (desc || "").toLowerCase()
-        if (d.indexOf("headphone") !== -1 || d.indexOf("headset") !== -1) return "󰋋"
+    function sinkGlyph(desc: string, name: string): string {
+        let d = ((desc || "") + " " + (name || "")).toLowerCase()
+        if (d.indexOf("headphone") !== -1 || d.indexOf("headset") !== -1 || d.indexOf("kopfhörer") !== -1) return "󰋋"
         if (d.indexOf("hdmi") !== -1 || d.indexOf("displayport") !== -1) return "󰍹"
-        if (d.indexOf("bluetooth") !== -1) return "󰂯"
+        if (d.indexOf("bluetooth") !== -1 || d.indexOf("bluez") !== -1) return "󰂯"
+        if (d.indexOf("usb") !== -1) return "󰓃"
         return "󰕾"
     }
 
@@ -592,7 +594,7 @@ Scope {
                                 delegate: NodeRow {
                                     required property var modelData
                                     required property int index
-                                    glyph: scope.sinkGlyph(modelData.desc)
+                                    glyph: scope.sinkGlyph(modelData.desc, modelData.name)
                                     label: modelData.desc
                                     isActive: scope.defaultSink !== "" && modelData.name === scope.defaultSink
                                     width: parent.width

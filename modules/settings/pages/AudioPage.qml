@@ -18,7 +18,7 @@ Column {
 
     Process {
         id: sinkListProc
-        command: ["bash", "-c", "pactl list sinks 2>/dev/null | awk ' /Name:/{n=$2} /Description:|Beschreibung:/{sub(/^[^:]*: /, \"\"); d=$0; print n\"|\"d}'"]
+        command: ["bash", "-c", "LC_ALL=C pactl list sinks 2>/dev/null | awk ' /Name:/{n=$2} /Description:|Beschreibung:/{sub(/^[^:]*: /, \"\"); d=$0; print n\"|\"d}'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
@@ -29,7 +29,9 @@ Column {
                     if (!ln) continue
                     let sep = ln.indexOf("|")
                     if (sep === -1) continue
-                    arr.push({name: ln.substring(0, sep).trim(), desc: ln.substring(sep + 1).trim()})
+                    let nm = ln.substring(0, sep).trim()
+                    let ds = ln.substring(sep + 1).trim()
+                    arr.push({name: nm, desc: Util.cleanAudioName(ds, nm)})
                 }
                 root.sinks = arr
             }
