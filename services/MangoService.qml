@@ -30,7 +30,22 @@ Singleton {
 
     // ---- live state (mango only) ----
     property int tagCount: 10
-    property string focusedMonitor: "DP-1"
+    // Preferred display: DP-1 when present, else the first Quickshell
+    // screen — so machines without DP-1 start on a real display. The
+    // first parseMonitors poll keeps this live afterwards (assignment
+    // replaces this initial binding, which is intended).
+    function preferredMonitorName(): string {
+        try {
+            let v = Quickshell.screens.values
+            let vals = (v && typeof v.length === "number") ? v : []
+            for (let i = 0; i < vals.length; i++) {
+                if (vals[i] && vals[i].name === "DP-1") return "DP-1"
+            }
+            if (vals.length > 0 && vals[0] && vals[0].name) return "" + vals[0].name
+        } catch (e) {}
+        return "DP-1"
+    }
+    property string focusedMonitor: preferredMonitorName()
     // tags for the focused monitor: [{index, active, urgent, clients, layout}]
     property var tags: []
     // all monitors raw (name -> {active, activeTags, tags, activeClient})
@@ -39,7 +54,10 @@ Singleton {
     property string focusedAppId: ""
     property bool focusedFullscreen: false
     property bool focusedFloating: false
-    // monitor name -> bool (any visible client fullscreen/fakefullscreen)
+    // monitor name -> bool (any *visible* client fullscreen/fakefullscreen).
+    // Hidden tags / minimized clients stay listed in all-clients, so
+    // is_visible must be checked or the bar keeps zone 0 after switching
+    // to a workspace without fullscreen.
     property var fullscreenByScreen: ({})
     // Tag indices with no_hide:1 in workspaces.conf (pinned, always shown in
     // dynamic mode). Not exposed via mmsg, so parsed from the file.
@@ -189,9 +207,9 @@ Singleton {
     }
     // Per-screen tags in the same shape as `tags`:
     // [{index, active, urgent, clients, layout}], sorted by index.
-    // The bar lives on one screen (DP-1) while `tags` tracks the focused
-    // monitor — Workspaces must use tagsFor(screenName) or the highlight
-    // follows the wrong screen / lags behind focus changes.
+    // The bar lives on one screen (the Theme primary screen) while `tags`
+    // tracks the focused monitor — Workspaces must use tagsFor(screenName)
+    // or the highlight follows the wrong screen / lags behind focus changes.
     function tagsFor(screenName: string): var {
         try {
             let name = ((screenName || "") + "").trim() || focusedMonitor
@@ -242,9 +260,10 @@ Singleton {
                 mmap[m.name] = m
                 if (m.active) focused = m.name
             }
-            // Fall back to DP-1 when nothing claims active (single-head jhqs bar).
+            // Fall back to the preferred display when nothing claims active.
             if (!mmap[focused]) {
-                if (mmap["DP-1"]) focused = "DP-1"
+                let pref = preferredMonitorName()
+                if (mmap[pref]) focused = pref
                 else for (let k in mmap) { focused = k; break }
             }
             // Live watches push every change (~5ms); missed-event safety poll
@@ -312,7 +331,11 @@ Singleton {
             for (let i = 0; i < list.length; i++) {
                 let c = list[i]
                 if (!c || !c.monitor) continue
-                if (c.is_fullscreen || c.is_fakefullscreen) m[c.monitor] = true
+                // Only visible fullscreen counts: mmsg lists hidden-tag and
+                // minimized clients too, which must not hold the bar hidden
+                // (zone 0) after switching workspaces. Missing is_visible
+                // defaults to counted for forward-compat.
+                if ((c.is_fullscreen || c.is_fakefullscreen) && c.is_visible !== false) m[c.monitor] = true
                 // Focused client doubles as ActiveWindow source when
                 // all-monitors active_client lags one poll behind.
                 try {
@@ -423,8 +446,8 @@ Singleton {
         optimisticView(i, screenName)
         let target = ((screenName || "") + "").trim()
         // `view,i,0` = focused monitor; `view,i,<name>` targets a screen.
-        // The bar lives on DP-1, so clicks must switch DP-1 even when focus
-        // is on another monitor.
+        // The bar lives on the primary screen, so clicks must switch that
+        // screen even when focus is on another monitor.
         if (target.length > 0) dispatch("view," + i + "," + target)
         else dispatch("view," + i + ",0")
     }

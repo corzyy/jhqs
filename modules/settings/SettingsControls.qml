@@ -87,6 +87,8 @@ QtObject {
                     Rectangle {
                         anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                         width: 3
+                        radius: Theme.cornerRadiusSmall
+                        antialiasing: Theme.shapesAa
                         color: Theme.accent
                         visible: isCurrent
                     }
@@ -127,6 +129,8 @@ QtObject {
         Rectangle {
             anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
             width: 3
+            radius: Theme.cornerRadiusSmall
+            antialiasing: Theme.shapesAa
             color: Theme.accent
             visible: root.selected
         }
@@ -284,13 +288,28 @@ QtObject {
                         readonly property bool isCurrent: modelData.id === root.current
                         width: navCol.width; height: 50
                         radius: Theme.cornerRadius
-                        color: isCurrent ? Theme.withAlpha(Theme.textPrimary, 0.08)
+                        color: isCurrent ? Theme.accent
                             : navMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                         border.color: "transparent"; border.width: 0
+                        // Accent rim hugging the highlight: the row itself
+                        // goes accent when current and this opaque inner
+                        // fill leaves a 3px accent edge on the left with
+                        // concentric radius. At 0px this renders exactly
+                        // like the old flat cursor bar.
                         Rectangle {
-                            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-                            width: 3
-                            color: Theme.accent
+                            anchors.fill: parent
+                            anchors.leftMargin: 3
+                            radius: Math.max(0, Theme.cornerRadius - 3)
+                            antialiasing: Theme.shapesAa
+                            color: Theme.bg
+                            visible: isCurrent
+                        }
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.leftMargin: 3
+                            radius: Math.max(0, Theme.cornerRadius - 3)
+                            antialiasing: Theme.shapesAa
+                            color: Theme.withAlpha(Theme.textPrimary, 0.08)
                             visible: isCurrent
                         }
                         Row {

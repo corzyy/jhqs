@@ -32,38 +32,40 @@ Scope {
         function setRefreshMinutes(n: int): string { return WeatherService.setRefreshMinutes(n) }
     }
 
-    // Shared bits (same language as Network/Bluetooth panels).
-    component SectionHeader: Text {
+    // ---------- Same design primitives as Volume/Network panels ----------
+    component SectionLabel: Text {
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
         color: Theme.textSecondary
-        font.family: Theme.iconFontFamily
+        font.family: Theme.fontFamily
         font.pixelSize: Theme.fs(10)
         font.weight: Font.Bold
         font.letterSpacing: 1.2
     }
-    component Hairline: Rectangle {
+    component Card: Rectangle {
         antialiasing: Theme.shapesAa
-        color: Theme.withAlpha(Theme.textPrimary, 0.12)
-        height: 1
+        radius: Theme.cornerRadiusSmall
+        color: Theme.cardBg
+        border.color: Theme.divider
+        border.width: 1
     }
     component IconBtn: Rectangle {
         id: iconBtnRoot
         required property string glyph
-        property bool accentOnHover: true
+        property bool active: false
         signal pressed()
-        width: 32; height: 32
-        radius: 0
+        width: 28; height: 28
+        radius: Theme.cornerRadiusSmall
         antialiasing: Theme.shapesAa
         color: btnMouse.containsMouse ? Theme.bgHover : "transparent"
-        border.color: btnMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.25) : "transparent"
+        border.color: (iconBtnRoot.active || btnMouse.containsMouse) ? Theme.divider : "transparent"
         border.width: 1
         Text {
             anchors.centerIn: parent
             text: iconBtnRoot.glyph
-            color: btnMouse.containsMouse && iconBtnRoot.accentOnHover ? Theme.accent : Theme.textSecondary
+            color: (iconBtnRoot.active || btnMouse.containsMouse) ? Theme.accent : Theme.textSecondary
             font.family: Theme.iconFontFamily
-            font.pixelSize: Theme.fs(15)
+            font.pixelSize: Theme.fs(13)
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
         }
@@ -75,7 +77,43 @@ Scope {
             onClicked: iconBtnRoot.pressed()
         }
     }
+    component TogglePill: Rectangle {
+        id: pillRoot
+        required property bool on
+        property string onText: "°C"
+        property string offText: "°F"
+        signal pressed()
+        implicitWidth: pillLabel.implicitWidth + 24
+        implicitHeight: 26
+        radius: height / 2
+        antialiasing: Theme.shapesAa
+        color: pillMouse.containsMouse
+            ? (on ? Theme.withAlpha(Theme.accent, 0.28) : Theme.withAlpha(Theme.textPrimary, 0.14))
+            : (on ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.textPrimary, 0.06))
+        border.color: on ? Theme.accent : Theme.divider
+        border.width: 1
+        Text {
+            id: pillLabel
+            anchors.centerIn: parent
+            text: pillRoot.on ? pillRoot.onText : pillRoot.offText
+            color: pillRoot.on ? Theme.textPrimary : Theme.textSecondary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fs(10)
+            font.weight: Font.Bold
+            font.letterSpacing: 0.6
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+        }
+        MouseArea {
+            id: pillMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: pillRoot.pressed()
+        }
+    }
 
+    readonly property string heroTitle: WeatherService.reportLocation !== "" ? WeatherService.reportLocation : "No location set"
     readonly property string heroMeta: {
         let cond = (WeatherService.reportCondition || "").trim().toUpperCase()
         if (WeatherService.hasData) {
@@ -86,13 +124,19 @@ Scope {
         }
         return "FETCHING…"
     }
+    readonly property string heroSub: {
+        if (!WeatherService.hasData) return ""
+        return WeatherService.reportFeels !== "" ? "Feels " + WeatherService.reportFeels : ""
+    }
+    readonly property string statusText: WeatherService.hasData ? (WeatherService.reportTempNum + WeatherService.tempUnit) : "…"
+    readonly property bool statusOk: WeatherService.hasData
 
     Variants {
         model: Quickshell.screens
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: root._winVisible && modelData.name === "DP-1"
+            visible: root._winVisible && Theme.isPrimaryScreen(modelData)
             color: "transparent"
             exclusiveZone: 0
             anchors { top: true; left: true; right: true; bottom: true }
@@ -132,11 +176,10 @@ Scope {
                         f.forceActiveFocus()
                     })
                 }
-                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 36, wxAnchor.screenHeight - wxAnchor.edgeOffset - 24))
+                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 20, wxAnchor.screenHeight - wxAnchor.edgeOffset - 24))
                 color: Theme.bg
                 border.color: Theme.panelBorderColor
                 border.width: 2
-                // 0px rounding kept intentionally — sharp horizontal rectangle.
                 radius: 0
                 clip: true
                 PanelSpring {
@@ -171,9 +214,6 @@ Scope {
                         } else if ((event.text === "r" || event.text === "R") && !WeatherService.editingLocation) {
                             WeatherService.refresh()
                             event.accepted = true
-                        } else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !WeatherService.editingLocation) {
-                            wxBox.startLocationEdit()
-                            event.accepted = true
                         }
                     }
                     Component.onCompleted: forceActiveFocus()
@@ -187,7 +227,7 @@ Scope {
 
                 Flickable {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 10
                     contentHeight: contentCol.implicitHeight
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
@@ -195,61 +235,288 @@ Scope {
                     Column {
                         id: contentCol
                         width: parent.width
-                        spacing: 12
-
-                        // Hero across the full horizontal width.
-                        Item {
+                        spacing: 8
+                        // Header: title + status pill + actions.
+                        // The pinpoint is the only place to change the location.
+                        RowLayout {
                             width: parent.width
-                            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroActions.implicitHeight)
+                            spacing: 6
                             Text {
-                                id: heroIcon
-                                text: WeatherService.label || "—"
-                                color: WeatherService.hasData ? Theme.textPrimary : Theme.textMuted
-                                font.family: Theme.iconFontFamily
-                                font.pixelSize: Theme.fs(26)
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
+                                text: root.heroTitle
+                                color: Theme.textPrimary
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fs(13)
+                                font.weight: Font.Bold
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             }
-                            Row {
-                                id: heroActions
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 4
-                                IconBtn {
-                                    glyph: "󰍎"
-                                    onPressed: wxBox.startLocationEdit()
-                                }
-                                IconBtn {
-                                    glyph: "↻"
-                                    onPressed: WeatherService.refresh()
-                                }
-                            }
-                            Column {
-                                id: heroLabels
-                                anchors.left: heroIcon.right
-                                anchors.leftMargin: 14
-                                anchors.right: heroActions.left
-                                anchors.rightMargin: 12
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
+                            Rectangle {
+                                Layout.preferredHeight: 20
+                                Layout.preferredWidth: Math.max(52, statusTxt.implicitWidth + 18)
+                                radius: 10
+                                color: root.statusOk ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.textPrimary, 0.06)
+                                border.color: root.statusOk ? Theme.accent : Theme.divider
+                                border.width: 1
                                 Text {
-                                    width: parent.width
-                                    text: WeatherService.reportLocation !== "" ? WeatherService.reportLocation : "Weather"
-                                    color: Theme.textPrimary
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(16)
+                                    id: statusTxt
+                                    anchors.centerIn: parent
+                                    text: root.statusText
+                                    color: root.statusOk ? Theme.textPrimary : Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fs(10)
                                     font.weight: Font.Bold
-                                    elide: Text.ElideRight
+                                    font.letterSpacing: 1.0
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                 }
-                                Text {
+                            }
+                            IconBtn {
+                                glyph: "󰍎"
+                                active: WeatherService.editingLocation
+                                onPressed: {
+                                    if (WeatherService.editingLocation) WeatherService.cancelEditingLocation()
+                                    else wxBox.startLocationEdit()
+                                }
+                            }
+                            IconBtn {
+                                glyph: "↻"
+                                onPressed: WeatherService.refresh()
+                            }
+                        }
+                        // Location search editor — only visible while editing.
+                        Card {
+                            visible: WeatherService.editingLocation
+                            width: parent.width
+                            implicitHeight: locCol.implicitHeight + 20
+                            ColumnLayout {
+                                id: locCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                SectionLabel { text: "SEARCH LOCATION" }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 36
+                                        radius: Theme.cornerRadiusSmall
+                                        antialiasing: Theme.shapesAa
+                                        color: Theme.withAlpha(Theme.textPrimary, 0.04)
+                                        border.color: locationField.activeFocus ? Theme.accent : Theme.divider
+                                        border.width: locationField.activeFocus ? 2 : 1
+                                        TextInput {
+                                            id: locationField
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 10
+                                            anchors.rightMargin: 10
+                                            verticalAlignment: TextInput.AlignVCenter
+                                            clip: true
+                                            color: Theme.textPrimary
+                                            selectionColor: Theme.accent
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fs(12)
+                                            selectByMouse: true
+                                            enabled: !WeatherService.savingLocation
+                                            onTextChanged: {
+                                                if (WeatherService.editingLocation && !WeatherService.savingLocation)
+                                                    WeatherService.queueGeocode(text)
+                                            }
+                                            Keys.onPressed: event => {
+                                                if (event.key === Qt.Key_Escape) {
+                                                    WeatherService.cancelEditingLocation()
+                                                    keyCatcher.forceActiveFocus()
+                                                    event.accepted = true
+                                                } else if (event.key === Qt.Key_Down) {
+                                                    if (WeatherService.suggestionIndex < WeatherService.locationSuggestions.length - 1) WeatherService.suggestionIndex++
+                                                    event.accepted = true
+                                                } else if (event.key === Qt.Key_Up) {
+                                                    if (WeatherService.suggestionIndex > 0) WeatherService.suggestionIndex--
+                                                    event.accepted = true
+                                                } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                                    WeatherService.commitLocation(locationField.text)
+                                                    keyCatcher.forceActiveFocus()
+                                                    event.accepted = true
+                                                }
+                                            }
+                                        }
+                                        Text {
+                                            visible: locationField.text === "" && !locationField.activeFocus
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "Search city…"
+                                            color: Theme.textMuted
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fs(12)
+                                            antialiasing: Theme.textAa
+                                            renderType: Theme.textRenderType
+                                        }
+                                    }
+                                    Rectangle {
+                                        Layout.preferredWidth: 34; Layout.preferredHeight: 36
+                                        radius: Theme.cornerRadiusSmall
+                                        antialiasing: Theme.shapesAa
+                                        color: clearMouse.containsMouse && !WeatherService.savingLocation ? Theme.withAlpha(Theme.textPrimary, 0.07) : "transparent"
+                                        border.color: Theme.divider
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: WeatherService.savingLocation ? "󰦖" : "✕"
+                                            font.family: Theme.iconFontFamily
+                                            color: Theme.textSecondary
+                                            font.pixelSize: Theme.fs(12)
+                                            antialiasing: Theme.textAa
+                                            renderType: Theme.textRenderType
+                                        }
+                                        MouseArea {
+                                            id: clearMouse
+                                            anchors.fill: parent
+                                            enabled: !WeatherService.savingLocation
+                                            hoverEnabled: true
+                                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onClicked: { WeatherService.clearLocation(); keyCatcher.forceActiveFocus() }
+                                        }
+                                    }
+                                }
+                                Column {
+                                    visible: !WeatherService.savingLocation && WeatherService.locationSuggestions.length > 0
                                     width: parent.width
+                                    spacing: 2
+                                    Repeater {
+                                        model: WeatherService.locationSuggestions
+                                        delegate: Rectangle {
+                                            required property var modelData
+                                            required property int index
+                                            width: parent.width
+                                            implicitHeight: 36
+                                            radius: Theme.cornerRadiusSmall
+                                            antialiasing: Theme.shapesAa
+                                            color: index === WeatherService.suggestionIndex || sugMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.14) : "transparent"
+                                            border.color: index === WeatherService.suggestionIndex ? Theme.withAlpha(Theme.accent, 0.55) : "transparent"
+                                            border.width: index === WeatherService.suggestionIndex ? 1 : 0
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 10
+                                                anchors.rightMargin: 10
+                                                spacing: 8
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    text: modelData.name
+                                                    color: index === WeatherService.suggestionIndex ? Theme.textPrimary : Theme.textSecondary
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fs(12)
+                                                    font.weight: index === WeatherService.suggestionIndex ? Font.DemiBold : Font.Normal
+                                                    elide: Text.ElideRight
+                                                    antialiasing: Theme.textAa
+                                                    renderType: Theme.textRenderType
+                                                }
+                                                Text {
+                                                    visible: text !== ""
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    text: modelData.description
+                                                    color: Theme.textMuted
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fs(10)
+                                                    elide: Text.ElideRight
+                                                    antialiasing: Theme.textAa
+                                                    renderType: Theme.textRenderType
+                                                }
+                                            }
+                                            MouseArea {
+                                                id: sugMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onPositionChanged: WeatherService.suggestionIndex = index
+                                                onClicked: { WeatherService.pickSuggestion(modelData); keyCatcher.forceActiveFocus() }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Middle row: now left, forecast right.
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
+                        // Hero now card. The set location lives here, under the temp.
+                        Card {
+                            Layout.preferredWidth: 296
+                            Layout.alignment: Qt.AlignTop
+                            implicitHeight: Math.max(heroCol.implicitHeight, fcCol.implicitHeight) + 20
+                            ColumnLayout {
+                                id: heroCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    Rectangle {
+                                        Layout.preferredWidth: 40; Layout.preferredHeight: 40
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: Theme.cornerRadiusSmall
+                                        color: WeatherService.hasData ? Theme.withAlpha(Theme.accent, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.06)
+                                        border.color: WeatherService.hasData ? Theme.withAlpha(Theme.accent, 0.5) : Theme.divider
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: WeatherService.label || "—"
+                                            color: WeatherService.hasData ? Theme.textPrimary : Theme.textMuted
+                                            font.family: Theme.iconFontFamily
+                                            font.pixelSize: Theme.fs(19)
+                                            antialiasing: Theme.textAa
+                                            renderType: Theme.textRenderType
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 2
+                                        SectionLabel { text: "NOW" }
+                                        Row {
+                                            spacing: 2
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: WeatherService.hasData ? WeatherService.reportTempNum : "—"
+                                                color: Theme.textPrimary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(22)
+                                                font.weight: Font.Bold
+                                                antialiasing: Theme.textAa
+                                                renderType: Theme.textRenderType
+                                            }
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                anchors.verticalCenterOffset: -5
+                                                text: WeatherService.tempUnit
+                                                color: Theme.textSecondary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(11)
+                                                font.weight: Font.Bold
+                                                antialiasing: Theme.textAa
+                                                renderType: Theme.textRenderType
+                                            }
+                                        }
+                                    }
+                                    TogglePill {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        on: !WeatherService.useImperial
+                                        onText: "°C"
+                                        offText: "°F"
+                                        onPressed: WeatherService.setUnit(WeatherService.useImperial ? "metric" : "imperial")
+                                    }
+                                }
+                                Text {
+                                    visible: text !== ""
+                                    Layout.fillWidth: true
                                     text: root.heroMeta
                                     color: Theme.textSecondary
-                                    font.family: Theme.iconFontFamily
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fs(10)
                                     font.weight: Font.Bold
                                     font.letterSpacing: 1.2
@@ -257,114 +524,25 @@ Scope {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                 }
-                            }
-                            MouseArea {
-                                anchors.left: parent.left
-                                anchors.right: heroActions.left
-                                anchors.top: parent.top
-                                anchors.bottom: parent.bottom
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: wxBox.startLocationEdit()
-                            }
-                        }
-
-                        Hairline { width: parent.width }
-
-                        // Horizontal body: now/stats/location left, forecast right.
-                        Row {
-                            id: middleRow
-                            width: parent.width
-                            spacing: 14
-                            Column {
-                                id: leftCol
-                                width: Math.floor((parent.width - 14 - 1) / 2)
-                                spacing: 12
-                                // Now: big temp + condition.
-                                Item {
-                                    width: parent.width
-                                    implicitHeight: Math.max(tempRow.implicitHeight, nowSide.implicitHeight)
-                                    visible: WeatherService.hasData
-                                    Row {
-                                        id: tempRow
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 2
-                                        Text {
-                                            id: tempBig
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: WeatherService.reportTempNum || "—"
-                                            color: Theme.textPrimary
-                                            font.family: Theme.iconFontFamily
-                                            font.pixelSize: Theme.fs(44)
-                                            font.weight: Font.Bold
-                                            antialiasing: Theme.textAa
-                                            renderType: Theme.textRenderType
-                                        }
-                                        Text {
-                                            anchors.top: tempBig.top
-                                            anchors.topMargin: 8
-                                            text: WeatherService.tempUnit
-                                            color: Theme.textPrimary
-                                            font.family: Theme.iconFontFamily
-                                            font.pixelSize: Theme.fs(17)
-                                            antialiasing: Theme.textAa
-                                            renderType: Theme.textRenderType
-                                        }
-                                    }
-                                    Column {
-                                        id: nowSide
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: Math.min(130, parent.width - tempRow.implicitWidth - 16)
-                                        spacing: 4
-                                        Text {
-                                            width: parent.width
-                                            horizontalAlignment: Text.AlignRight
-                                            text: (WeatherService.reportCondition || "—")
-                                            color: Theme.textPrimary
-                                            font.family: Theme.iconFontFamily
-                                            font.pixelSize: Theme.fs(12)
-                                            font.weight: Font.DemiBold
-                                            elide: Text.ElideRight
-                                            maximumLineCount: 2
-                                            wrapMode: Text.WordWrap
-                                            antialiasing: Theme.textAa
-                                            renderType: Theme.textRenderType
-                                        }
-                                        Text {
-                                            visible: text !== ""
-                                            width: parent.width
-                                            horizontalAlignment: Text.AlignRight
-                                            text: WeatherService.hasData && WeatherService.reportFeels !== "" ? "Feels " + WeatherService.reportFeels : ""
-                                            color: Theme.textSecondary
-                                            font.family: Theme.iconFontFamily
-                                            font.pixelSize: Theme.fs(11)
-                                            elide: Text.ElideRight
-                                            antialiasing: Theme.textAa
-                                            renderType: Theme.textRenderType
-                                        }
-                                    }
-                                }
                                 Text {
-                                    visible: !WeatherService.hasData
-                                    width: parent.width
-                                    text: "Fetching forecast…"
-                                    color: Theme.textSecondary
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(11)
-                                    font.italic: true
+                                    visible: text !== ""
+                                    Layout.fillWidth: true
+                                    text: root.heroSub
+                                    color: Theme.textMuted
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fs(10)
+                                    elide: Text.ElideRight
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                 }
                                 GridLayout {
                                     visible: WeatherService.hasData
-                                    width: parent.width
+                                    Layout.fillWidth: true
                                     columns: 3
-                                    columnSpacing: 16
+                                    columnSpacing: 12
                                     rowSpacing: 4
                                     Repeater {
-                                        model: ["FEELS", "WIND", "HUMIDITY"]
+                                        model: ["Feels", "Wind", "Humidity"]
                                         delegate: Column {
                                             required property var modelData
                                             required property int index
@@ -376,240 +554,42 @@ Scope {
                                             spacing: 1
                                             Layout.fillWidth: true
                                             Text {
-                                                text: modelData
-                                                color: Theme.textSecondary
-                                                font.family: Theme.iconFontFamily
+                                                text: modelData.toUpperCase()
+                                                color: Theme.textMuted
+                                                font.family: Theme.fontFamily
                                                 font.pixelSize: Theme.fs(10)
                                                 font.weight: Font.Bold
-                                                font.letterSpacing: 1.2
+                                                font.letterSpacing: 1.0
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType
                                             }
                                             Text {
                                                 text: statValue
                                                 color: Theme.textPrimary
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(13)
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(12)
+                                                font.weight: Font.DemiBold
                                                 elide: Text.ElideRight
-                                                antialiasing: Theme.textAa
-                                                renderType: Theme.textRenderType
-                                            }
-                                        }
-                                    }
-                                }
-                                Column {
-                                    width: parent.width
-                                    spacing: 8
-                                    SectionHeader { text: "LOCATION" }
-                                    Rectangle {
-                                        visible: !WeatherService.editingLocation
-                                        width: parent.width
-                                        implicitHeight: 38
-                                        radius: 0
-                                        antialiasing: Theme.shapesAa
-                                        color: locMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : Theme.withAlpha(Theme.textPrimary, 0.04)
-                                        border.color: Theme.withAlpha(Theme.textPrimary, 0.25)
-                                        border.width: 1
-                                        Row {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 10
-                                            anchors.rightMargin: 10
-                                            spacing: 8
-                                            Text {
-                                                text: "󰍎"
-                                                color: Theme.textSecondary
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(12)
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                antialiasing: Theme.textAa
-                                                renderType: Theme.textRenderType
-                                            }
-                                            Text {
-                                                width: parent.width - 22 - 8 - 40
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: WeatherService.reportLocation !== "" ? WeatherService.reportLocation.toUpperCase() : "SET LOCATION…"
-                                                color: Theme.textPrimary
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(12)
-                                                font.letterSpacing: 1
-                                                elide: Text.ElideRight
-                                                antialiasing: Theme.textAa
-                                                renderType: Theme.textRenderType
-                                            }
-                                            Text {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: "EDIT"
-                                                color: locMouse.containsMouse ? Theme.accent : Theme.textSecondary
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(10)
-                                                font.weight: Font.Bold
-                                                font.letterSpacing: 1.2
-                                                antialiasing: Theme.textAa
-                                                renderType: Theme.textRenderType
-                                            }
-                                        }
-                                        MouseArea {
-                                            id: locMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: wxBox.startLocationEdit()
-                                        }
-                                    }
-                                    Row {
-                                        visible: WeatherService.editingLocation
-                                        width: parent.width
-                                        spacing: 6
-                                        Rectangle {
-                                            width: parent.width - 40
-                                            height: 36
-                                            radius: 0
-                                            antialiasing: Theme.shapesAa
-                                            color: Theme.withAlpha(Theme.textPrimary, 0.04)
-                                            border.color: locationField.activeFocus ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.25)
-                                            border.width: locationField.activeFocus ? 2 : 1
-                                            TextInput {
-                                                id: locationField
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 10
-                                                anchors.rightMargin: 10
-                                                verticalAlignment: TextInput.AlignVCenter
-                                                clip: true
-                                                color: Theme.textPrimary
-                                                selectionColor: Theme.accent
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(12)
-                                                selectByMouse: true
-                                                enabled: !WeatherService.savingLocation
-                                                onTextChanged: {
-                                                    if (WeatherService.editingLocation && !WeatherService.savingLocation)
-                                                        WeatherService.queueGeocode(text)
-                                                }
-                                                Keys.onPressed: event => {
-                                                    if (event.key === Qt.Key_Escape) {
-                                                        WeatherService.cancelEditingLocation()
-                                                        keyCatcher.forceActiveFocus()
-                                                        event.accepted = true
-                                                    } else if (event.key === Qt.Key_Down) {
-                                                        if (WeatherService.suggestionIndex < WeatherService.locationSuggestions.length - 1) WeatherService.suggestionIndex++
-                                                        event.accepted = true
-                                                    } else if (event.key === Qt.Key_Up) {
-                                                        if (WeatherService.suggestionIndex > 0) WeatherService.suggestionIndex--
-                                                        event.accepted = true
-                                                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                                        WeatherService.commitLocation(locationField.text)
-                                                        keyCatcher.forceActiveFocus()
-                                                        event.accepted = true
-                                                    }
-                                                }
-                                            }
-                                            Text {
-                                                visible: locationField.text === "" && !locationField.activeFocus
-                                                anchors.left: parent.left
-                                                anchors.leftMargin: 10
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: "Search city…"
-                                                color: Theme.textMuted
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(12)
-                                                antialiasing: Theme.textAa
-                                                renderType: Theme.textRenderType
-                                            }
-                                        }
-                                        Rectangle {
-                                            width: 34; height: 36
-                                            radius: 0
-                                            antialiasing: Theme.shapesAa
-                                            color: clearMouse.containsMouse && !WeatherService.savingLocation ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
-                                            border.color: Theme.withAlpha(Theme.textPrimary, 0.25)
-                                            border.width: 1
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: WeatherService.savingLocation ? "󰦖" : "✕"
-                                                font.family: Theme.iconFontFamily
-                                                color: Theme.textSecondary
-                                                font.pixelSize: Theme.fs(12)
-                                                antialiasing: Theme.textAa
-                                                renderType: Theme.textRenderType
-                                            }
-                                            MouseArea {
-                                                id: clearMouse
-                                                anchors.fill: parent
-                                                enabled: !WeatherService.savingLocation
-                                                hoverEnabled: true
-                                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                                onClicked: { WeatherService.clearLocation(); keyCatcher.forceActiveFocus() }
-                                            }
-                                        }
-                                    }
-                                    Column {
-                                        visible: WeatherService.editingLocation && !WeatherService.savingLocation && WeatherService.locationSuggestions.length > 0
-                                        width: parent.width
-                                        spacing: 0
-                                        Repeater {
-                                            model: WeatherService.locationSuggestions
-                                            delegate: Rectangle {
-                                                required property var modelData
-                                                required property int index
                                                 width: parent.width
-                                                implicitHeight: 36
-                                                radius: 0
-                                                antialiasing: Theme.shapesAa
-                                                color: index === WeatherService.suggestionIndex || sugMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
-                                                Row {
-                                                    anchors.fill: parent
-                                                    anchors.leftMargin: 10
-                                                    anchors.rightMargin: 10
-                                                    spacing: 8
-                                                    Text {
-                                                        width: parent.width - 8 - (sugSub.visible ? sugSub.implicitWidth + 8 : 0)
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        text: modelData.name
-                                                        color: index === WeatherService.suggestionIndex ? Theme.accent : Theme.textPrimary
-                                                        font.family: Theme.iconFontFamily
-                                                        font.pixelSize: Theme.fs(12)
-                                                        elide: Text.ElideRight
-                                                        antialiasing: Theme.textAa
-                                                        renderType: Theme.textRenderType
-                                                    }
-                                                    Text {
-                                                        id: sugSub
-                                                        visible: text !== ""
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        text: modelData.description
-                                                        color: Theme.textSecondary
-                                                        font.family: Theme.iconFontFamily
-                                                        font.pixelSize: Theme.fs(11)
-                                                        elide: Text.ElideRight
-                                                        antialiasing: Theme.textAa
-                                                        renderType: Theme.textRenderType
-                                                    }
-                                                }
-                                                MouseArea {
-                                                    id: sugMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onPositionChanged: WeatherService.suggestionIndex = index
-                                                    onClicked: { WeatherService.pickSuggestion(modelData); keyCatcher.forceActiveFocus() }
-                                                }
+                                                antialiasing: Theme.textAa
+                                                renderType: Theme.textRenderType
                                             }
                                         }
                                     }
                                 }
                             }
-                            // Vertical divider keeps the two halves distinct.
-                            Rectangle {
-                                width: 1
-                                height: Math.max(leftCol.implicitHeight, rightCol.implicitHeight)
-                                color: Theme.withAlpha(Theme.textPrimary, 0.12)
-                                antialiasing: Theme.shapesAa
-                            }
-                            Column {
-                                id: rightCol
-                                width: Math.floor((parent.width - 14 - 1) / 2)
-                                spacing: 8
-                                SectionHeader { text: "NEXT 3 DAYS" }
+                        }
+                            // Forecast card.
+                            Card {
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignTop
+                                implicitHeight: Math.max(heroCol.implicitHeight, fcCol.implicitHeight) + 20
+                            ColumnLayout {
+                                id: fcCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                SectionLabel { text: "NEXT 3 DAYS" }
                                 Repeater {
                                     model: root.showWeather ? WeatherService.forecastDays : []
                                     delegate: Rectangle {
@@ -618,12 +598,12 @@ Scope {
                                         readonly property string fName: WeatherService.dayName(modelData.date).toUpperCase()
                                         readonly property string fMax: WeatherService.bareTempForDay(modelData, "max")
                                         readonly property string fMin: WeatherService.bareTempForDay(modelData, "min")
-                                        width: parent.width
-                                        implicitHeight: 44
-                                        radius: 0
+                                        Layout.fillWidth: true
+                                        implicitHeight: 40
+                                        radius: Theme.cornerRadiusSmall
                                         antialiasing: Theme.shapesAa
-                                        color: fcMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
-                                        Row {
+                                        color: "transparent"
+                                        RowLayout {
                                             anchors.fill: parent
                                             anchors.leftMargin: 8
                                             anchors.rightMargin: 8
@@ -632,139 +612,62 @@ Scope {
                                                 text: fIcon
                                                 color: Theme.textPrimary
                                                 font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(17)
-                                                width: 24
+                                                font.pixelSize: Theme.fs(16)
+                                                Layout.preferredWidth: 24
                                                 horizontalAlignment: Text.AlignHCenter
-                                                anchors.verticalCenter: parent.verticalCenter
+                                                Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType
                                             }
                                             Text {
-                                                width: parent.width - 24 - 8 - 96
-                                                anchors.verticalCenter: parent.verticalCenter
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
                                                 text: fName
                                                 color: Theme.textPrimary
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(12)
-                                                font.weight: Font.Bold
-                                                font.letterSpacing: 1
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(11)
+                                                font.weight: Font.DemiBold
+                                                font.letterSpacing: 0.6
                                                 elide: Text.ElideRight
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType
                                             }
-                                            Row {
-                                                width: 96
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                layoutDirection: Qt.RightToLeft
-                                                spacing: 8
-                                                Text {
-                                                    text: fMax
-                                                    color: Theme.textPrimary
-                                                    font.family: Theme.iconFontFamily
-                                                    font.pixelSize: Theme.fs(12)
-                                                    font.weight: Font.Bold
-                                                    antialiasing: Theme.textAa
-                                                    renderType: Theme.textRenderType
-                                                }
-                                                Text {
-                                                    text: fMin
-                                                    color: Theme.textSecondary
-                                                    font.family: Theme.iconFontFamily
-                                                    font.pixelSize: Theme.fs(12)
-                                                    antialiasing: Theme.textAa
-                                                    renderType: Theme.textRenderType
-                                                }
+                                            Text {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                text: fMin
+                                                color: Theme.textSecondary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(12)
+                                                antialiasing: Theme.textAa
+                                                renderType: Theme.textRenderType
                                             }
-                                        }
-                                        MouseArea {
-                                            id: fcMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            acceptedButtons: Qt.NoButton
+                                            Text {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                text: fMax
+                                                color: Theme.textPrimary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(12)
+                                                font.weight: Font.Bold
+                                                antialiasing: Theme.textAa
+                                                renderType: Theme.textRenderType
+                                            }
                                         }
                                     }
                                 }
                                 Text {
                                     visible: WeatherService.forecastDays.length === 0
-                                    width: parent.width
+                                    Layout.fillWidth: true
+                                    horizontalAlignment: Text.AlignCenter
                                     text: WeatherService.hasData ? "No forecast yet" : "Fetching forecast…"
-                                    color: Theme.textSecondary
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(11)
-                                    font.italic: true
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                }
-                            }
-                        }
-
-                        Hairline { width: parent.width }
-
-                        // Footer across the full horizontal width.
-                        Item {
-                            width: parent.width
-                            implicitHeight: 18
-                            Text {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: WeatherService.updatedLabel !== "" ? "UPDATED " + WeatherService.updatedLabel : "NOT UPDATED"
-                                color: Theme.textMuted
-                                font.family: Theme.iconFontFamily
-                                font.pixelSize: Theme.fs(10)
-                                font.weight: Font.Bold
-                                font.letterSpacing: 1.2
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                            }
-                            Row {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 6
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "°C"
-                                    color: !WeatherService.useImperial ? Theme.textPrimary : Theme.textMuted
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(11)
-                                    font.weight: Font.Bold
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        anchors.margins: -4
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: WeatherService.setUnit("metric")
-                                    }
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "/"
                                     color: Theme.textMuted
-                                    font.family: Theme.iconFontFamily
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fs(11)
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
-                                }
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "°F"
-                                    color: WeatherService.useImperial ? Theme.textPrimary : Theme.textMuted
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(11)
-                                    font.weight: Font.Bold
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        anchors.margins: -4
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: WeatherService.setUnit("imperial")
-                                    }
                                 }
                             }
                         }
+                        } // middle row
                     }
                 }
             }

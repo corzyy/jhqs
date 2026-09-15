@@ -80,7 +80,8 @@ Scope {
     }
 
     // Fullscreen state comes from MangoService (mmsg all-clients); the bar
-    // hides itself on screens with a fullscreen client.
+    // stays mapped on fullscreen and only releases its reserved space, so it
+    // reliably reappears on exit / workspace switch instead of unmapping.
     property var fullscreenByScreen: ({ })
     function pullMangoFullscreen(): void {
         try {
@@ -152,10 +153,17 @@ Scope {
                 } catch (e) { }
                 return false
             }
-            visible: modelData.name === "DP-1" && !screenFullscreen
+            visible: Theme.isPrimaryScreen(modelData)
             WlrLayershell.namespace: "bar"
-            WlrLayershell.layer: WlrLayer.Overlay
-            exclusiveZone: (modelData.name === "DP-1" && !screenFullscreen) ? (isVertical ? barWidth + topDist : barHeight + topDist) : 0
+            // Top (not Overlay) so a fullscreen window covers the bar instead
+            // of the bar painting over it. The bar stays mapped the whole
+            // time, so the compositor uncovers it automatically on exit /
+            // workspace switch — no unmap/remap state to get stuck.
+            WlrLayershell.layer: WlrLayer.Top
+            // Fullscreen still gets the full screen area (zone 0); on normal
+            // workspaces the bar reserves its strip again so windows don't
+            // slide under it.
+            exclusiveZone: (Theme.isPrimaryScreen(modelData) && !screenFullscreen) ? (isVertical ? barWidth + topDist : barHeight + topDist) : 0
             anchors { top: barPos === "top" || isVertical; bottom: barPos === "bottom" || isVertical; left: barPos === "left" || isHorizontal; right: barPos === "right" || isHorizontal }
             margins {
                 top: topBarWindow.isVertical ? topBarWindow.edgeDist : (topBarWindow.barPos === "top" ? topBarWindow.topDist : 0)
@@ -213,7 +221,7 @@ Scope {
                 return { x: x, y: y }
             }
             function publishWindowRect(): void {
-                if (modelData.name !== "DP-1") return
+                if (!Theme.isPrimaryScreen(modelData)) return
                 try {
                     let sw = 0, sh = 0
                     try { if (screen) { sw = screen.width; sh = screen.height } } catch (e1) { }
@@ -977,7 +985,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: topBarScope.dragActive && modelData.name === "DP-1"
+            visible: topBarScope.dragActive && Theme.isPrimaryScreen(modelData)
             color: "transparent"
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "jhqs-bar-drag"

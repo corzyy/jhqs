@@ -88,7 +88,7 @@ Scope {
             exclusiveZone: 0
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "lockscreen"
-            WlrLayershell.keyboardFocus: modelData.name === "DP-1" ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: Theme.isPrimaryScreen(modelData) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.exclusionMode: ExclusionMode.Ignore
             anchors { top: true; left: true; right: true; bottom: true }
 
@@ -129,7 +129,7 @@ Scope {
 
                 Item {
                     id: topClock
-                    visible: modelData.name === "DP-1"
+                    visible: Theme.isPrimaryScreen(modelData)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
                     anchors.topMargin: 110
@@ -138,7 +138,7 @@ Scope {
                     opacity: lockScope.locked ? 1 : 0
                     scale: lockScope.locked ? 1 : 0.96
                     transform: Translate { y: lockScope.locked ? 0 : -18 }
-                    SystemClock { id: lockClock; enabled: lockScope.locked && modelData.name === "DP-1"; precision: SystemClock.Minutes }
+                    SystemClock { id: lockClock; enabled: lockScope.locked && Theme.isPrimaryScreen(modelData); precision: SystemClock.Minutes }
                     Column {
                         id: clockCol
                         anchors.centerIn: parent
@@ -195,8 +195,8 @@ Scope {
                     id: pinField
                     anchors.fill: parent
                     visible: false
-                    focus: lockScope.locked && modelData.name === "DP-1"
-                    activeFocusOnTab: modelData.name === "DP-1"
+                    focus: lockScope.locked && Theme.isPrimaryScreen(modelData)
+                    activeFocusOnTab: Theme.isPrimaryScreen(modelData)
                     echoMode: TextInput.Password
                     passwordCharacter: "•"
                     text: lockScope.pinInput
@@ -223,7 +223,7 @@ Scope {
 
                 Item {
                     id: pinContainer
-                    visible: modelData.name === "DP-1"
+                    visible: Theme.isPrimaryScreen(modelData)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 185

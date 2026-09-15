@@ -16,7 +16,7 @@ fi
 
 if command -v pkexec >/dev/null 2>&1; then
     echo "-> Triggering: pkexec --disable-internal-agent bash -c 'echo SUCCESS; id; sleep 1'"
-    echo "   -> Dialog should appear centered on DP-1 (Theme.bg, radius 24, Themed)."
+    echo "   -> Dialog should appear centered on the primary screen (DP-1 if present, else first screen)."
     echo "   -> Enter your user password. Cancel with Esc or the Cancel button."
     echo ""
     set +e

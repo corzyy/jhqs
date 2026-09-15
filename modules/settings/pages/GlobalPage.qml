@@ -55,6 +55,16 @@ Column {
             }
             MouseArea { id: previewMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setPanelAccentBorder(!Theme.panelAccentBorder) }
         }
+        SettingsControls.SettingsSliderRow { label: "Rounding"; from: 0; to: 40; stepSize: 1; unit: "px"; value: Theme.cornerRadius; onMoved: v => { Theme.setCornerRadius(Math.round(v)); MangoService.preview("border_radius", Math.round(v)) }; onApplied: v => { Theme.setCornerRadius(Math.round(v)); MangoService.applyBorderRadius(v) } }
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: "Applies to the shell and MangoWM windows."
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
+            color: Theme.textMuted
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+        }
     }
 
     SettingsControls.SettingsSection {

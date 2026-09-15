@@ -3,7 +3,7 @@
     "animDurationClose": 800,
     "animDurationMove": 500,
     "animDurationOpen": 400,
-    "animDurationTag": 350,
+    "animDurationTag": 400,
     "animOpen": "slide",
     "animations": true,
     "blur": true,

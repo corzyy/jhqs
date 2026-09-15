@@ -106,6 +106,8 @@ Item {
                     Rectangle {
                         anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                         width: 3
+                        radius: Theme.cornerRadius
+                        antialiasing: Theme.shapesAa
                         color: Theme.accent
                         visible: isSelected
                     }
@@ -150,7 +152,7 @@ Item {
                         bodyRoot.selectedIndex = globalIndex
                         let m = modelData
                         let s = bodyRoot.scope
-                        if (s.showInstall || s.showRemove || s.showStyle || s.showSession || s.showSetup) s.activateCurrent()
+                        if (s.showInstall || s.showRemove || s.showStyle || s.showSession || s.showSetup || s.showLearn) s.activateCurrent()
                         else s.activateRootMenuRow(m)
                     }
                 }
@@ -242,6 +244,8 @@ Item {
                 Rectangle {
                     anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                     width: 3
+                    radius: Theme.cornerRadius
+                    antialiasing: Theme.shapesAa
                     color: Theme.accent
                     visible: isSelected
                 }
@@ -285,7 +289,7 @@ Item {
                     // go through activateCurrent() like the browse list does —
                     // activateRootMenuRow() only knows root titles (Apps/Style/
                     // System/...) and would silently swallow the click.
-                    if (sc.showStyle || sc.showInstall || sc.showRemove || sc.showSession || sc.showSetup) {
+                    if (sc.showStyle || sc.showInstall || sc.showRemove || sc.showSession || sc.showSetup || sc.showLearn) {
                         sc.activateCurrent()
                         return
                     }

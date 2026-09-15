@@ -252,8 +252,16 @@ Singleton {
     // Minimal is the only shell theme: former Modern branches deleted.
     // minimalTheme stays as a constant for SettingsService.
     readonly property bool minimalTheme: true
-    readonly property int cornerRadius: 0
+    // Shell rounding (Global > Rounding). Single source for all shell
+    // radii; synced to MangoWM border_radius by the Global slider.
+    readonly property int cornerRadius: Math.max(0, Math.min(40, Math.round(shellFile.adapter.radius ?? 0)))
     readonly property int cornerRadiusSmall: Math.max(0, Math.min(12, Math.round(cornerRadius * 0.6)))
+    function setCornerRadius(v: int): void {
+        let c = Math.max(0, Math.min(40, Math.round(v)))
+        if (Math.round(shellFile.adapter.radius ?? 0) === c) return
+        shellFile.adapter.radius = c
+        shellFile.writeAdapter()
+    }
     readonly property int barThickness: Math.max(20, Math.min(48, Math.round(shellFile.adapter.thickness !== undefined ? shellFile.adapter.thickness : 30)))
     readonly property string barPosition: {
         let p = shellFile.adapter.position
@@ -452,6 +460,26 @@ Singleton {
         let nv = !!v
         if (polkitReady === nv) return
         polkitReady = nv
+    }
+    // ---- primary display (with fallback) ----
+    // Shell windows (bar, menus, dialogs, OSD) live on ONE screen. Prefer
+    // DP-1 so multi-head setups stay put, but fall back to the first
+    // available screen so the shell still shows up when DP-1 doesn't
+    // exist (single laptop display, renamed outputs, …).
+    readonly property string preferredScreenName: "DP-1"
+    readonly property string primaryScreenName: {
+        try {
+            let v = Quickshell.screens.values
+            let vals = (v && typeof v.length === "number") ? v : []
+            for (let i = 0; i < vals.length; i++) {
+                if (vals[i] && vals[i].name === preferredScreenName) return preferredScreenName
+            }
+            if (vals.length > 0 && vals[0] && vals[0].name) return "" + vals[0].name
+        } catch (e) {}
+        return preferredScreenName
+    }
+    function isPrimaryScreen(screenObj: var): bool {
+        try { return !!screenObj && ("" + screenObj.name) === primaryScreenName } catch (e) { return false }
     }
     property var barWindowRect: ({x: 0, y: 0, w: 0, h: 0})
     function setBarWindowRect(x: real, y: real, w: real, h: real): void {

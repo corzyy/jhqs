@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io // required — provides IpcHandler
@@ -166,44 +167,35 @@ Scope {
         function trigger(): string { return "run: ~/.config/quickshell/jhqs/scripts/test-polkit.sh  or  pkexec --disable-internal-agent id" }
     }
 
+    // Single fullscreen window per screen: no separate backdrop layer, so the
+    // dialog can never end up UNDER a dim rectangle (darkened + unclickable).
+    // There is intentionally no dim/scrim — the desktop stays as-is and only
+    // this centered card asks for attention.
     Variants {
         model: Quickshell.screens
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: polkitScope._winVisible && modelData.name === "DP-1"
-            color: "transparent"
-            exclusiveZone: 0
-            anchors { top: true; left: true; right: true; bottom: true }
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "polkit-backdrop"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                anchors.fill: parent
-                color: Theme.scrim
-                opacity: polkitScope.hasRequest ? 0.32 : 0
-            }
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.AllButtons
-            }
-        }
-    }
-
-    Variants {
-        model: Quickshell.screens
-        PanelWindow {
-            required property var modelData
-            screen: modelData
-            visible: polkitScope._winVisible && modelData.name === "DP-1"
+            visible: polkitScope._winVisible
             color: "transparent"
             exclusiveZone: 0
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "polkit"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            WlrLayershell.keyboardFocus: Theme.isPrimaryScreen(modelData) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.exclusionMode: ExclusionMode.Ignore
             anchors { top: true; left: true; right: true; bottom: true }
+
+            // Transparent modal blocker: swallows clicks outside the card so
+            // they can't fall through to windows underneath mid-auth.
+            // (No visual dim — color stays fully transparent.)
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                hoverEnabled: true
+                onPressed: mouse => mouse.accepted = true
+                onClicked: mouse => mouse.accepted = true
+                onWheel: wheel => wheel.accepted = true
+            }
 
             Item {
                 anchors.fill: parent
@@ -227,47 +219,52 @@ Scope {
                 id: dialogWrapper
                 anchors.centerIn: parent
                 anchors.verticalCenterOffset: polkitScope.barPos === "top" ? polkitScope.barT * 0.15 : polkitScope.barPos === "bottom" ? -polkitScope.barT * 0.15 : 0
-                width: 440
+                width: 420
                 implicitHeight: dialogBox.implicitHeight
                 opacity: polkitScope.hasRequest ? 1 : 0
-                scale: polkitScope.hasRequest ? 1 : 0.92
+                scale: polkitScope.hasRequest ? 1 : 0.94
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+                Behavior on scale { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic } }
                 transform: Translate {
                     id: dialogSlide
                     x: dialogWrapper.shakeX
                     y: polkitScope.hasRequest ? 0 : -Theme.panelSlideOffset
+                    Behavior on y { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic } }
                 }
 
                 property real shakeX: 0
                 transformOrigin: Item.Center
-
-                Rectangle {
-                    antialiasing: Theme.shapesAa
-                    width: parent.width
-                    height: dialogBox.implicitHeight
-                    x: 2; y: 2
-                    radius: Theme.cornerRadius
-                    color: Theme.scrim
-                    opacity: polkitScope.hasRequest ? 0.18 : 0
+                Connections {
+                    target: polkitScope
+                    function onShakeCountChanged() { shakeAnim.restart() }
+                }
+                SequentialAnimation {
+                    id: shakeAnim
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: -12; duration: 55; easing.type: Easing.OutQuad }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 10; duration: 65; easing.type: Easing.InOutQuad }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: -6; duration: 60; easing.type: Easing.InOutQuad }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 4; duration: 55; easing.type: Easing.InOutQuad }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 0; duration: 60; easing.type: Easing.OutCubic }
                 }
 
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     id: dialogBox
                     width: parent.width
-                    implicitHeight: mainCol.implicitHeight + 24
-                    radius: 0
-                    color: Theme.bg
+                    implicitHeight: mainCol.implicitHeight + 36
+                    radius: Theme.cornerRadius
+                    color: Theme.panelBg
                     border.color: Theme.panelBorderColor
-                    border.width: 2
+                    border.width: 1
                     clip: true
-                    transform: Translate { x: dialogWrapper.shakeX }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.AllButtons
-                        onClicked: mouse => mouse.accepted = true
-                        onPressed: mouse => mouse.accepted = true
-                        onWheel: wheel => wheel.accepted = true
+                    layer.enabled: polkitScope.hasRequest
+                    layer.effect: MultiEffect {
+                        shadowEnabled: true
+                        shadowColor: Theme.withAlpha(Theme.scrim, 0.45)
+                        shadowBlur: 0.9
+                        shadowOpacity: 0.42
+                        shadowVerticalOffset: 10
+                        shadowHorizontalOffset: 0
                     }
 
                     ColumnLayout {
@@ -275,22 +272,22 @@ Scope {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 16
-                        anchors.topMargin: 16
-                        anchors.bottomMargin: 12
-                        spacing: 12
+                        anchors.leftMargin: 20
+                        anchors.rightMargin: 20
+                        anchors.topMargin: 20
+                        anchors.bottomMargin: 16
+                        spacing: 14
 
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
                             Rectangle {
                                 antialiasing: Theme.shapesAa
-                                Layout.preferredWidth: 42
-                                Layout.preferredHeight: 42
-                                radius: Theme.cornerRadiusSmall
-                                color: polkitScope.flow && polkitScope.flow.failed ? Theme.withAlpha(Theme.error, 0.16) : Theme.panelSurface
-                                border.color: polkitScope.flow && polkitScope.flow.failed ? Theme.withAlpha(Theme.errorColor, 0.28) : Theme.divider
+                                Layout.preferredWidth: 44
+                                Layout.preferredHeight: 44
+                                radius: 22
+                                color: polkitScope.flow && polkitScope.flow.failed ? Theme.withAlpha(Theme.error, 0.18) : Theme.withAlpha(Theme.accent, 0.14)
+                                border.color: polkitScope.flow && polkitScope.flow.failed ? Theme.withAlpha(Theme.errorColor, 0.45) : Theme.withAlpha(Theme.accent, 0.35)
                                 border.width: 1
 
                                 IconImage {
@@ -322,7 +319,7 @@ Scope {
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 2
+                                spacing: 3
                                 Text {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
@@ -330,8 +327,8 @@ Scope {
                                     text: "Authentication required"
                                     color: Theme.textPrimary
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fs(13)
-                                    font.weight: Font.Medium
+                                    font.pixelSize: Theme.fs(14)
+                                    font.weight: Font.DemiBold
                                     elide: Text.ElideRight
                                 }
                                 Text {
@@ -342,19 +339,19 @@ Scope {
                                     text: polkitScope.flow ? polkitScope.flow.actionId : ""
                                     color: Theme.textMuted
                                     font.family: Theme.fontFamily
-                                    font.pixelSize: Theme.fs(9)
+                                    font.pixelSize: Theme.fs(10)
                                     elide: Text.ElideMiddle
                                     maximumLineCount: 1
                                 }
                             }
                             Rectangle {
                                 antialiasing: Theme.shapesAa
-                                Layout.preferredWidth: 28
-                                Layout.preferredHeight: 28
-                                radius: Theme.cornerRadiusSmall
-                                color: cancelHover.containsMouse ? Theme.bgHover : "transparent"
-                                border.color: cancelHover.containsMouse ? Theme.divider : "transparent"
-                                border.width: 1
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 30
+                                radius: 15
+                                color: cancelHover.containsMouse ? Theme.withAlpha(Theme.error, 0.14) : "transparent"
+                                border.color: "transparent"
+                                border.width: 0
                                 Text {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
@@ -550,11 +547,17 @@ Scope {
                                 antialiasing: Theme.shapesAa
                                 id: inputBox
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 36
+                                Layout.preferredHeight: 38
                                 radius: Theme.cornerRadiusSmall
                                 color: polkitField.activeFocus ? Theme.bgSelected : Theme.panelSurface
                                 border.color: polkitScope.flow && polkitScope.flow.failed ? Theme.errorColor : (polkitField.activeFocus ? Theme.accent : Theme.divider)
-                                border.width: polkitField.activeFocus || (polkitScope.flow && polkitScope.flow.failed) ? 1.4 : 1
+                                border.width: polkitField.activeFocus || (polkitScope.flow && polkitScope.flow.failed) ? 1.6 : 1
+                                // Clicking the field padding focuses the text input.
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.IBeamCursor
+                                    onClicked: polkitField.forceActiveFocus()
+                                }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -662,10 +665,10 @@ Scope {
                             Rectangle {
                                 antialiasing: Theme.shapesAa
                                 Layout.preferredWidth: 110
-                                Layout.preferredHeight: 32
+                                Layout.preferredHeight: 34
                                 radius: Theme.cornerRadiusSmall
-                                color: cancelBtnMouse.containsMouse ? Theme.bgHover : Theme.panelSurface
-                                border.color: Theme.divider
+                                color: cancelBtnMouse.pressed ? Theme.bgSelected : cancelBtnMouse.containsMouse ? Theme.bgHover : Theme.panelSurface
+                                border.color: cancelBtnMouse.containsMouse ? Theme.textMuted : Theme.divider
                                 border.width: 1
                                 Text {
                                     antialiasing: Theme.textAa
@@ -689,13 +692,13 @@ Scope {
                             Rectangle {
                                 antialiasing: Theme.shapesAa
                                 Layout.preferredWidth: 142
-                                Layout.preferredHeight: 32
+                                Layout.preferredHeight: 34
                                 radius: Theme.cornerRadiusSmall
-                                color: authBtnMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.92) : Theme.accent
+                                color: !enabled ? Theme.withAlpha(Theme.accent, 0.45) : authBtnMouse.pressed ? Theme.withAlpha(Theme.accent, 0.78) : authBtnMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.92) : Theme.accent
                                 border.color: Theme.accent
                                 border.width: 1
                                 enabled: !polkitScope.flow || !polkitScope.flow.isResponseRequired || polkitScope.inputText.length > 0
-                                opacity: enabled ? 1 : 0.55
+                                opacity: enabled ? 1 : 0.6
                                 Text {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
@@ -720,7 +723,7 @@ Scope {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            visible: polkitScope.flow && (polkitScope.flow.failed || (polkitScope.flow.supplementaryMessage && polkitScope.flow.supplementaryMessage.length > 0))
+                            visible: polkitScope.flow && polkitScope.flow.failed
                             Text {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType

@@ -100,7 +100,7 @@ jq '.key //= default' > /tmp/x.json && mv` — never raw echo over existing json
 - Persistence → FileView + JsonAdapter + writeAdapter() + clamp
 - Panel dims → Theme.sharedMenuWidth/Height (config/shared_menu.json)
 - IPC → `quickshell ipc -c jhqs call <target> <func>`
-- DP-1 exclusiveZone only TopBar; others visible: modelData.name==="DP-1"
+- DP-1 exclusiveZone only TopBar; others visible: Theme.isPrimaryScreen(modelData)
 - Every panel body: Flickable { clip:true; boundsBehavior: StopAtBounds; contentHeight: col.implicitHeight }
 
 ## Splits & removals — see git history / earlier reports (2026-09-01 / 2026-09-02)

@@ -257,7 +257,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: osdScope._winVisible && modelData.name === "DP-1"
+            visible: osdScope._winVisible && Theme.isPrimaryScreen(modelData)
             color: "transparent"
             exclusiveZone: 0
             mask: Region { item: quattroWrapper }

@@ -197,6 +197,8 @@ Item {
                             Rectangle {
                                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                                 width: 3
+                                radius: Theme.cornerRadius
+                                antialiasing: Theme.shapesAa
                                 color: Theme.accent
                                 visible: isSelected
                             }
@@ -262,6 +264,8 @@ Item {
                             Rectangle {
                                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                                 width: 3
+                                radius: Theme.cornerRadius
+                                antialiasing: Theme.shapesAa
                                 color: Theme.accent
                                 visible: isSelected
                             }
@@ -321,6 +325,8 @@ Item {
                 Rectangle {
                     anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                     width: 3
+                    radius: Theme.cornerRadius
+                    antialiasing: Theme.shapesAa
                     color: Theme.accent
                     visible: root.isSelected("mode")
                 }
@@ -364,6 +370,8 @@ Item {
                         Rectangle {
                             anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                             width: 3
+                            radius: Theme.cornerRadius
+                            antialiasing: Theme.shapesAa
                             color: Theme.accent
                             visible: isSelected
                         }

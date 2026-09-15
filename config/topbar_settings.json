@@ -16,7 +16,7 @@
     "panelAccentBorder": true,
     "panelBlur": 0.1,
     "position": "top",
-    "radius": 24,
+    "radius": 0,
     "textBold": false,
     "thickness": 30,
     "topDistance": 0,

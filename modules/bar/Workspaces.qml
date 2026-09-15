@@ -9,9 +9,9 @@ import "../../services"
 Item {
     id: root
     property var monitor: null
-    // Follow the focused monitor (single DP-1 bar mirrors whichever screen
-    // is active). `monitor` is kept for interface compat but the display
-    // intentionally tracks focusedMonitor, not the bar's own screen.
+    // Follow the focused monitor (single main-screen bar mirrors whichever
+    // screen is active). `monitor` is kept for interface compat but the
+    // display intentionally tracks focusedMonitor, not the bar's own screen.
     readonly property string screenName: {
         try {
             let f = MangoService.focusedMonitor
@@ -21,7 +21,9 @@ Item {
             if (monitor && monitor.name) return "" + monitor.name
             if (typeof monitor === "string" && ("" + monitor).length > 0) return "" + monitor
         } catch (e2) {}
-        return "DP-1"
+        // Last resort when no monitor info exists yet: Theme falls back to
+        // the first available screen when DP-1 is missing.
+        try { return Theme.primaryScreenName } catch (e3) { return "DP-1" }
     }
     property bool vertical: false
     implicitWidth: vertical ? 24 : hRow.implicitWidth
@@ -33,7 +35,7 @@ Item {
     property var sortedWorkspaces: {
         if (useMango) {
             try {
-                // Follow the focused monitor: single DP-1 bar mirrors
+                // Follow the focused monitor: single main-screen bar mirrors
                 // whichever screen is active, so switching tags on another
                 // monitor updates the module too.
                 let monMap = MangoService.monitors

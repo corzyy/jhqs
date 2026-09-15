@@ -170,6 +170,8 @@ Item {
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
                 width: 3
+                radius: Theme.cornerRadius
+                antialiasing: Theme.shapesAa
                 color: Theme.accent
                 visible: isSelected
             }

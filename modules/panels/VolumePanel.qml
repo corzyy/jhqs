@@ -30,19 +30,21 @@ Scope {
     readonly property real outVol: (VolumeService.pct || 0) / 100
     readonly property bool outMuted: VolumeService.isMuted
     readonly property bool anyAudible: !outMuted && VolumeService.pct > 0
-    // PERF: moodLabel() ran on every pct/mute tick inside a text binding.
-    // Cache as a property so only the string updates, not a function call.
-    readonly property string moodText: {
+    readonly property string statusText: {
         if (outMuted) return "MUTED"
         let p = VolumeService.pct || 0
-        if (p === 0) return "SILENCED"
-        if (p >= 100) return "CONCERT HALL"
-        if (p >= 85) return "PARTY MODE"
-        if (p >= 70) return "CRANKED UP"
-        if (p >= 50) return "STEADY GROOVE"
-        if (p >= 30) return "EASY LISTENING"
-        if (p >= 15) return "MURMUR"
-        return "WHISPER"
+        if (p === 0) return "SILENT"
+        return p + "%"
+    }
+    readonly property string activeSinkDesc: {
+        if (scope.defaultSink !== "" && scope.audioSinks.length > 0) {
+            for (let i = 0; i < scope.audioSinks.length; i++) {
+                if (scope.audioSinks[i] && scope.audioSinks[i].name === scope.defaultSink)
+                    return scope.audioSinks[i].desc || ""
+            }
+        }
+        if (scope.audioSinks.length > 0) return scope.audioSinks[0].desc || ""
+        return "No output found"
     }
 
     property var audioSinks: []
@@ -147,6 +149,10 @@ Scope {
         command: ["bash", "-c", "echo"]
         onExited: pumpAudioAct()
     }
+    Process {
+        id: mixerProc
+        command: ["bash", "-c", "command -v pavucontrol >/dev/null 2>&1 && pavucontrol 2>/dev/null &"]
+    }
     property var _audioActPending: null
     // STABILITY: queue instead of drop. Old code overwrote command while
     // running — 2nd click while pactl ran was silently lost.
@@ -237,49 +243,89 @@ Scope {
         if (d.indexOf("usb") !== -1) return "󰓃"
         return "󰕾"
     }
+    function appInitial(name: string): string {
+        let s = (name || "").trim()
+        return s.length > 0 ? s.charAt(0).toUpperCase() : "♪"
+    }
 
-    component SectionHeader: Text {
+    // ---------- New design primitives (vertical card layout) ----------
+    component SectionLabel: Text {
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
         color: Theme.textSecondary
-        font.family: Theme.iconFontFamily
+        font.family: Theme.fontFamily
         font.pixelSize: Theme.fs(10)
         font.weight: Font.Bold
+        font.letterSpacing: 1.2
     }
-    component Hairline: Rectangle {
+    component Card: Rectangle {
         antialiasing: Theme.shapesAa
-        color: Theme.withAlpha(Theme.textPrimary, 0.12)
-        height: 1
+        radius: Theme.cornerRadiusSmall
+        color: Theme.cardBg
+        border.color: Theme.divider
+        border.width: 1
     }
-    component OmSwitch: Item {
-        id: swRoot
-        property bool checked: false
-        signal toggled()
-        implicitWidth: 42
-        implicitHeight: 22
-        Rectangle {
+    component IconBtn: Rectangle {
+        id: iconBtnRoot
+        required property string glyph
+        signal pressed()
+        width: 28; height: 28
+        radius: Theme.cornerRadiusSmall
+        antialiasing: Theme.shapesAa
+        color: btnMouse.containsMouse ? Theme.bgHover : "transparent"
+        border.color: btnMouse.containsMouse ? Theme.divider : "transparent"
+        border.width: 1
+        Text {
             anchors.centerIn: parent
-            width: 42; height: 22
-            radius: 0
-            color: swRoot.checked ? Theme.withAlpha(Theme.textPrimary, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.04)
-            border.color: swRoot.checked ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
-            border.width: swRoot.checked ? 0 : 1
-            Rectangle {
-                width: 16; height: 16
-                radius: 0
-                x: swRoot.checked ? parent.width - width - 3 : 3
-                anchors.verticalCenter: parent.verticalCenter
-                color: swRoot.checked ? Theme.textPrimary : Theme.textSecondary
-            }
+            text: iconBtnRoot.glyph
+            color: btnMouse.containsMouse ? Theme.accent : Theme.textSecondary
+            font.family: Theme.iconFontFamily
+            font.pixelSize: Theme.fs(13)
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
         }
         MouseArea {
+            id: btnMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: swRoot.toggled()
+            onClicked: iconBtnRoot.pressed()
         }
     }
-    component OmSlider: Item {
+    component MutePill: Rectangle {
+        id: pillRoot
+        required property bool muted
+        signal pressed()
+        implicitWidth: pillLabel.implicitWidth + 24
+        implicitHeight: 26
+        radius: height / 2
+        antialiasing: Theme.shapesAa
+        color: pillMouse.containsMouse
+            ? (muted ? Theme.withAlpha(Theme.errorColor, 0.28) : Theme.withAlpha(Theme.accent, 0.28))
+            : (muted ? Theme.withAlpha(Theme.errorColor, 0.16) : Theme.withAlpha(Theme.accent, 0.16))
+        border.color: muted ? Theme.errorColor : Theme.accent
+        border.width: 1
+        Text {
+            id: pillLabel
+            anchors.centerIn: parent
+            text: pillRoot.muted ? "󰝟  UNMUTE" : "󰕾  MUTE"
+            color: pillRoot.muted ? Theme.errorColor : Theme.textPrimary
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fs(10)
+            font.weight: Font.Bold
+            font.letterSpacing: 0.6
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+        }
+        MouseArea {
+            id: pillMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: pillRoot.pressed()
+        }
+    }
+    component ModernSlider: Item {
         id: slRoot
         property real value: 0
         property real minimum: 0
@@ -287,6 +333,7 @@ Scope {
         property real step: 0.05
         property bool dragging: false
         property real liveValue: 0
+        property color fill: Theme.accent
         signal moved(real v)
         signal released(real v)
         signal rightClicked()
@@ -300,32 +347,34 @@ Scope {
             id: slTrack
             anchors.left: parent.left; anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            height: 10
-            radius: Math.min(Theme.cornerRadiusSmall, height / 2)
-            color: Theme.surface_container_highest
+            height: 5
+            radius: 2
+            color: Theme.withAlpha(Theme.textPrimary, 0.16)
         }
         Rectangle {
             anchors.left: slTrack.left
             anchors.verticalCenter: slTrack.verticalCenter
-            height: 10
-            radius: Math.min(Theme.cornerRadiusSmall, height / 2)
-            width: slTrack.width * slRoot.progress
-            color: Theme.accent
-        }
-        Rectangle {
-            width: 26; height: 26
-            radius: width / 2
-            anchors.verticalCenter: slTrack.verticalCenter
-            x: Math.max(-6, Math.min(slTrack.width - width + 6, slTrack.width * slRoot.progress - width / 2))
-            color: slRoot.dragging ? Theme.withAlpha(Theme.accent, 0.12)
-                : slMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.08) : "transparent"
-        }
-        Rectangle {
-            width: 4; height: 18
+            height: 5
             radius: 2
-            color: Theme.accent
+            width: slTrack.width * slRoot.progress
+            color: slRoot.fill
+        }
+        Rectangle {
+            id: slThumb
+            width: 13; height: 13
+            radius: 6
             anchors.verticalCenter: slTrack.verticalCenter
             x: Math.max(0, Math.min(slTrack.width - width, slTrack.width * slRoot.progress - width / 2))
+            color: slRoot.dragging ? slRoot.fill : Theme.textPrimary
+            border.color: slRoot.fill
+            border.width: 2
+        }
+        Rectangle {
+            width: 22; height: 22
+            radius: 11
+            anchors.centerIn: slThumb
+            z: -1
+            color: (slRoot.dragging || slMouse.containsMouse) ? Theme.withAlpha(slRoot.fill, 0.18) : "transparent"
         }
         MouseArea {
             id: slMouse
@@ -344,14 +393,14 @@ Scope {
             onPressed: mouse => {
                 if (mouse.button !== Qt.LeftButton) return
                 slRoot.dragging = true
-                let v = snap(valueFromX(mouse.x - (slRoot.width - slTrack.width) / 2))
+                let v = snap(valueFromX(mouse.x))
                 slRoot.liveValue = v
                 slRoot.moved(v)
             }
             onClicked: mouse => { if (mouse.button === Qt.RightButton) slRoot.rightClicked() }
             onPositionChanged: mouse => {
                 if (!slRoot.dragging) return
-                let v = snap(valueFromX(mouse.x - (slRoot.width - slTrack.width) / 2))
+                let v = snap(valueFromX(mouse.x))
                 slRoot.liveValue = v
                 slRoot.moved(v)
             }
@@ -370,48 +419,88 @@ Scope {
             }
         }
     }
-    component NodeRow: Rectangle {
-        id: nodeRect
+    component DeviceRow: Rectangle {
+        id: devRect
         required property string glyph
         required property string label
+        required property string sub
         required property bool isActive
+        required property bool isMuted
         signal picked()
+        implicitHeight: 40
+        radius: Theme.cornerRadiusSmall
         antialiasing: Theme.shapesAa
-        color: nodeMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : (isActive ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent")
-        Row {
+        color: devRect.isActive ? Theme.withAlpha(Theme.accent, 0.14)
+            : devMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.07) : "transparent"
+        border.color: devRect.isActive ? Theme.withAlpha(Theme.accent, 0.55) : "transparent"
+        border.width: devRect.isActive ? 1 : 0
+        RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 6; anchors.rightMargin: 6
-            spacing: 8
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: nodeRect.glyph
-                color: Theme.textPrimary
-                font.family: Theme.iconFontFamily
-                font.pixelSize: Theme.fs(14)
-                width: 22
-                horizontalAlignment: Text.AlignHCenter
-                anchors.verticalCenter: parent.verticalCenter
+            anchors.leftMargin: 10; anchors.rightMargin: 10
+            spacing: 10
+            Rectangle {
+                Layout.preferredWidth: 10; Layout.preferredHeight: 10
+                Layout.alignment: Qt.AlignVCenter
+                radius: 5
+                color: devRect.isActive ? Theme.accent : "transparent"
+                border.color: devRect.isActive ? Theme.accent : Theme.textMuted
+                border.width: devRect.isActive ? 0 : 1
             }
             Text {
+                text: devRect.glyph
+                color: devRect.isActive ? Theme.textPrimary : Theme.textSecondary
+                font.family: Theme.iconFontFamily
+                font.pixelSize: Theme.fs(16)
+                Layout.preferredWidth: 22
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignVCenter
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                text: nodeRect.label
-                color: Theme.textPrimary
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 1
+                Text {
+                    Layout.fillWidth: true
+                    text: devRect.label
+                    color: devRect.isActive ? Theme.textPrimary : Theme.textSecondary
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(12)
+                    font.weight: devRect.isActive ? Font.DemiBold : Font.Normal
+                    elide: Text.ElideRight
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                }
+                Text {
+                    visible: devRect.sub !== ""
+                    Layout.fillWidth: true
+                    text: devRect.sub
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(10)
+                    elide: Text.ElideRight
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                }
+            }
+            Text {
+                visible: devRect.isMuted
+                text: "󰝟"
+                color: Theme.errorColor
                 font.family: Theme.iconFontFamily
-                font.pixelSize: Theme.fs(12)
-                font.weight: nodeRect.isActive ? Font.Bold : Font.Normal
-                elide: Text.ElideRight
-                width: parent.width - 22 - 8 - 12
-                anchors.verticalCenter: parent.verticalCenter
+                font.pixelSize: Theme.fs(13)
+                Layout.alignment: Qt.AlignVCenter
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
             }
         }
         MouseArea {
-            id: nodeMouse
+            id: devMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: nodeRect.picked()
+            onClicked: devRect.picked()
         }
     }
 
@@ -420,7 +509,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: scope._winVisible && modelData.name === "DP-1"
+            visible: scope._winVisible && Theme.isPrimaryScreen(modelData)
             color: "transparent"
             exclusiveZone: 0
             anchors { top: true; left: true; right: true; bottom: true }
@@ -432,6 +521,9 @@ Scope {
                 focus: true
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) { scope.dismissed(); event.accepted = true }
+                    else if (event.key === Qt.Key_M) { VolumeService.toggleMute(); event.accepted = true }
+                    else if (event.key === Qt.Key_Left || event.key === Qt.Key_Down) { VolumeService.setVolumeFrac(scope.outVol - 0.05); event.accepted = true }
+                    else if (event.key === Qt.Key_Right || event.key === Qt.Key_Up) { VolumeService.setVolumeFrac(scope.outVol + 0.05); event.accepted = true }
                 }
                 Component.onCompleted: forceActiveFocus()
             }
@@ -443,8 +535,9 @@ Scope {
             Rectangle {
                 antialiasing: Theme.shapesAa
                 id: volBox
-                width: 380
-                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 36, volAnchor.screenHeight - volAnchor.edgeOffset - 24))
+                // Vertical rectangle: narrow width, height grows with content.
+                width: 320
+                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 20, volAnchor.screenHeight - volAnchor.edgeOffset - 24))
                 BarAnchor {
                     id: volAnchor
                     moduleId: "volume"
@@ -485,7 +578,7 @@ Scope {
                 }
                 Flickable {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 10
                     contentHeight: contentCol.implicitHeight
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
@@ -493,224 +586,304 @@ Scope {
                     Column {
                         id: contentCol
                         width: parent.width
-                        spacing: 14
-                        Item {
+                        spacing: 8
+                        // Header: title + status pill + mixer shortcut.
+                        RowLayout {
                             width: parent.width
-                            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, muteSwitch.implicitHeight)
+                            spacing: 6
                             Text {
-                                id: heroIcon
-                                text: VolumeService.icon
+                                text: "Audio"
                                 color: Theme.textPrimary
-                                font.family: Theme.iconFontFamily
-                                font.pixelSize: Theme.fs(24)
-                                opacity: scope.outMuted ? 0.5 : 1.0
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fs(13)
+                                font.weight: Font.Bold
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             }
-                            OmSwitch {
-                                id: muteSwitch
-                                checked: scope.anyAudible
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                onToggled: VolumeService.toggleMute()
-                            }
-                            Column {
-                                id: heroLabels
-                                anchors.left: heroIcon.right
-                                anchors.leftMargin: 14
-                                anchors.right: parent.right
-                                anchors.rightMargin: muteSwitch.width + 12
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
+                            Rectangle {
+                                Layout.preferredHeight: 20
+                                Layout.preferredWidth: Math.max(52, statusTxt.implicitWidth + 18)
+                                radius: 12
+                                color: scope.outMuted ? Theme.withAlpha(Theme.errorColor, 0.16) : Theme.withAlpha(Theme.accent, 0.16)
+                                border.color: scope.outMuted ? Theme.errorColor : Theme.accent
+                                border.width: 1
                                 Text {
-                                    width: parent.width
-                                    text: "Audio"
-                                    color: Theme.textPrimary
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(16)
-                                    font.weight: Font.Bold
-                                    elide: Text.ElideRight
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                }
-                                Text {
-                                    width: parent.width
-                                    text: scope.moodText
-                                    color: Theme.textSecondary
-                                    font.family: Theme.iconFontFamily
+                                    id: statusTxt
+                                    anchors.centerIn: parent
+                                    text: scope.statusText
+                                    color: scope.outMuted ? Theme.errorColor : Theme.textPrimary
+                                    font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fs(10)
                                     font.weight: Font.Bold
-                                    font.letterSpacing: 1.2
-                                    elide: Text.ElideRight
+                                    font.letterSpacing: 1.0
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                 }
                             }
-                        }
-                        Hairline { width: parent.width }
-                        Column {
-                            width: parent.width
-                            spacing: 6
-                            Item {
-                                width: parent.width
-                                implicitHeight: Math.max(outHeader.implicitHeight, outPct.implicitHeight)
-                                SectionHeader {
-                                    id: outHeader
-                                    text: "OUTPUT"
-                                    anchors.left: parent.left
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    id: outPct
-                                    text: Math.round(outSlider.liveValue * 100) + "%"
-                                    color: Theme.textSecondary
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(10)
-                                    font.weight: Font.Bold
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 6
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    opacity: scope.outMuted ? 0.5 : 1.0
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                }
-                            }
-                            OmSlider {
-                                id: outSlider
-                                width: parent.width
-                                minimum: 0
-                                maximum: 1
-                                step: 0.05
-                                value: scope.outVol
-                                opacity: scope.outMuted ? 0.5 : 1.0
-                                onMoved: v => VolumeService.setVolumeFrac(v)
-                                onReleased: v => Theme.triggerVolumeOsd()
-                                onRightClicked: VolumeService.toggleMute()
-                            }
-                            Repeater {
-                                model: scope.audioSinks
-                                delegate: NodeRow {
-                                    required property var modelData
-                                    required property int index
-                                    glyph: scope.sinkGlyph(modelData.desc, modelData.name)
-                                    label: modelData.desc
-                                    isActive: scope.defaultSink !== "" && modelData.name === scope.defaultSink
-                                    width: parent.width
-                                    implicitHeight: 40
-                                    onPicked: scope.setDefaultSink(modelData.name)
-                                }
+                            IconBtn {
+                                glyph: "󰍹"
+                                onPressed: if (!mixerProc.running) mixerProc.running = true
                             }
                         }
-                        Hairline { visible: scope.audioSources.length > 0; width: parent.width }
-                        Column {
-                            visible: scope.audioSources.length > 0
+                        // Hero output card.
+                        Card {
                             width: parent.width
-                            spacing: 6
-                            Item {
-                                width: parent.width
-                                implicitHeight: Math.max(inHeader.implicitHeight, inPct.implicitHeight)
-                                SectionHeader {
-                                    id: inHeader
-                                    text: "INPUT"
-                                    anchors.left: parent.left
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    id: inPct
-                                    text: Math.round(inSlider.liveValue * 100) + "%"
-                                    color: Theme.textSecondary
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(10)
-                                    font.weight: Font.Bold
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 6
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    opacity: scope.inMuted ? 0.5 : 1.0
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                }
-                            }
-                            OmSlider {
-                                id: inSlider
-                                width: parent.width
-                                minimum: 0
-                                maximum: 1
-                                step: 0.05
-                                value: scope.inVol
-                                opacity: scope.inMuted ? 0.5 : 1.0
-                                onMoved: v => scope.setInputVolume(v)
-                                onRightClicked: scope.toggleInputMute()
-                            }
-                            Repeater {
-                                model: scope.audioSources
-                                delegate: NodeRow {
-                                    required property var modelData
-                                    required property int index
-                                    glyph: "󰍬"
-                                    label: modelData.desc
-                                    isActive: scope.defaultSource !== "" && modelData.name === scope.defaultSource
-                                    width: parent.width
-                                    implicitHeight: 40
-                                    onPicked: scope.setDefaultSource(modelData.name)
-                                }
-                            }
-                        }
-                        Hairline { visible: scope.audioStreams.length > 0; width: parent.width }
-                        Column {
-                            visible: scope.audioStreams.length > 0
-                            width: parent.width
-                            spacing: 6
-                            SectionHeader { text: "SOURCES" }
-                            Repeater {
-                                model: scope.audioStreams
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    required property int index
-                                    width: parent.width
-                                    implicitHeight: 56
-                                    color: "transparent"
-                                    antialiasing: Theme.shapesAa
-                                    Row {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 6; anchors.rightMargin: 6
-                                        spacing: 8
+                            implicitHeight: heroCol.implicitHeight + 20
+                            ColumnLayout {
+                                id: heroCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+                                    Rectangle {
+                                        Layout.preferredWidth: 40; Layout.preferredHeight: 40
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: Theme.cornerRadiusSmall
+                                        color: scope.anyAudible ? Theme.withAlpha(Theme.accent, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.06)
+                                        border.color: scope.anyAudible ? Theme.withAlpha(Theme.accent, 0.5) : Theme.divider
+                                        border.width: 1
                                         Text {
+                                            anchors.centerIn: parent
+                                            text: VolumeService.icon
+                                            color: scope.outMuted ? Theme.textMuted : Theme.textPrimary
+                                            font.family: Theme.iconFontFamily
+                                            font.pixelSize: Theme.fs(19)
                                             antialiasing: Theme.textAa
                                             renderType: Theme.textRenderType
-                                            text: modelData.muted ? "󰝟" : "󰕾"
-                                            color: Theme.textPrimary
-                                            font.family: Theme.iconFontFamily
-                                            font.pixelSize: Theme.fs(14)
-                                            width: 22
-                                            horizontalAlignment: Text.AlignHCenter
-                                            anchors.verticalCenter: parent.verticalCenter
                                         }
-                                        Column {
-                                            width: parent.width - 22 - 8 - 12
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            spacing: 4
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 2
+                                        SectionLabel { text: "OUTPUT" }
+                                        Row {
+                                            spacing: 2
                                             Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: scope.outMuted ? "0" : String(VolumeService.pct || 0)
+                                                color: scope.outMuted ? Theme.textMuted : Theme.textPrimary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(22)
+                                                font.weight: Font.Bold
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType
-                                                width: parent.width
-                                                text: modelData.name
-                                                color: modelData.muted ? Theme.textSecondary : Theme.textPrimary
-                                                font.family: Theme.iconFontFamily
-                                                font.pixelSize: Theme.fs(12)
-                                                elide: Text.ElideRight
                                             }
-                                            OmSlider {
-                                                width: parent.width
-                                                minimum: 0
-                                                maximum: 1.5
-                                                step: 0.05
-                                                value: modelData.vol / 100
-                                                opacity: modelData.muted ? 0.5 : 1.0
-                                                onMoved: v => scope.setStreamVolume(modelData.index, v)
-                                                onRightClicked: scope.toggleStreamMute(modelData.index)
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                anchors.verticalCenterOffset: -5
+                                                text: "%"
+                                                color: Theme.textSecondary
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: Theme.fs(11)
+                                                font.weight: Font.Bold
+                                                antialiasing: Theme.textAa
+                                                renderType: Theme.textRenderType
                                             }
+                                        }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: scope.activeSinkDesc
+                                            color: Theme.textSecondary
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: Theme.fs(10)
+                                            elide: Text.ElideRight
+                                            maximumLineCount: 1
+                                            antialiasing: Theme.textAa
+                                            renderType: Theme.textRenderType
+                                        }
+                                    }
+                                    MutePill {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        muted: scope.outMuted
+                                        onPressed: VolumeService.toggleMute()
+                                    }
+                                }
+                                ModernSlider {
+                                    id: outSlider
+                                    Layout.fillWidth: true
+                                    minimum: 0
+                                    maximum: 1
+                                    step: 0.05
+                                    value: scope.outVol
+                                    fill: scope.outMuted ? Theme.textMuted : Theme.accent
+                                    onMoved: v => VolumeService.setVolumeFrac(v)
+                                    onReleased: v => Theme.triggerVolumeOsd()
+                                    onRightClicked: VolumeService.toggleMute()
+                                }
+                                }
+                        }
+                        // Output devices card.
+                        Card {
+                            visible: scope.audioSinks.length > 0
+                            width: parent.width
+                            implicitHeight: sinkCol.implicitHeight + 20
+                            ColumnLayout {
+                                id: sinkCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    SectionLabel { text: "DEVICES  •  " + scope.audioSinks.length; Layout.fillWidth: true }
+                                }
+                                Repeater {
+                                    model: scope.audioSinks
+                                    delegate: DeviceRow {
+                                        required property var modelData
+                                        required property int index
+                                        glyph: scope.sinkGlyph(modelData.desc, modelData.name)
+                                        label: modelData.desc
+                                        sub: (modelData.vol || "") !== "" ? String(modelData.vol) + (modelData.muted ? "  •  muted" : "") : ""
+                                        isActive: scope.defaultSink !== "" && modelData.name === scope.defaultSink
+                                        isMuted: !!modelData.muted
+                                        Layout.fillWidth: true
+                                        onPicked: scope.setDefaultSink(modelData.name)
+                                    }
+                                }
+                            }
+                        }
+                        // Input card.
+                        Card {
+                            visible: scope.audioSources.length > 0
+                            width: parent.width
+                            implicitHeight: micCol.implicitHeight + 20
+                            ColumnLayout {
+                                id: micCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    SectionLabel { text: "INPUT"; Layout.fillWidth: true }
+                                    Text {
+                                        text: Math.round(inSlider.liveValue * 100) + "%"
+                                        color: scope.inMuted ? Theme.textMuted : Theme.textSecondary
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: Theme.fs(10)
+                                        font.weight: Font.Bold
+                                        Layout.alignment: Qt.AlignVCenter
+                                        antialiasing: Theme.textAa
+                                        renderType: Theme.textRenderType
+                                    }
+                                    IconBtn {
+                                        glyph: scope.inMuted ? "󰝟" : "󰍬"
+                                        onPressed: scope.toggleInputMute()
+                                    }
+                                }
+                                ModernSlider {
+                                    id: inSlider
+                                    Layout.fillWidth: true
+                                    minimum: 0
+                                    maximum: 1
+                                    step: 0.05
+                                    value: scope.inVol
+                                    fill: scope.inMuted ? Theme.textMuted : Theme.accent
+                                    onMoved: v => scope.setInputVolume(v)
+                                    onRightClicked: scope.toggleInputMute()
+                                }
+                                Repeater {
+                                    model: scope.audioSources
+                                    delegate: DeviceRow {
+                                        required property var modelData
+                                        required property int index
+                                        glyph: "󰍬"
+                                        label: modelData.desc
+                                        sub: ""
+                                        isActive: scope.defaultSource !== "" && modelData.name === scope.defaultSource
+                                        isMuted: false
+                                        Layout.fillWidth: true
+                                        implicitHeight: 36
+                                        onPicked: scope.setDefaultSource(modelData.name)
+                                    }
+                                }
+                            }
+                        }
+                        // Per-app mixer card.
+                        Card {
+                            visible: scope.audioStreams.length > 0
+                            width: parent.width
+                            implicitHeight: appCol.implicitHeight + 20
+                            ColumnLayout {
+                                id: appCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 6
+                                SectionLabel { text: "APPS  •  " + scope.audioStreams.length }
+                                Repeater {
+                                    model: scope.audioStreams
+                                    delegate: ColumnLayout {
+                                        required property var modelData
+                                        required property int index
+                                        Layout.fillWidth: true
+                                        spacing: 6
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 10
+                                            Rectangle {
+                                                Layout.preferredWidth: 28; Layout.preferredHeight: 28
+                                                Layout.alignment: Qt.AlignVCenter
+                                                radius: Theme.cornerRadiusSmall
+                                                color: modelData.muted ? Theme.withAlpha(Theme.textPrimary, 0.05) : Theme.withAlpha(Theme.accent, 0.14)
+                                                border.color: Theme.divider
+                                                border.width: 1
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: scope.appInitial(modelData.name)
+                                                    color: modelData.muted ? Theme.textMuted : Theme.textPrimary
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fs(12)
+                                                    font.weight: Font.Bold
+                                                    antialiasing: Theme.textAa
+                                                    renderType: Theme.textRenderType
+                                                }
+                                            }
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 1
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: modelData.name
+                                                    color: modelData.muted ? Theme.textSecondary : Theme.textPrimary
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fs(12)
+                                                    font.weight: Font.DemiBold
+                                                    elide: Text.ElideRight
+                                                    maximumLineCount: 1
+                                                    antialiasing: Theme.textAa
+                                                    renderType: Theme.textRenderType
+                                                }
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: modelData.muted ? "muted" : Math.round(modelData.vol) + "%"
+                                                    color: Theme.textMuted
+                                                    font.family: Theme.fontFamily
+                                                    font.pixelSize: Theme.fs(10)
+                                                    antialiasing: Theme.textAa
+                                                    renderType: Theme.textRenderType
+                                                }
+                                            }
+                                            IconBtn {
+                                                glyph: modelData.muted ? "󰝟" : "󰕾"
+                                                onPressed: scope.toggleStreamMute(modelData.index)
+                                            }
+                                        }
+                                        ModernSlider {
+                                            Layout.fillWidth: true
+                                            Layout.leftMargin: 42
+                                            minimum: 0
+                                            maximum: 1.5
+                                            step: 0.05
+                                            value: modelData.vol / 100
+                                            fill: modelData.muted ? Theme.textMuted : Theme.accent
+                                            onMoved: v => scope.setStreamVolume(modelData.index, v)
+                                            onRightClicked: scope.toggleStreamMute(modelData.index)
                                         }
                                     }
                                 }

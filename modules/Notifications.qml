@@ -13,6 +13,8 @@ Scope {
 
     readonly property int barT: Theme.barThickness
     readonly property string barPos: Theme.barPosition
+    // Preferred display for toasts: DP-1 when present, else the first
+    // available screen (see Theme.primaryScreenName).
     property var targetScreen: {
         let vals = []
         try {
@@ -20,8 +22,10 @@ Scope {
             vals = typeof v === "function" ? v() : v
         } catch(e) { vals = [] }
         if (!vals || vals.length === 0) return null
+        let want = "DP-1"
+        try { want = Theme.primaryScreenName } catch(e2) { }
         for (let i = 0; i < vals.length; i++) {
-            if (vals[i] && vals[i].name === "DP-1") return vals[i]
+            if (vals[i] && vals[i].name === want) return vals[i]
         }
         return vals[0]
     }
@@ -527,7 +531,7 @@ Scope {
             id: win
             required property var modelData
             screen: modelData
-            visible: modelData.name === (notifScope.targetScreen ? notifScope.targetScreen.name : "DP-1")
+            visible: modelData.name === (notifScope.targetScreen ? notifScope.targetScreen.name : Theme.primaryScreenName)
 
             exclusiveZone: 0
             WlrLayershell.layer: WlrLayer.Overlay

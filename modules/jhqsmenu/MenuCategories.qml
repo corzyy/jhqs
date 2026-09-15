@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 
-// Merged from categories/{Style,Setup,Install,Remove,System}Category.qml
+// Merged from categories/{Style,Setup,Learn,Install,Remove,System}Category.qml
 // (each was 11-19 lines of pure static data). Single source for all
 // menu category lists + theme options.
 QtObject {
@@ -30,6 +30,13 @@ QtObject {
         {title: "Autostart", icon: "󰐥", arrow: ""},
         {title: "Audio", icon: "󰕾", arrow: ""},
         {title: "Shell Update", icon: "󰚰", arrow: ""}
+    ]
+
+    readonly property var learnMenu: [
+        {title: "Keybindings", icon: "󰌌", arrow: ""},
+        {title: "Apps", icon: "󰀻", arrow: ""},
+        {title: "Windows", icon: "󰖲", arrow: ""},
+        {title: "Workspaces", icon: "󰏃", arrow: ""}
     ]
 
     readonly property var installMenu: [

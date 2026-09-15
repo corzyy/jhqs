@@ -118,7 +118,6 @@ Column {
         SettingsControls.SettingsSliderRow { label: "Inner Gap"; from: 0; to: 60; stepSize: 1; unit: "px"; value: MangoService.mangoGappih; onMoved: v => { MangoService.preview("gappih", Math.round(v)); MangoService.preview("gappiv", Math.round(v)) }; onApplied: v => MangoService.applyInnerGap(v) }
         SettingsControls.SettingsSliderRow { label: "Outer Gap"; from: 0; to: 100; stepSize: 1; unit: "px"; value: MangoService.mangoGappoh; onMoved: v => { MangoService.preview("gappoh", Math.round(v)); MangoService.preview("gappov", Math.round(v)) }; onApplied: v => MangoService.applyOuterGap(v) }
         SettingsControls.SettingsSliderRow { label: "Border Size"; from: 0; to: 20; stepSize: 1; unit: "px"; value: MangoService.mangoBorderpx; onMoved: v => MangoService.preview("borderpx", Math.round(v)); onApplied: v => MangoService.applyBorderpx(v) }
-        SettingsControls.SettingsSliderRow { label: "Corner Radius"; from: 0; to: 40; stepSize: 1; unit: "px"; value: MangoService.mangoBorderRadius; onMoved: v => MangoService.preview("border_radius", Math.round(v)); onApplied: v => MangoService.applyBorderRadius(v) }
     }
 
     SettingsControls.SettingsSection {

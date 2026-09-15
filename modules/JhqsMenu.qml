@@ -127,6 +127,119 @@ Scope {
     function runShellUpdate() {
         Quickshell.execDetached(["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Done ---\"; read -n1 -s' &"])
     }
+    // Live MangoWM keybinding menu (Learn > Keybindings/Apps/Windows/
+    // Workspaces, rendered by Views.KeybindsView). Parsed from
+    // scripts/mango-keybinds.sh TSV rows (kind \t combo \t action \t src).
+    // The FileViews below re-run the parser whenever the mango configs
+    // change, so the cheatsheet is always current while the menu is open;
+    // the list is also (re)loaded on menu open and on entering the view.
+    FileView { id: keybindUserFile; path: Quickshell.env("HOME") + "/.config/mango/configs/binds-user.conf"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
+    FileView { id: keybindSystemFile; path: Quickshell.env("HOME") + "/.config/mango/configs/binds-system.conf"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
+    FileView { id: keybindMainFile; path: Quickshell.env("HOME") + "/.config/mango/config.conf"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
+    Timer { id: keybindWatchDebounce; interval: 300; repeat: false; onTriggered: jhqsMenuScope.refreshKeybindsForce() }
+    Process {
+        id: keybindProc
+        command: ["bash", "-c", "echo"]
+        stdout: StdioCollector {
+            onStreamFinished: jhqsMenuScope.finishKeybinds(text || "")
+        }
+    }
+    property var keybindList: []
+    property bool keybindLoading: false
+    property string keybindUpdated: ""
+    property string keybindTopic: "all"
+    function refreshKeybinds() { if (keybindList.length === 0) refreshKeybindsForce() }
+    function refreshKeybindsForce() {
+        if (keybindProc.running) return
+        keybindLoading = true
+        keybindProc.command = ["bash", Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/mango-keybinds.sh"]
+        keybindProc.running = true
+    }
+    function finishKeybinds(out) {
+        keybindLoading = false
+        let arr = parseKeybindText(out || "")
+        // A failed/empty run never wipes good data (same rule as the DNF cache).
+        if (arr.length === 0 && keybindList.length > 0) return
+        keybindList = arr
+        if (arr.length > 0) {
+            try {
+                let d = new Date()
+                let p = n => (n < 10 ? "0" + n : "" + n)
+                keybindUpdated = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds())
+            } catch (e) { keybindUpdated = "" }
+        }
+        if (showKeybinds) {
+            selectedIndex = 0
+            try { if (bodyRootRef) bodyRootRef.selectedIndex = 0 } catch (e) { }
+        }
+    }
+    function parseKeybindText(t: string): var {
+        let out = []
+        let lines = (t || "").split("\n")
+        for (let i = 0; i < lines.length; i++) {
+            let ln = lines[i].trim()
+            if (ln.length === 0) continue
+            let cols = ln.split("\t")
+            if (cols.length < 3) continue
+            let kind = (cols[0] || "key").trim()
+            let combo = (cols[1] || "").trim()
+            let action = (cols[2] || "").trim()
+            let src = (cols[3] || "").trim()
+            if (combo === "" || action === "") continue
+            let parts = combo.split("+").map(s => s.trim()).filter(s => s.length > 0)
+            if (parts.length === 0) continue
+            let kindLabel = kind === "mouse" ? "Mouse" : kind === "scroll" ? "Scroll" : "Keyboard"
+            let label = action.replace(/_/g, " ")
+            // Humanize jhqs shortcuts: "spawn jhqs module launcher toggle"
+            // reads poorly, so show "Open Menu" / "Open System" instead.
+            let jm = label.match(/^spawn jhqs module (\S+) toggle$/i)
+            if (jm) {
+                let mod = (jm[1] || "").toLowerCase()
+                if (mod === "launcher") mod = "menu"
+                mod = mod.charAt(0).toUpperCase() + mod.slice(1)
+                label = "open " + mod
+            } else if (/^spawn jhqs lock$/i.test(label)) {
+                label = "lock screen"
+            } else if (/^spawn jhqs reload$/i.test(label)) {
+                label = "reload shell"
+            } else if (/grim|slurp/i.test(label)) {
+                label = "take Screenshot"
+            }
+            label = label.replace(/^spawn\b/i, "open")
+            label = label.charAt(0).toUpperCase() + label.slice(1)
+            let hay = (combo + " " + action + " " + src + " " + kind + " " + label).toLowerCase()
+            out.push({ kind: kind, kindLabel: kindLabel, combo: combo, parts: parts, action: action, label: label, src: src, hay: hay })
+        }
+        return out
+    }
+    function keybindTopicMatch(hayLower: string): bool {
+        if (keybindTopic === "apps") return /spawn|launch|kitty|nautilus|helium|opencode|launcher|lock|reload|quit/.test(hayLower || "")
+        if (keybindTopic === "windows") return /focus|move|exchange|float|fullscreen|maximize|kill|minimiz|scratchpad|gaps|resize|layout|proportion|scroller|dwindle|toggleglobal|togglejump/.test(hayLower || "")
+        if (keybindTopic === "workspaces") return /view|tag|monitor|workspace|axisbind|scroll/.test(hayLower || "")
+        return true
+    }
+    function openKeybinds(topic) {
+        let t = ("" + (topic || "")).trim().toLowerCase()
+        keybindTopic = (t === "apps" || t === "windows" || t === "workspaces") ? t : "all"
+        showLearn = false
+        showKeybinds = true
+        clearSearch()
+        refreshKeybindsForce()
+    }
+    property var filteredKeybinds: {
+        if (!showKeybinds) return []
+        let q = qLower()
+        let words = q === "" ? [] : queryWordsFor(q)
+        let out = []
+        for (let i = 0; i < keybindList.length; i++) {
+            let k = keybindList[i]
+            if (!k || !k.hay) continue
+            if (!keybindTopicMatch(k.hay)) continue
+            if (words.length > 0 && !matchesAll(k.hay, words)) continue
+            out.push(k)
+        }
+        return out
+    }
     readonly property string shellPosition: Theme.barPosition
     FileView {
         id: wallpaperSettingsFile
@@ -866,11 +979,12 @@ Scope {
         if (m.title === "Apps") { showNewAppMenu = true; clearSearch() }
         else if (m.title === "Style") { showStyle = true; clearSearch(); refreshWallpapers() }
         else if (m.title === "Setup") { showSetup = true; clearSearch() }
+        else if (m.title === "Learn") { showLearn = true; clearSearch() }
         else if (m.title === "Install") { showInstall = true; clearSearch() }
         else if (m.title === "Remove") { showRemove = true; clearSearch() }
         else if (m.title === "System") { showSession = true; directSystemOpen = false; clearSearch() }
     }
-    function resetAllSubmenus() { showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false; showInstall = false; showRemove = false; showSession = false; showSetup = false; showModules = false; modulesSubview = "root"; showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false }
+    function resetAllSubmenus() { showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false; showInstall = false; showRemove = false; showSession = false; showSetup = false; showLearn = false; showKeybinds = false; showModules = false; modulesSubview = "root"; showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false }
     function handleEsc(): bool {
         if (showWallpaperSettings) { showWallpaperSettings = false; clearSearch(); return true }
         if (showWallpaper) { showWallpaper = false; showStyle = true; clearSearch(); return true }
@@ -885,7 +999,8 @@ Scope {
         if (showWebApp) {
             showWebApp = false; if (webAppMode === "remove") showRemove = true; else showInstall = true; clearSearch(); return true
         }
-        if (showStyle || showInstall || showRemove || showSetup) { resetAllSubmenus(); clearSearch(); return true }
+        if (showKeybinds) { showKeybinds = false; showLearn = true; clearSearch(); return true }
+        if (showStyle || showInstall || showRemove || showSetup || showLearn) { resetAllSubmenus(); clearSearch(); return true }
         if (showSession) {
             if (filterText.length > 0) { clearSearch(); return true }
             let isDirect = directSystemOpen
@@ -903,8 +1018,9 @@ Scope {
             if (showNewAppMenu) { let e = filteredNewApps[si]; return "newapp:" + (e ? e.name || e.id : "none") + " idx=" + si }
             if (showPackages) { let p = filteredPackages[si]; return "package:" + (p ? p.name : "none") + " idx=" + si }
             if (showWebApp) { return "webapp:" + webAppMode + " count=" + filteredWebApps.length + " idx=" + si }
+            if (showKeybinds) { let k = filteredKeybinds[si]; return "keybind:" + (k ? k.combo + " => " + k.action : "none") + " idx=" + si }
             let q = qLower()
-            let inSub = showStyle || showInstall || showRemove || showSession || showSetup
+            let inSub = showStyle || showInstall || showRemove || showSession || showSetup || showLearn || showKeybinds
             if (q !== "" && !inSub) {
                 let r = searchRows[si]
                 if (!r) return "none idx=" + si
@@ -991,11 +1107,13 @@ Scope {
     readonly property var styleMenu: menuCategories.styleMenu
     readonly property var themeOptions: menuCategories.themeOptions
     readonly property var setupMenu: menuCategories.setupMenu
+    readonly property var learnMenu: menuCategories.learnMenu
     readonly property var installMenu: menuCategories.installMenu
     readonly property var removeMenu: menuCategories.removeMenu
     readonly property var sessionMenu: menuCategories.sessionMenu
     property var menuModel: [
         {title:"Apps",icon:"󰀻",arrow:"›", submenu: null},
+        {title:"Learn",icon:"󰌵",arrow:"›", submenu: learnMenu},
         {title:"Style",icon:"󰏘",arrow:"›", submenu: styleMenu},
         {title:"Setup",icon:"󰒓",arrow:"›", submenu: setupMenu},
         {title:"Install",icon:"󰇚",arrow:"›", submenu: installMenu},
@@ -1020,7 +1138,7 @@ Scope {
     function openModules(sub) {
         modulesSubview = (sub === "remove") ? "remove" : ((sub === "root") ? "root" : "add")
         showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false
-        showInstall = false; showRemove = false; showSession = false; showSetup = false
+        showInstall = false; showRemove = false; showSession = false; showSetup = false; showLearn = false; showKeybinds = false
         showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false
         showModules = true
         clearSearch()
@@ -1033,11 +1151,13 @@ Scope {
     property bool showRemove: false
     property bool showSession: false
     property bool showSetup: false
+    property bool showLearn: false
+    property bool showKeybinds: false
     property bool showModules: false
     property bool showNewAppMenu: false
     property bool showPackages: false
     property bool directSystemOpen: false
-    property bool isInSubmenu: showStyle || showWallpaper || showThemes || showFont || showInstall || showRemove || showSession || showSetup || showModules || showNewAppMenu || showPackages || showWebApp
+    property bool isInSubmenu: showStyle || showWallpaper || showThemes || showFont || showInstall || showRemove || showSession || showSetup || showLearn || showKeybinds || showModules || showNewAppMenu || showPackages || showWebApp
     readonly property bool canGoBack: isInSubmenu
 
     property bool __triggerInitDone: false
@@ -1599,7 +1719,7 @@ Scope {
         try {
             showStyle = false; showWallpaper = false; showWallpaperSettings = false
             showThemes = false; showFont = false; showInstall = false
-            showRemove = false; showSetup = false; showModules = false
+            showRemove = false; showSetup = false; showLearn = false; showKeybinds = false; showModules = false
             showNewAppMenu = false; showPackages = false; showWebApp = false
             showSession = true
             directSystemOpen = true
@@ -1613,9 +1733,9 @@ Scope {
 
     property var filteredMenu: {
         let q = qLower()
-        if (showWallpaper || showThemes || showFont || showNewAppMenu || showPackages || showWebApp) return []
+        if (showWallpaper || showThemes || showFont || showNewAppMenu || showPackages || showWebApp || showKeybinds) return []
         let active = null
-        if (showStyle) active = styleMenu; else if (showInstall) active = installMenu; else if (showRemove) active = removeMenu; else if (showSession) active = sessionMenu; else if (showSetup) active = setupMenu
+        if (showStyle) active = styleMenu; else if (showInstall) active = installMenu; else if (showRemove) active = removeMenu; else if (showSession) active = sessionMenu; else if (showSetup) active = setupMenu; else if (showLearn) active = learnMenu
         if (active) return q === "" ? active : active.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
         let base = q === "" ? menuModel : menuModel.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
         if (q !== "" && base.length > 1) {
@@ -1712,7 +1832,7 @@ Scope {
     // searchGroupOrder. `section` drives ListView section headers ("" = none).
     property var searchRows: {
         let q = qLower()
-        if (q === "" || showStyle || showInstall || showRemove || showSession || showSetup) {
+        if (q === "" || showStyle || showInstall || showRemove || showSession || showSetup || showLearn || showKeybinds) {
             let items = filteredMenu
             let out = []
             for (let i = 0; i < items.length; i++) out.push({ row: "menu", section: "", entry: items[i] })
@@ -1736,7 +1856,7 @@ Scope {
         }
         return out
     }
-    property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFontGroups.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : searchRows.length
+    property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFontGroups.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : showKeybinds ? filteredKeybinds.length : searchRows.length
     property int selectedIndex: 0
     // Stability: filtering (e.g. typing inside System) shrinks the list while
     // selectedIndex keeps its old value. Clamp immediately so Enter/mouse can
@@ -1819,6 +1939,9 @@ Scope {
             else if (t === "Audio") runProc(setupAudioProc)
             else if (t === "Shell Update") runShellUpdate()
             dismissed()
+        } else if (category === "Learn") {
+            openKeybinds(t)
+            return
         } else { dismissed() }
     }
 
@@ -1833,6 +1956,7 @@ Scope {
         else if (m.title === "Remove") { showRemove = true; clearSearch() }
         else if (m.title === "Style") { showStyle = true; clearSearch(); refreshWallpapers() }
         else if (m.title === "Setup") { showSetup = true; clearSearch() }
+        else if (m.title === "Learn") { showLearn = true; clearSearch() }
     }
     function launchAppEntry(e): void {
         if (e && e.execute) { e.execute(); dismissed() }
@@ -1849,11 +1973,13 @@ Scope {
             if (sel.length > 0) startPackageOp(packageMode, sel)
             return
         }
-        // Submenu rows (Style/Install/Remove/System/Setup): index into the
+        // Keybind rows are display-only (selection just highlights).
+        if (showKeybinds) return
+        // Submenu rows (Style/Install/Remove/System/Setup/Learn): index into the
         // filtered submenu list. Guarded so an out-of-range index (e.g. list
         // shrank while filtering) is a no-op instead of a TypeError, and an
         // unknown title never closes the menu silently.
-        if (showStyle || showInstall || showRemove || showSession || showSetup) {
+        if (showStyle || showInstall || showRemove || showSession || showSetup || showLearn) {
             let m = filteredMenu[selectedIndex]
             if (!m || !m.title) return
             if (showStyle) {
@@ -1876,10 +2002,11 @@ Scope {
                 else if (m.title==="Shell Update") runShellUpdate()
                 dismissed(); return
             }
+            if (showLearn) { openKeybinds(m.title); return }
         }
         if (totalCount === 0) return
         let q = qLower()
-        let inSub = showStyle || showInstall || showRemove || showSession || showSetup
+        let inSub = showStyle || showInstall || showRemove || showSession || showSetup || showLearn || showKeybinds
         if (q !== "" && !inSub) {
             let r = searchRows[selectedIndex]
             if (!r) return
@@ -1939,7 +2066,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: jhqsMenuScope._winVisible && modelData.name === "DP-1"
+            visible: jhqsMenuScope._winVisible && Theme.isPrimaryScreen(modelData)
             color: "transparent"; exclusiveZone: 0
             anchors { top: true; left: true; right: true; bottom: true }
             WlrLayershell.layer: WlrLayer.Overlay
@@ -1987,8 +2114,8 @@ Scope {
                         let overhead = (18 + 34 + 7 + 18)
                         return overhead + content + 2
                     }
-                    implicitWidth: jhqsMenuScope.showWallpaper ? 760 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? Theme.sharedMenuWidth : 300
-                    implicitHeight: jhqsMenuScope.showWallpaper ? 820 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp) ? Theme.sharedMenuHeight : catDynH
+                    implicitWidth: jhqsMenuScope.showWallpaper ? 760 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp || jhqsMenuScope.showKeybinds) ? Theme.sharedMenuWidth : 300
+                    implicitHeight: jhqsMenuScope.showWallpaper ? 820 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp || jhqsMenuScope.showKeybinds) ? Theme.sharedMenuHeight : catDynH
                     // PERF: layout Behaviors ran on every view switch even with
                     // animations off or menu hidden. Gate them.
                     Behavior on implicitWidth { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
@@ -2017,6 +2144,7 @@ Scope {
                             if (jhqsMenuScope.showThemes && themesView && themesView.handleKey(event)) { event.accepted = true; return }
                             if (jhqsMenuScope.showFont && fontView && fontView.handleKey(event)) { event.accepted = true; return }
                             if (jhqsMenuScope.showPackages && !jhqsMenuScope.packageOpActive && packageView && packageView.handleKey(event)) { event.accepted = true; return }
+                            if (jhqsMenuScope.showKeybinds && keybindsView && keybindsView.handleKey(event)) { event.accepted = true; return }
                             if (jhqsMenuScope.showWebApp && webAppView && webAppView.handleKey(event)) { event.accepted = true; return }
                             let n=bodyRoot.totalCount
                             if((event.modifiers & Qt.MetaModifier) && event.key===Qt.Key_M){ if(event.modifiers & Qt.ShiftModifier) { bodyRoot.scope.showNewAppMenu=true; bodyRoot.scope.clearSearch() } else bodyRoot.scope.dismissed(); event.accepted=true }
@@ -2029,7 +2157,7 @@ Scope {
                             else if(event.key===Qt.Key_Escape){ if(!bodyRoot.scope.handleEsc()) bodyRoot.scope.dismissed(); event.accepted=true }
                         }
                         Component.onCompleted: { bodyRoot.scope.queryInputRef = queryInput; forceActiveFocus(); if(queryInput) queryInput.forceActiveFocus() }
-                        Connections { target: bodyRoot.scope; function onShowMenuChanged(){ if(bodyRoot.scope.showMenu){ bodyRoot.scope.resetAllSubmenus(); bodyRoot.scope.clearSearch(); if(!bodyRoot.scope.wallpaperFiles || bodyRoot.scope.wallpaperFiles.length===0) bodyRoot.scope.refreshWallpapers(); if(!bodyRoot.scope.installedList || bodyRoot.scope.installedList.length===0) bodyRoot.scope.refreshPackages(); if(!bodyRoot.scope.availableList || bodyRoot.scope.availableList.length===0) bodyRoot.scope.refreshAvailable(); if(!bodyRoot.scope.fontFallbackFamilies || bodyRoot.scope.fontFallbackFamilies.length===0) bodyRoot.scope.refreshFonts(); Qt.callLater(()=>{ parent.forceActiveFocus(); if(queryInput) queryInput.forceActiveFocus() }) } } }
+                        Connections { target: bodyRoot.scope; function onShowMenuChanged(){ if(bodyRoot.scope.showMenu){ bodyRoot.scope.resetAllSubmenus(); bodyRoot.scope.clearSearch(); if(!bodyRoot.scope.wallpaperFiles || bodyRoot.scope.wallpaperFiles.length===0) bodyRoot.scope.refreshWallpapers(); if(!bodyRoot.scope.installedList || bodyRoot.scope.installedList.length===0) bodyRoot.scope.refreshPackages(); if(!bodyRoot.scope.availableList || bodyRoot.scope.availableList.length===0) bodyRoot.scope.refreshAvailable(); if(!bodyRoot.scope.fontFallbackFamilies || bodyRoot.scope.fontFallbackFamilies.length===0) bodyRoot.scope.refreshFonts(); if(!bodyRoot.scope.keybindList || bodyRoot.scope.keybindList.length===0) bodyRoot.scope.refreshKeybinds(); Qt.callLater(()=>{ parent.forceActiveFocus(); if(queryInput) queryInput.forceActiveFocus() }) } } }
 
                         Item {
                             id: searchRow
@@ -2130,7 +2258,7 @@ Scope {
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                                 anchors.left: parent.left; anchors.leftMargin: 0; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                text: (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showNewAppMenu ? "Search apps…" : bodyRoot.scope.showWallpaper ? "Wallpaper…" : bodyRoot.scope.showThemes ? "Themes…" : bodyRoot.scope.showFont ? "Search fonts…" : bodyRoot.scope.showModules ? "Modules…" : bodyRoot.scope.showStyle ? "Style…" : bodyRoot.scope.showSetup ? "Setup…" : bodyRoot.scope.showInstall ? "Install…" : bodyRoot.scope.showRemove ? "Remove…" : bodyRoot.scope.showSession ? "System…" : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Filter Web Apps…" : "Install Web App…") : bodyRoot.scope.showPackages ? "Packages…" : "Go…") : "Go…")
+                                text: (bodyRoot.scope.isInSubmenu ? (bodyRoot.scope.showNewAppMenu ? "Search apps…" : bodyRoot.scope.showWallpaper ? "Wallpaper…" : bodyRoot.scope.showThemes ? "Themes…" : bodyRoot.scope.showFont ? "Search fonts…" : bodyRoot.scope.showModules ? "Modules…" : bodyRoot.scope.showStyle ? "Style…" : bodyRoot.scope.showSetup ? "Setup…" : bodyRoot.scope.showLearn ? "Learn…" : bodyRoot.scope.showKeybinds ? "Keybinds…" : bodyRoot.scope.showInstall ? "Install…" : bodyRoot.scope.showRemove ? "Remove…" : bodyRoot.scope.showSession ? "System…" : bodyRoot.scope.showWebApp ? (bodyRoot.scope.webAppMode === "remove" ? "Filter Web Apps…" : "Install Web App…") : bodyRoot.scope.showPackages ? "Packages…" : "Go…") : "Go…")
                                 color: Theme.textPrimary; opacity: 0.58; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16)
                                 elide: Text.ElideRight
                                 visible: bodyRoot.filterText.length === 0
@@ -2154,7 +2282,7 @@ Scope {
                         id: contentStage
                         anchors.top: headerDivider.bottom; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
                         anchors.topMargin: 0; anchors.leftMargin: 18; anchors.rightMargin: 18; anchors.bottomMargin: 18
-                        property bool isListView: !bodyRoot.scope.showWallpaper && !bodyRoot.scope.showThemes && !bodyRoot.scope.showFont && !bodyRoot.scope.showModules && !bodyRoot.scope.showNewAppMenu && !bodyRoot.scope.showPackages && !bodyRoot.scope.showWebApp
+                        property bool isListView: !bodyRoot.scope.showWallpaper && !bodyRoot.scope.showThemes && !bodyRoot.scope.showFont && !bodyRoot.scope.showModules && !bodyRoot.scope.showNewAppMenu && !bodyRoot.scope.showPackages && !bodyRoot.scope.showWebApp && !bodyRoot.scope.showKeybinds
 
                             Views.RootListView {
                                 scope: jhqsMenuScope
@@ -2192,6 +2320,11 @@ Scope {
                             }
                             Views.WebAppView {
                                 id: webAppView
+                                scope: jhqsMenuScope
+                                bodyRoot: bodyRoot
+                            }
+                            Views.KeybindsView {
+                                id: keybindsView
                                 scope: jhqsMenuScope
                                 bodyRoot: bodyRoot
                             }

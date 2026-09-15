@@ -237,7 +237,7 @@ Scope {
         PanelWindow {
             required property var modelData
             screen: modelData
-            visible: scope._winVisible && modelData.name === "DP-1"
+            visible: scope._winVisible && Theme.isPrimaryScreen(modelData)
             color: "transparent"
             exclusiveZone: 0
             anchors { top: true; left: true; right: true; bottom: true }

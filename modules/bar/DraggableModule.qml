@@ -46,7 +46,9 @@ Item {
     function publishBarAnchor(): void {
         internal.dirty = false
         if (!anchorActive) return
-        if (monitor && monitor.name && monitor.name !== "DP-1") return
+        // Bar anchors are published from the primary screen only (DP-1 when
+        // present, else the Theme fallback screen).
+        try { if (monitor && monitor.name && !Theme.isPrimaryScreen(monitor)) return } catch (e) { }
         if (!visible || width <= 0 || height <= 0) return
         try {
             let p = mapToItem(null, 0, 0)
