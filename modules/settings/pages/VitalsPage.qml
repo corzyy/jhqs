@@ -9,6 +9,14 @@ Column {
     width: parent ? parent.width : 400
     spacing: 10
 
+    // Metrik-Text je Kennung (ein Pfad statt verschachteltem Ternary).
+    function metricTextFor(id: string): string {
+        if (id === "cpu") return Math.round(VitalsService.cpuPct) + "%"
+        if (id === "ram") return Math.round(VitalsService.ramPct) + "%"
+        if (id === "gpu") return Math.round(VitalsService.gpuPct) + "%"
+        return "" + VitalsService.topProcs.length
+    }
+
     SettingsControls.SettingsSection {
         Grid {
             width: parent.width
@@ -16,17 +24,18 @@ Column {
             spacing: 8
             Repeater {
                 model: [
-                    { id: "cpu", label: "CPU", icon: "󰻠" },
-                    { id: "ram", label: "RAM", icon: "󰍛" },
-                    { id: "gpu", label: "GPU", icon: "󰢮" },
-                    { id: "top", label: "Processes", icon: "" }
+                    { id: "cpu", label: "CPU", icon: "󰻠", flag: "showCpu", defTrue: false },
+                    { id: "ram", label: "RAM", icon: "󰍛", flag: "showRam", defTrue: false },
+                    { id: "gpu", label: "GPU", icon: "󰢮", flag: "showGpu", defTrue: false },
+                    { id: "top", label: "Processes", icon: "", flag: "showTopProcs", defTrue: true }
                 ]
                 delegate: Rectangle {
                     required property var modelData
                     readonly property string metricId: modelData.id
                     readonly property bool isAvail: metricId === "top" ? true : metricId !== "gpu" || VitalsService.gpuAvailable
-                    readonly property bool isCurrent: !isAvail ? false : metricId === "cpu" ? VitalsService.showCpu : metricId === "ram" ? VitalsService.showRam : metricId === "gpu" ? VitalsService.showGpu : VitalsService.showTopProcs
-                    readonly property string metricText: !isAvail ? "–" : metricId === "cpu" ? Math.round(VitalsService.cpuPct) + "%" : metricId === "ram" ? Math.round(VitalsService.ramPct) + "%" : metricId === "gpu" ? Math.round(VitalsService.gpuPct) + "%" : "" + VitalsService.topProcs.length
+                    // Flag-Lesart je Metrik (defTrue: !==-false-Semantik wie im Service).
+                    readonly property bool isCurrent: isAvail && (modelData.defTrue ? VitalsService[modelData.flag] !== false : !!VitalsService[modelData.flag])
+                    readonly property string metricText: !isAvail ? "–" : root.metricTextFor(metricId)
                     width: (parent.width - 8) / 2
                     height: 64
                     radius: Theme.cornerRadiusSmall
@@ -80,10 +89,9 @@ Column {
                         enabled: isAvail
                         cursorShape: isAvail ? Qt.PointingHandCursor : Qt.ForbiddenCursor
                         onClicked: {
-                            if (metricId === "cpu") VitalsService.setShowCpu(!VitalsService.showCpu)
-                            else if (metricId === "ram") VitalsService.setShowRam(!VitalsService.showRam)
-                            else if (metricId === "gpu") { if (isAvail) VitalsService.setShowGpu(!VitalsService.showGpu) }
-                            else VitalsService.setShowTopProcs(!VitalsService.showTopProcs)
+                            // Modellgetrieben via VitalsService.setFlag (ein Pfad
+                            // statt if/else-Kette über alle Metriken).
+                            VitalsService.setFlag(modelData.flag, !isCurrent, modelData.defTrue)
                         }
                     }
                 }

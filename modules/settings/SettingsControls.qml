@@ -520,7 +520,9 @@ QtObject {
     component SettingsToggle: Item {
         id: root
         property bool on: false
-        property bool enabled: true
+        // HINWEIS: kein eigenes `enabled` — Item.enabled (Default true) wird
+        // direkt genutzt; eine Neudeklaration würde das Base-Member shadowen
+        // (qt.qml.propertyCache-Warnung) und dessen Semantik brechen.
         signal toggled(bool next)
         implicitWidth: 46; implicitHeight: 26
         width: 46; height: 26

@@ -19,11 +19,16 @@ Scope {
     readonly property int quattroBarWidth: 96
     readonly property int quattroBottomMargin: 67
     readonly property string quattroMessage: displayMuted ? "Muted" : displayPct + "%"
+    // Lautstärkestufe 0-3 (eine Schwellen-Tabelle für beide Icon-Sets).
+    function volumeTier(pct: int, muted: bool): int {
+        if (muted || pct <= 0) return 0
+        if (pct <= 33) return 1
+        if (pct <= 66) return 2
+        return 3
+    }
+    readonly property var quattroIcons: ["", "", "", ""]
     function iconForQuattro(pct: int, muted: bool): string {
-        if (muted || pct <= 0) return ""
-        if (pct <= 33) return ""
-        if (pct <= 66) return ""
-        return ""
+        return quattroIcons[volumeTier(pct, muted)]
     }
 
     property PwNode sink: Pipewire.defaultAudioSink
@@ -45,21 +50,21 @@ Scope {
     property bool sinkSwitchGuard: false
     Timer { id: sinkSwitchClear; interval: 400; repeat: false; onTriggered: osdScope.sinkSwitchGuard = false }
 
-    onSinkIdentityChanged: {
-        if (!inited) return
+    // Senkenwechsel-Snapshot (ein Pfad statt 2x kopierter Guard-Snapshots).
+    function snapshotSinkState(): void {
         sinkSwitchGuard = true
         sinkSwitchClear.restart()
         lastPct = volPct
         lastMuted = isMuted
     }
+
+    onSinkIdentityChanged: {
+        if (!inited) return
+        snapshotSinkState()
+    }
     onSinkReadyChanged: {
         if (!inited) return
-        if (sinkReady) {
-            sinkSwitchGuard = true
-            sinkSwitchClear.restart()
-            lastPct = volPct
-            lastMuted = isMuted
-        }
+        if (sinkReady) snapshotSinkState()
     }
 
     Timer {
@@ -150,7 +155,7 @@ Scope {
     property bool pollOverride: false
     Process {
         id: pollProc
-        command: ["bash", "-c", "/home/jakob/.config/quickshell/jhqs/scripts/volume.sh get 2>/dev/null | tr -d '\\n'"]
+        command: ["bash", "-c", Quickshell.shellDir + "/scripts/volume.sh get 2>/dev/null | tr -d '\\n'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let txt = (text || "").trim()
@@ -216,11 +221,9 @@ Scope {
     property int displayPct: pollOverride ? fallbackPct : (sinkReady ? volPct : fallbackPct)
     property bool displayMuted: pollOverride ? fallbackMuted : (sinkReady ? isMuted : fallbackMuted)
 
+    readonly property var volumeIcons: ["󰝟", "󰕿", "󰖀", "󰕾"]
     function iconFor(pct: int, muted: bool): string {
-        if (muted || pct === 0) return "󰝟"
-        if (pct < 34) return "󰕿"
-        if (pct < 67) return "󰖀"
-        return "󰕾"
+        return volumeIcons[volumeTier(pct, muted)]
     }
 
     property bool osdDragging: false

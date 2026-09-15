@@ -414,60 +414,15 @@ Scope {
                 acceptedButtons: Qt.AllButtons
                 onClicked: scope.dismissed()
             }
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                id: btBox
-                width: 380
-                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 36, btAnchor.screenHeight - btAnchor.edgeOffset - 24))
-                BarAnchor {
-                    id: btAnchor
-                    moduleId: "bluetooth"
-                    barPos: scope.barPos
-                    panelWidth: btBox.width
-                    panelHeight: btBox.implicitHeight
-                    screenWidth: btBox.parent.width
-                    screenHeight: btBox.parent.height
-                    gap: scope.panelGap
-                    fallbackX: (btBox.parent.width - btBox.width) / 2
-                    fallbackY: (btBox.parent.height - btBox.implicitHeight) / 2
-                }
-                x: btAnchor.panelX
-                y: btAnchor.panelY
-                color: Theme.bg
-                border.color: Theme.panelBorderColor
-                border.width: 2
-                radius: 0
-                clip: true
-                PanelSpring {
-                    id: btSpring
-                    slideFade: true
-                    shown: scope.showBluetooth
-                    hiddenX: scope.barPos === "left" ? -(btBox.width + 5) : scope.barPos === "right" ? (btBox.width + 5) : 0
-                    hiddenY: scope.barPos === "top" ? -(btBox.implicitHeight + 5) : scope.barPos === "bottom" ? (btBox.implicitHeight + 5) : 0
-                }
-                visible: btSpring.boxVisible
-                opacity: btSpring.fade
-                scale: btSpring.zoom
-                transformOrigin: btAnchor.origin
-                transform: Translate { x: btSpring.slideX; y: btSpring.slideY }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    onClicked: mouse => mouse.accepted = true
-                    onPressed: mouse => mouse.accepted = true
-                    onWheel: wheel => wheel.accepted = true
-                }
-                Flickable {
-                    anchors.fill: parent
-                    anchors.margins: 18
-                    contentHeight: contentCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: contentHeight > height
-                    Column {
-                        id: contentCol
-                        width: parent.width
-                        spacing: 14
+            PanelShell {
+                moduleId: "bluetooth"
+                barPos: scope.barPos
+                panelGap: scope.panelGap
+                shown: scope.showBluetooth
+                boxWidth: 380
+                contentMargins: 18
+                contentSpacing: 14
+                heightPadding: 36
                     Item {
                         width: parent.width
                         implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, powerSwitch.implicitHeight)
@@ -624,8 +579,6 @@ Scope {
                                 renderType: Theme.textRenderType
                             }
                         }
-                    }
-                }
             }
         }
     }

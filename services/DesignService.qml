@@ -50,7 +50,7 @@ Singleton {
         command: ["bash", "-c", "echo"]
         stdout: StdioCollector {
             onStreamFinished: {
-                let id = (text || "").trim().split("\n").pop().trim()
+                const id = lastOutputLine(text)
                 if (id.length > 0) root.saveFinished(id)
             }
         }
@@ -61,10 +61,10 @@ Singleton {
         command: ["bash", "-c", "echo"]
         stdout: StdioCollector {
             onStreamFinished: {
-                let line = (text || "").trim().split("\n").pop().trim()
+                const line = lastOutputLine(text)
                 if (line.length === 0) { root.restoreFailed("Empty response from backend."); return }
                 try {
-                    let meta = JSON.parse(line)
+                    const meta = JSON.parse(line)
                     if (meta && meta.id) root.restoreReady(meta)
                     else root.restoreFailed("Invalid snapshot data.")
                 } catch (e) { root.restoreFailed("Invalid snapshot data.") }
@@ -74,6 +74,16 @@ Singleton {
     }
     Process { id: deleteProc; command: ["bash", "-c", "echo"] }
 
+    // Letzte stdout-Zeile (Backend gibt Ergebnis in der Schlusszeile aus).
+    function lastOutputLine(text: string): string {
+        return (text || "").trim().split("\n").pop().trim()
+    }
+
+    // Snapshot-IDs: nur alphanumerisch + _/- (Pfad-Injection verhindern).
+    function cleanSnapshotId(id: string): string {
+        return (id || "").replace(/[^A-Za-z0-9_-]/g, "")
+    }
+
     function saveSnapshot(): void {
         if (saveProc.running) return
         saveProc.command = ["python3", scriptPath, "save"]
@@ -81,14 +91,14 @@ Singleton {
     }
     function restoreSnapshot(id: string): void {
         if (restoreProc.running) return
-        let clean = (id || "").replace(/[^A-Za-z0-9_-]/g, "")
+        const clean = cleanSnapshotId(id)
         if (clean.length === 0) { restoreFailed("Invalid snapshot ID."); return }
         restoreProc.command = ["python3", scriptPath, "restore", clean]
         restoreProc.running = true
     }
     function deleteSnapshot(id: string): void {
         if (deleteProc.running) return
-        let clean = (id || "").replace(/[^A-Za-z0-9_-]/g, "")
+        const clean = cleanSnapshotId(id)
         if (clean.length === 0) return
         deleteProc.command = ["python3", scriptPath, "delete", clean]
         deleteProc.running = true

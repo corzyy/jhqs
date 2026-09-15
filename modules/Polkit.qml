@@ -20,9 +20,7 @@ Scope {
     Component {
         id: agentComponent
         PolkitAgent {
-            onAuthenticationRequestStarted: {
-                polkitScope.inputText = ""
-            }
+            onAuthenticationRequestStarted: polkitScope.clearInput()
         }
     }
     property var agentObj: agentLoader.item
@@ -81,14 +79,17 @@ Scope {
         if (hasRequest) {
             _winVisible = true
             polkitHideTimer.stop()
-            inputText = ""
         } else {
             polkitHideTimer.restart()
-            inputText = ""
         }
+        clearInput()
     }
 
     property string inputText: ""
+    // Einziger Reset-Pfad für das Eingabefeld (war 5x kopiert).
+    function clearInput(): void {
+        if (inputText !== "") inputText = ""
+    }
     property bool isPassword: true
     property int shakeCount: 0
     function requestShake() { shakeCount++ }
@@ -124,17 +125,13 @@ Scope {
         let now = Date.now()
         if (now - lastSubmitMs < 500) return
         lastSubmitMs = now
-        if (flow.isResponseRequired) {
-            flow.submit(inputText)
-        } else {
-            flow.submit("")
-        }
-        inputText = ""
+        flow.submit(flow.isResponseRequired ? inputText : "")
+        clearInput()
     }
     function cancelCurrent() {
         if (!flow) return
         flow.cancelAuthenticationRequest()
-        inputText = ""
+        clearInput()
     }
 
     readonly property int barT: Theme.barThickness
@@ -306,16 +303,6 @@ Scope {
                                         return Quickshell.iconPath("dialog-password")
                                     }
                                 }
-                                Text {
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                    anchors.centerIn: parent
-                                    visible: false
-                                    text: "󰌾"
-                                    font.family: Theme.iconFontFamily
-                                    font.pixelSize: Theme.fs(16)
-                                    color: polkitScope.flow && polkitScope.flow.supplementaryIsError ? Theme.errorColor : Theme.textPrimary
-                                }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -477,7 +464,7 @@ Scope {
                                                 if (!polkitScope.flow) return
                                                 if (polkitScope.flow.selectedIdentity !== identityDelegate.ident) {
                                                     polkitScope.flow.selectedIdentity = identityDelegate.ident
-                                                    polkitScope.inputText = ""
+                                                    polkitScope.clearInput()
                                                     if (polkitField) {
                                                         polkitField.text = ""
                                                         Qt.callLater(() => polkitField.forceActiveFocus())

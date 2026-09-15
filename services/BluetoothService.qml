@@ -132,24 +132,25 @@ Singleton {
             }
         } catch (e2) {}
         let cur = root.btDevices;
-        let same = cur.length === arr.length;
-        if (same) {
-            for (let i = 0; i < arr.length; i++) {
-                let a = arr[i], b = cur[i];
-                if (!b || a.address !== b.address || a.name !== b.name
-                    || a.deviceName !== b.deviceName || a.connected !== b.connected
-                    || a.paired !== b.paired || a.bonded !== b.bonded
-                    || a.trusted !== b.trusted || a.pairing !== b.pairing
-                    || a.state !== b.state || a.batteryAvailable !== b.batteryAvailable
-                    || a.battery !== b.battery || !!a.stale !== !!b.stale) {
-                    same = false;
-                    break;
-                }
-            }
-        }
-        if (!same)
+        if (!isSameRowList(cur, arr))
             root.btDevices = arr;
         syncPendingActions();
+    }
+
+    // Zeilenvergleich für compare-before-assign (kein Repeater-Reset bei
+    // identischer Aufzählung — dem häufigsten Poll-Ergebnis).
+    function isSameRowList(cur: var, next: var): bool {
+        if (cur.length !== next.length) return false
+        for (let i = 0; i < next.length; i++) {
+            const a = next[i], b = cur[i]
+            if (!b || a.address !== b.address || a.name !== b.name
+                || a.deviceName !== b.deviceName || a.connected !== b.connected
+                || a.paired !== b.paired || a.bonded !== b.bonded
+                || a.trusted !== b.trusted || a.pairing !== b.pairing
+                || a.state !== b.state || a.batteryAvailable !== b.batteryAvailable
+                || a.battery !== b.battery || !!a.stale !== !!b.stale) return false
+        }
+        return true
     }
     onRawDevicesChanged: syncDevices()
     // Cheap pure-JS re-projection (zero forks): catches inner property flips
@@ -269,6 +270,20 @@ Singleton {
         pairProc.command = ["bash", "-c", "printf 'agent NoInputNoOutput\\ndefault-agent\\npairable on\\npair " + m + "\\ntrust " + m + "\\nconnect " + m + "\\nquit\\n' | timeout 25 bluetoothctl 2>&1; echo done:$?"];
         pairProc.running = true;
     }
+    // Pair-Fehlerstichworte (ein Array statt 7x verkettetem indexOf).
+    readonly property var _pairFailures: [
+        "failed to pair", "authentication failed", "not available",
+        "no default controller", "failed to connect",
+        "connection attempt failed", "not connected"
+    ]
+    function pairFailureOf(line: string): string {
+        const low = line.toLowerCase()
+        for (let i = 0; i < _pairFailures.length; i++) {
+            if (low.indexOf(_pairFailures[i]) !== -1)
+                return line.length > 90 ? line.slice(0, 90) + "…" : line
+        }
+        return ""
+    }
     function finishPair(out: string): void {
         let addr = root._pairAddr;
         root._pairAddr = "";
@@ -278,14 +293,8 @@ Singleton {
                 let l = (raw || "").replace(/\x1b\[[0-9;]*m/g, "").trim();
                 if (l.length === 0 || l === "done" || l.indexOf("done:") === 0)
                     continue;
-                let low = l.toLowerCase();
-                if (low.indexOf("failed to pair") !== -1 || low.indexOf("authentication failed") !== -1
-                    || low.indexOf("not available") !== -1 || low.indexOf("no default controller") !== -1
-                    || low.indexOf("failed to connect") !== -1 || low.indexOf("connection attempt failed") !== -1
-                    || low.indexOf("not connected") !== -1) {
-                    fail = l.length > 90 ? l.slice(0, 90) + "…" : l;
-                    break;
-                }
+                fail = pairFailureOf(l);
+                if (fail !== "") break;
             }
         } catch (e) {}
         if (fail !== "")
@@ -409,26 +418,17 @@ Singleton {
         return m;
     }
     // Compat wrappers (old bluetoothctl-era API used by bar/panel).
-    function btConnect(mac: string): void {
-        let m = escMac(mac);
-        if (m.length !== 0)
-            connectDevice(m);
+    // Ein Validierungspfad statt 4x kopiertem escMac-Guard.
+    // HINWEIS: btPair ist bewusst ein Alias auf connectDevice —
+    // connectDevice wählt selbst Pair-Pipeline vs. Direkt-Connect.
+    function withValidMac(mac: string, fn: var): void {
+        const m = escMac(mac)
+        if (m.length !== 0) fn(m)
     }
-    function btDisconnect(mac: string): void {
-        let m = escMac(mac);
-        if (m.length !== 0)
-            disconnectDevice(m);
-    }
-    function btPair(mac: string): void {
-        let m = escMac(mac);
-        if (m.length !== 0)
-            connectDevice(m);
-    }
-    function btRemove(mac: string): void {
-        let m = escMac(mac);
-        if (m.length !== 0)
-            forgetDevice(m);
-    }
+    function btConnect(mac: string): void { withValidMac(mac, connectDevice) }
+    function btDisconnect(mac: string): void { withValidMac(mac, disconnectDevice) }
+    function btPair(mac: string): void { withValidMac(mac, connectDevice) }
+    function btRemove(mac: string): void { withValidMac(mac, forgetDevice) }
 
     // ---- Pin for auto-reconnect (shared pin store) ----
     PersistentProperties {

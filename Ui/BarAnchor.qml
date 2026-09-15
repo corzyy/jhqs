@@ -43,36 +43,48 @@ Item {
     }
     readonly property real edgeOffset: winEdge + gap - Theme.barTopDistance
 
+    // Zentriert um center, hält margin zu beiden Screen-Rändern ein.
+    function clampToScreen(center: real, size: real, total: real): real {
+        return Math.max(margin, Math.min(center - size / 2, total - size - margin))
+    }
+
     readonly property real panelX: {
         if (barPos === "left") return edgeOffset
         if (barPos === "right") return screenWidth - panelWidth - edgeOffset
         if (!valid) return fallbackX
-        return Math.max(margin, Math.min(cx - panelWidth / 2, screenWidth - panelWidth - margin))
+        return clampToScreen(cx, panelWidth, screenWidth)
     }
     readonly property real panelY: {
         if (isVertical) {
             if (!valid) return fallbackY
-            return Math.max(margin, Math.min(cy - panelHeight / 2, screenHeight - panelHeight - margin))
+            return clampToScreen(cy, panelHeight, screenHeight)
         }
         if (barPos === "bottom") return screenHeight - panelHeight - edgeOffset
         return edgeOffset
     }
 
-    readonly property int origin: {
-        if (isVertical) {
-            let third = screenHeight / 3
-            let topZone = cy < third
-            let bottomZone = cy > screenHeight - third
-            if (barPos === "left") return topZone ? Item.TopLeft : bottomZone ? Item.BottomLeft : Item.Left
-            return topZone ? Item.TopRight : bottomZone ? Item.BottomRight : Item.Right
-        }
-        let third = screenWidth / 3
-        let bottom = barPos === "bottom"
-        if (cx < third) return bottom ? Item.BottomLeft : Item.TopLeft
-        if (cx > screenWidth - third) return bottom ? Item.BottomRight : Item.TopRight
-        return bottom ? Item.Bottom : Item.Top
-    }
+    readonly property int origin: computeOrigin()
 
+    // Einstiegspunkt der Panel-Animation je nach Bar-Position.
     readonly property real slideFromX: barPos === "left" ? -Theme.panelSlideOffset : barPos === "right" ? Theme.panelSlideOffset : 0
     readonly property real slideFromY: barPos === "top" ? -Theme.panelSlideOffset : barPos === "bottom" ? Theme.panelSlideOffset : 0
+
+    // Verankerungs-Ursprung: Drittelt den Screen, damit Panels zum Rand hin öffnen.
+    function computeOrigin(): int {
+        if (isVertical) {
+            const third = screenHeight / 3
+            const top = cy < third
+            const bottom = cy > screenHeight - third
+            if (barPos === "left")
+                return top ? Item.TopLeft : bottom ? Item.BottomLeft : Item.Left
+            return top ? Item.TopRight : bottom ? Item.BottomRight : Item.Right
+        }
+        const third = screenWidth / 3
+        const bottom = barPos === "bottom"
+        if (cx < third)
+            return bottom ? Item.BottomLeft : Item.TopLeft
+        if (cx > screenWidth - third)
+            return bottom ? Item.BottomRight : Item.TopRight
+        return bottom ? Item.Bottom : Item.Top
+    }
 }

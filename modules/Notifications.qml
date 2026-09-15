@@ -30,15 +30,14 @@ Scope {
         return vals[0]
     }
 
-    readonly property bool notifTop: {
-        try { let p = Theme.notifPosition; return p === "top-left" || p === "top-center" || p === "top-right" } catch(e) { return true }
+    // Kachel-Position als ein String (eine Quelle statt 5x kopierter
+    // Theme.notifPosition-Vergleiche in notifTop/Left/Center/slideDir/isBottom).
+    readonly property string notifPos: {
+        try { return String(Theme.notifPosition || "top-right") } catch (e) { return "top-right" }
     }
-    readonly property bool notifLeft: {
-        try { let p = Theme.notifPosition; return p === "top-left" || p === "bottom-left" } catch(e) { return false }
-    }
-    readonly property bool notifCenter: {
-        try { let p = Theme.notifPosition; return p === "top-center" || p === "bottom-center" } catch(e) { return false }
-    }
+    readonly property bool notifTop: notifPos.startsWith("top")
+    readonly property bool notifLeft: notifPos.endsWith("left")
+    readonly property bool notifCenter: notifPos.endsWith("center")
     readonly property int cardWidth: 380
     readonly property int edgeGap: 12
 
@@ -55,9 +54,7 @@ Scope {
     clip: true
 
     property int timeoutMs: 5000
-    readonly property int slideDir: {
-        try { let p = Theme.notifPosition; return (p === "top-left" || p === "bottom-left") ? -1 : 1 } catch(e) { return 1 }
-    }
+    readonly property int slideDir: notifScope.notifPos.endsWith("left") ? -1 : 1
     property int cachedUrgency: 1
     property string cachedSummary: ""
     property string cachedBody: ""
@@ -100,9 +97,7 @@ Scope {
             Qt.callLater(() => { try { cachedDelegateHeight = childrenRect.height } catch(e) { } })
         } catch(e) { }
     }
-    readonly property bool isBottom: {
-        try { let p = Theme.notifPosition; return p === "bottom-left" || p === "bottom-center" || p === "bottom-right" } catch(e) { return false }
-    }
+    readonly property bool isBottom: notifScope.notifPos.startsWith("bottom")
     property bool entered: false
     property bool leaving: false
     property int exitDir: 1

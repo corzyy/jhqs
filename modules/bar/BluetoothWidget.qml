@@ -9,6 +9,9 @@ import "../../services"
 BarWidgetBase {
     id: root
 
+    // Ein Farbmapping für beide Orientierungen (war 2x kopiert).
+    readonly property color _fg: hovered ? Theme.accent : (BluetoothService.btActive ? Theme.textPrimary : Theme.textMuted)
+
     rowContent: Component {
         RowLayout {
             spacing: 6
@@ -17,7 +20,7 @@ BarWidgetBase {
                 renderType: Theme.textRenderType
                 text: BluetoothService.icon
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
-                color: root.hovered ? Theme.accent : (BluetoothService.btActive ? Theme.textPrimary : Theme.textMuted)
+                color: root._fg
                 Layout.alignment: Qt.AlignVCenter
             }
         }
@@ -30,7 +33,7 @@ BarWidgetBase {
                 renderType: Theme.textRenderType
                 text: BluetoothService.icon
                 font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
-                color: root.hovered ? Theme.accent : (BluetoothService.btActive ? Theme.textPrimary : Theme.textMuted)
+                color: root._fg
                 Layout.alignment: Qt.AlignHCenter
             }
         }

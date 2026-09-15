@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import "../../../themes"
+import "../../../Commons"
 import "../../../Ui"
 
 Item {
@@ -74,7 +75,7 @@ Item {
             }
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
-                IconImage { width: 20; height: 20; source: entry && entry.icon ? Quickshell.iconPath(entry.icon || "") : ""; asynchronous: true; visible: entry && entry.icon; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
+                IconImage { width: 20; height: 20; source: Util.iconSource(entry && entry.icon, ""); asynchronous: true; visible: entry && entry.icon; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
                 Text { visible: true; text: entry.name || entry.id || "—"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? Theme.accent : Theme.textSecondary; Layout.fillWidth: true; elide: Text.ElideRight
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
@@ -144,7 +145,7 @@ Item {
                 anchors.fill: parent; anchors.margins: 4; spacing: 1
                 RowLayout {
                     Layout.fillWidth: true; Layout.preferredHeight: 32; spacing: 8
-                    IconImage { Layout.preferredWidth: 18; Layout.preferredHeight: 18; source: root.contextMenuEntry && root.contextMenuEntry.icon ? Quickshell.iconPath(root.contextMenuEntry.icon) : ""; asynchronous: true; visible: root.contextMenuEntry && root.contextMenuEntry.icon; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
+                    IconImage { Layout.preferredWidth: 18; Layout.preferredHeight: 18; source: Util.iconSource(root.contextMenuEntry && root.contextMenuEntry.icon, ""); asynchronous: true; visible: root.contextMenuEntry && root.contextMenuEntry.icon; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
                     Text { text: root.contextMenuEntry ? (root.contextMenuEntry.name || root.contextMenuEntry.id) : ""; color: Theme.textPrimary; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); Layout.fillWidth: true; elide: Text.ElideRight
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
@@ -184,7 +185,7 @@ Item {
                             color: Theme.accent
                             visible: root.contextMenuSelectedIndex === index + 1
                         }
-                        RowLayout { anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8; IconImage { Layout.preferredWidth: 14; Layout.preferredHeight: 14; source: action && action.icon ? Quickshell.iconPath(action.icon) : ""; visible: action && action.icon; asynchronous: true; implicitSize: Qt.size(28, 28); mipmap: Theme.imageMipmap } Text { text: action ? (action.name || action.id) : ""; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: root.contextMenuSelectedIndex === index + 1 ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
+                        RowLayout { anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 8; IconImage { Layout.preferredWidth: 14; Layout.preferredHeight: 14; source: Util.iconSource(action && action.icon, ""); visible: action && action.icon; asynchronous: true; implicitSize: Qt.size(28, 28); mipmap: Theme.imageMipmap } Text { text: action ? (action.name || action.id) : ""; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(12); color: root.contextMenuSelectedIndex === index + 1 ? Theme.accent : Theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight
                                 antialiasing: Theme.textAa
                                 renderType: Theme.textRenderType
                             } }

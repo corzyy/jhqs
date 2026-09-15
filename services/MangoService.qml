@@ -210,6 +210,23 @@ Singleton {
     // The bar lives on one screen (the Theme primary screen) while `tags`
     // tracks the focused monitor — Workspaces must use tagsFor(screenName)
     // or the highlight follows the wrong screen / lags behind focus changes.
+    // Roh-Tagliste -> kanonische Form {index, active, urgent, clients, layout}.
+    // (Ein Pfad statt 2x kopierter Projektion in tagsFor/parseMonitors.)
+    function projectTags(tl: var): var {
+        const arr = []
+        for (let ti = 0; ti < (tl || []).length; ti++) {
+            const tg = tl[ti]
+            arr.push({
+                index: tg.index,
+                active: !!tg.is_active,
+                urgent: !!tg.is_urgent,
+                clients: tg.client_count || 0,
+                layout: (tg.layout || "") + ""
+            })
+        }
+        arr.sort((a, b) => a.index - b.index)
+        return arr
+    }
     function tagsFor(screenName: string): var {
         try {
             let name = ((screenName || "") + "").trim() || focusedMonitor
@@ -219,20 +236,7 @@ Singleton {
                 else return tags
             }
             if (!m) return tags
-            let tl = m.tags || []
-            let arr = []
-            for (let ti = 0; ti < tl.length; ti++) {
-                let tg = tl[ti]
-                arr.push({
-                    index: tg.index,
-                    active: !!tg.is_active,
-                    urgent: !!tg.is_urgent,
-                    clients: tg.client_count || 0,
-                    layout: (tg.layout || "") + ""
-                })
-            }
-            arr.sort((a, b) => a.index - b.index)
-            return arr
+            return projectTags(m.tags || [])
         } catch (e) { try { return tags } catch (e2) { return [] } }
     }
     function tagCountFor(screenName: string): int {
@@ -274,28 +278,13 @@ Singleton {
             if (focusedMonitor !== focused) focusedMonitor = focused
             let fm = mmap[focused]
             if (fm) {
-                let tl = fm.tags || []
-                let arr = []
-                for (let ti = 0; ti < tl.length; ti++) {
-                    let tg = tl[ti]
-                    arr.push({
-                        index: tg.index,
-                        active: !!tg.is_active,
-                        urgent: !!tg.is_urgent,
-                        clients: tg.client_count || 0,
-                        layout: (tg.layout || "") + ""
-                    })
-                }
-                arr.sort((a, b) => a.index - b.index)
+                const arr = projectTags(fm.tags || [])
                 if (!tagsEqual(tags, arr)) tags = arr
                 if (arr.length > 0) tagCount = arr.length
                 else if (fm.tag_num) tagCount = Math.max(1, Math.min(20, parseInt(fm.tag_num) || 10))
                 try {
                     let ac = fm.active_client
-                    if (ac) {
-                        if ((ac.title || "").length > 0 && focusedTitle !== ("" + ac.title)) focusedTitle = "" + ac.title
-                        if ((ac.appid || "").length > 0 && focusedAppId !== ("" + ac.appid)) focusedAppId = "" + ac.appid
-                    }
+                    if (ac) applyClientIdentity(ac)
                 } catch (e2) {}
             }
         } catch (e) { lastError = "monitors: " + e }
@@ -320,6 +309,25 @@ Singleton {
         } catch (e) { lastError = "focus: " + e }
     }
 
+    // Titel/AppId-Spiegel (nur nicht-leere Werte übernehmen).
+    // HINWEIS: parseFocus nutzt das bewusst NICHT — focusing-client mit
+    // leerem Titel bedeutet "kein Fokus" und muss löschen dürfen.
+    function applyClientIdentity(c: var): void {
+        if (!c) return
+        if ((c.title || "").length > 0 && focusedTitle !== ("" + c.title)) focusedTitle = "" + c.title
+        if ((c.appid || "").length > 0 && focusedAppId !== ("" + c.appid)) focusedAppId = "" + c.appid
+    }
+
+    // Monitor/Fullscreen/Floating-Spiegel für Client-Listen.
+    function applyClientFocusState(c: var): void {
+        if (!c) return
+        if (c.monitor && focusedMonitor !== c.monitor) focusedMonitor = c.monitor
+        const full = !!(c.is_fullscreen || c.is_fakefullscreen || c.is_maximized)
+        if (focusedFullscreen !== full) focusedFullscreen = full
+        const floating = !!c.is_floating
+        if (focusedFloating !== floating) focusedFloating = floating
+    }
+
     function parseClients(out: string): void {
         try {
             let t = (out || "").trim()
@@ -340,28 +348,26 @@ Singleton {
                 // all-monitors active_client lags one poll behind.
                 try {
                     if (c.is_focused) {
-                        if ((c.title || "").length > 0 && focusedTitle !== ("" + c.title)) focusedTitle = "" + c.title
-                        if ((c.appid || "").length > 0 && focusedAppId !== ("" + c.appid)) focusedAppId = "" + c.appid
-                        if (c.monitor && focusedMonitor !== c.monitor) focusedMonitor = c.monitor
-                        let nfs2 = !!(c.is_fullscreen || c.is_fakefullscreen || c.is_maximized)
-                        if (focusedFullscreen !== nfs2) focusedFullscreen = nfs2
-                        let nfl2 = !!c.is_floating
-                        if (focusedFloating !== nfl2) focusedFloating = nfl2
+                        applyClientIdentity(c)
+                        applyClientFocusState(c)
                     }
                 } catch (e2) {}
             }
             // PERF: fullscreen map churn re-evaluates TopBar hide each poll.
-            let ck = Object.keys(m), fk = Object.keys(fullscreenByScreen)
-            if (ck.length !== fk.length) {
-                fullscreenByScreen = m
-            } else {
-                let same = true
-                for (let i = 0; i < ck.length; i++) {
-                    if (!fullscreenByScreen[ck[i]]) { same = false; break }
-                }
-                if (!same) fullscreenByScreen = m
-            }
+            // Nur bei geänderter Schlüsselmenge zuweisen.
+            if (!isSameKeySet(fullscreenByScreen, m)) fullscreenByScreen = m
         } catch (e) { lastError = "clients: " + e }
+    }
+
+    function isSameKeySet(cur: var, next: var): bool {
+        try {
+            const ck = Object.keys(next), fk = Object.keys(cur)
+            if (ck.length !== fk.length) return false
+            for (let i = 0; i < ck.length; i++) {
+                if (!cur[ck[i]]) return false
+            }
+            return true
+        } catch (e) { return false }
     }
 
     function isFullscreenOn(screenName: string): bool {
@@ -444,22 +450,21 @@ Singleton {
         let n = tagCountFor(screenName)
         let i = Math.max(1, Math.min(n, Math.round(idx)))
         optimisticView(i, screenName)
-        let target = ((screenName || "") + "").trim()
         // `view,i,0` = focused monitor; `view,i,<name>` targets a screen.
         // The bar lives on the primary screen, so clicks must switch that
         // screen even when focus is on another monitor.
-        if (target.length > 0) dispatch("view," + i + "," + target)
-        else dispatch("view," + i + ",0")
+        dispatch("view," + i + "," + viewTarget(screenName))
+    }
+    // Screen-Target für view-Dispatches (ein Pfad statt 3x if/else).
+    function viewTarget(screenName: string): string {
+        const target = ((screenName || "") + "").trim()
+        return target.length > 0 ? target : "0"
     }
     function nextTag(screenName: string): void {
-        let target = ((screenName || "") + "").trim()
-        if (target.length > 0) dispatch("viewtoright_have_client," + target)
-        else dispatch("viewtoright_have_client,0")
+        dispatch("viewtoright_have_client," + viewTarget(screenName))
     }
     function prevTag(screenName: string): void {
-        let target = ((screenName || "") + "").trim()
-        if (target.length > 0) dispatch("viewtoleft_have_client," + target)
-        else dispatch("viewtoleft_have_client,0")
+        dispatch("viewtoleft_have_client," + viewTarget(screenName))
     }
     function cycleLayout(): void { dispatch("switch_layout") }
     function setLayout(name: string): void {

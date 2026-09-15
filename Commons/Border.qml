@@ -32,13 +32,13 @@ QtObject {
   }
 
   function resolveValueRef(raw) {
-    var s = String(raw || "").replace(/^\s+|\s+$/g, "")
+    var s = String(raw || "").trim()
     var seen = {}
     while (s.match(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/) && !seen[s]) {
       seen[s] = true
       var next = Color.shellValues[s]
       if (next === undefined || next === null || String(next).length === 0) break
-      s = String(next).replace(/^\s+|\s+$/g, "")
+      s = String(next).trim()
     }
     return s
   }
@@ -63,18 +63,19 @@ QtObject {
         + Geometry.padHex((color.a === undefined ? 1 : color.a) * a * 255)
     }
 
-    var s = String(color || "").replace(/^\s+|\s+$/g, "")
-    var role = s.toLowerCase()
-    if (role === "foreground" || role === "text") return cssColor(Color.foreground, a)
-    if (role === "accent") return cssColor(Color.accent, a)
-    if (role === "urgent") return cssColor(Color.urgent, a)
-    if (role === "background") return cssColor(Color.background, a)
-    if (role === "transparent") return "transparent"
+    var s = String(color || "").trim()
+    // Benannte Rollen -> Theme-Farben (ein Lookup statt if-Kette).
+    var roleColor = {
+      foreground: Color.foreground, text: Color.foreground,
+      accent: Color.accent, urgent: Color.urgent, background: Color.background
+    }[s.toLowerCase()]
+    if (roleColor !== undefined) return cssColor(roleColor, a)
+    if (s.toLowerCase() === "transparent") return "transparent"
     return Geometry.canonicalColor(s, a)
   }
 
   function resolvedGradient(raw, fallbackColor, opacity) {
-    var s = String(raw || "").replace(/^\s+|\s+$/g, "")
+    var s = String(raw || "").trim()
     if (s.length === 0) return { colors: [], angle: 0, enabled: false }
 
     var parts = s.split(/\s+/)
@@ -104,26 +105,32 @@ QtObject {
     return surfaceSpec(section, token, localColor, fallbackWidth, alphaKey)
   }
 
+  // Breiten-Schlüssel: "border" nutzt border-*, sonst token-* mit border-Fallback.
+  function widthKeys(token, side) {
+    var suffix = side ? "-" + side : ""
+    if (token === "border") return ["border-width" + suffix]
+    return [token + "-width" + suffix, "border-width" + suffix]
+  }
+
   function surfaceWidths(section, token, fallbackWidth) {
-    var base = valueOr(section, token === "border" ? ["border-width"] : [token + "-width", "border-width"])
-    var widths = Geometry.parseWidthSpec(base, fallbackWidth)
+    var widths = Geometry.parseWidthSpec(valueOr(section, widthKeys(token, "")), fallbackWidth)
     return Geometry.withSideOverrides(
       widths,
-      valueOr(section, token === "border" ? ["border-width-top"] : [token + "-width-top", "border-width-top"]),
-      valueOr(section, token === "border" ? ["border-width-right"] : [token + "-width-right", "border-width-right"]),
-      valueOr(section, token === "border" ? ["border-width-bottom"] : [token + "-width-bottom", "border-width-bottom"]),
-      valueOr(section, token === "border" ? ["border-width-left"] : [token + "-width-left", "border-width-left"])
+      valueOr(section, widthKeys(token, "top")),
+      valueOr(section, widthKeys(token, "right")),
+      valueOr(section, widthKeys(token, "bottom")),
+      valueOr(section, widthKeys(token, "left"))
     )
   }
 
   function borderValue(raw, fallbackColor, opacity, legacyGradientRaw) {
     var fallback = cssColor(fallbackColor, opacity)
-    var primaryRaw = String(raw || "").replace(/^\s+|\s+$/g, "")
+    var primaryRaw = String(raw || "").trim()
     var primary = resolvedGradient(primaryRaw.length > 0 ? primaryRaw : fallbackColor, fallbackColor, opacity)
     var color = primary.colors.length > 0 ? primary.colors[0] : fallback
     var gradient = primary.enabled ? primary : { colors: [], angle: 0, enabled: false }
 
-    if (!gradient.enabled && String(legacyGradientRaw || "").replace(/^\s+|\s+$/g, "").length > 0) {
+    if (!gradient.enabled && String(legacyGradientRaw || "").trim().length > 0) {
       var legacy = resolvedGradient(legacyGradientRaw, color, opacity)
       if (legacy.enabled) gradient = legacy
     }
@@ -133,7 +140,8 @@ QtObject {
 
   function surfaceSpec(section, token, fallbackColor, fallbackWidth, alphaKey) {
     var opacity = alpha(section, alphaKey || token + "-alpha", 1.0)
-    var legacyGradientRaw = valueOr(section, token === "border" ? ["border-gradient"] : [token + "-gradient", "border-gradient"])
+    var gradientKeys = token === "border" ? ["border-gradient"] : [token + "-gradient", "border-gradient"]
+    var legacyGradientRaw = valueOr(section, gradientKeys)
     var resolved = borderValue(resolveValueRef(value(section, token)), fallbackColor, opacity, legacyGradientRaw)
 
     return {
@@ -150,24 +158,31 @@ QtObject {
   }
 
   function controlColor(prefix, foreground, accent, urgent) {
-    if (prefix === "focus") return Style.focusStateColor(foreground, accent, urgent)
-    if (prefix === "hover-cursor") return Style.hoverStateColor(foreground, accent, urgent)
-    if (prefix === "selected") return Style.selectedStateColor(foreground, accent, urgent)
-    return Style.normalStateColor(foreground, accent, urgent)
+    // Tabellengesteuert statt if-Kette — neue States nur hier ergänzen.
+    var fn = {
+      focus: Style.focusStateColor,
+      "hover-cursor": Style.hoverStateColor,
+      selected: Style.selectedStateColor
+    }[prefix] || Style.normalStateColor
+    return fn(foreground, accent, urgent)
   }
 
   function controlAlpha(prefix) {
-    if (prefix === "focus") return Style.focusBorderAlpha
-    if (prefix === "hover-cursor") return Style.hoverBorderAlpha
-    if (prefix === "selected") return Style.selectedBorderAlpha
-    return Style.normalBorderAlpha
+    var table = {
+      focus: Style.focusBorderAlpha,
+      "hover-cursor": Style.hoverBorderAlpha,
+      selected: Style.selectedBorderAlpha
+    }
+    return table[prefix] !== undefined ? table[prefix] : Style.normalBorderAlpha
   }
 
   function controlFallbackWidth(prefix) {
-    if (prefix === "focus") return Style.focusBorderWidth
-    if (prefix === "hover-cursor") return Style.hoverBorderWidth
-    if (prefix === "selected") return Style.selectedBorderWidth
-    return Style.normalBorderWidth
+    var widths = {
+      focus: Style.focusBorderWidth,
+      "hover-cursor": Style.hoverBorderWidth,
+      selected: Style.selectedBorderWidth
+    }
+    return widths[prefix] !== undefined ? widths[prefix] : Style.normalBorderWidth
   }
 
   function controlWidths(state) {

@@ -27,12 +27,15 @@ Singleton {
         return v === true || String(v) === "true"
     }
     readonly property int checkIntervalMs: {
-        if (checkSchedule === "Every 30 minutes") return 30 * 60 * 1000
-        if (checkSchedule === "Every 2 hours") return 2 * 60 * 60 * 1000
-        if (checkSchedule === "Every 12 hours") return 12 * 60 * 60 * 1000
-        if (checkSchedule === "Every 24 hours") return 24 * 60 * 60 * 1000
-        if (checkSchedule === "Every 6 hours") return 6 * 60 * 60 * 1000
-        return 0
+        // Lookup statt if-Kette — neue Pläne nur hier ergänzen.
+        const table = {
+            "Every 30 minutes": 30 * 60 * 1000,
+            "Every 2 hours": 2 * 60 * 60 * 1000,
+            "Every 6 hours": 6 * 60 * 60 * 1000,
+            "Every 12 hours": 12 * 60 * 60 * 1000,
+            "Every 24 hours": 24 * 60 * 60 * 1000
+        }
+        return table[checkSchedule] !== undefined ? table[checkSchedule] : 0
     }
 
     FileView {
@@ -87,12 +90,26 @@ Singleton {
             + " debugForce=" + debugForce + " display=" + displayCount
     }
     function setDebug(arg: string): string {
-        let a = (arg || "").trim().toLowerCase()
-        if (a === "on" || a === "true" || a === "1" || a === "show") { debugForce = true; return "debugForce=ON display=" + displayCount }
-        if (a === "off" || a === "false" || a === "0" || a === "hide") { debugForce = false; return "debugForce=OFF hasUpdates=" + hasUpdates }
-        if (a === "toggle") { debugForce = !debugForce; return "debugForce=" + debugForce }
-        if (a.startsWith("count")) { let parts = a.split(/\s+/); let n = parseInt(parts[1]); if (!isNaN(n)) { debugCount = n; debugForce = true; return "debugCount=" + n } }
-        let n = parseInt(a); if (!isNaN(n)) { debugCount = n; debugForce = true; return "debugCount=" + n }
+        const a = (arg || "").trim().toLowerCase()
+        // Ein/Aus-Schalter als Tabelle; count/Numerik fallen unten durch.
+        const switches = {
+            on: true, "true": true, "1": true, show: true,
+            off: false, "false": false, "0": false, hide: false
+        }
+        if (a === "toggle") {
+            debugForce = !debugForce
+            return "debugForce=" + debugForce
+        }
+        if (switches[a] !== undefined) {
+            debugForce = switches[a]
+            return "debugForce=" + (debugForce ? "ON display=" + displayCount : "OFF hasUpdates=" + hasUpdates)
+        }
+        let n = parseInt(a.replace(/^count\s+/, ""))
+        if (!isNaN(n)) {
+            debugCount = n
+            debugForce = true
+            return "debugCount=" + n
+        }
         return "usage: debug on|off|toggle|count <n> | debug 5"
     }
 
@@ -133,33 +150,30 @@ Singleton {
         }
         // PERF: compare-before-assign. Identical check results (the common
         // case) must not reset panel Repeaters + _counts bindings.
-        let same = parsed.length === updates.length
-        if (same) {
-            let oldKeys = knownUpdateKeys
-            let newCount = 0, oldCount = 0
-            for (let k in nextKeys) newCount++
-            for (let k in oldKeys) oldCount++
-            same = newCount === oldCount
-            if (same) {
-                for (let k in nextKeys) {
-                    if (!oldKeys[k]) { same = false; break }
-                }
-            }
-            if (same) {
-                for (let i = 0; i < parsed.length; i++) {
-                    let a = parsed[i], b = updates[i]
-                    if (!b || a.source !== b.source || a.name !== b.name || a.detail !== b.detail) {
-                        same = false; break
-                    }
-                }
-            }
-        }
         lastCheckedAt = new Date()
         hasCompletedFirstCheck = true
-        if (same) return
+        if (isSameUpdateList(parsed, nextKeys)) return
         updates = parsed
         knownUpdateKeys = nextKeys
         if (newlyAvailable > 0) notifyNewUpdates(newlyAvailable)
+    }
+
+    // Listenvergleich: Länge + Schlüsselmenge + Reihenfolge/Inhalt.
+    function isSameUpdateList(parsed: var, nextKeys: var): bool {
+        if (parsed.length !== updates.length) return false
+        const oldKeys = knownUpdateKeys
+        let newCount = 0, oldCount = 0
+        for (let k in nextKeys) newCount++
+        for (let k in oldKeys) oldCount++
+        if (newCount !== oldCount) return false
+        for (let k in nextKeys) {
+            if (!oldKeys[k]) return false
+        }
+        for (let i = 0; i < parsed.length; i++) {
+            const a = parsed[i], b = updates[i]
+            if (!b || a.source !== b.source || a.name !== b.name || a.detail !== b.detail) return false
+        }
+        return true
     }
 
     function notifyNewUpdates(n: int): void {

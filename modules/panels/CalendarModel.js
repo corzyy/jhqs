@@ -2,6 +2,15 @@ var MS_PER_DAY = 86400000
 
 var WEEKDAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
 
+// Null-sichere String-Normalisierung (ein Pfad statt 7x kopiertem Ternary).
+function str(value) {
+  return String(value === undefined || value === null ? "" : value)
+}
+
+function mod7(value) {
+  return ((value % 7) + 7) % 7
+}
+
 var CLOCK_FORMATS = [
   "dddd HH:mm",
   "dddd h:mm AP",
@@ -23,7 +32,7 @@ var VERTICAL_CLOCK_FORMATS = [
 ]
 
 function clockNeedsSeconds(format) {
-  var text = String(format === undefined || format === null ? "" : format)
+  var text = str(format)
   return /s/.test(text.replace(/'[^']*'?/g, ""))
 }
 
@@ -35,7 +44,7 @@ function clockFormatRing(configured, configuredAlt, presets) {
   var ring = []
   var candidates = (presets || []).concat([configuredAlt, configured])
   for (var i = 0; i < candidates.length; i++) {
-    var format = String(candidates[i] === undefined || candidates[i] === null ? "" : candidates[i])
+    var format = str(candidates[i])
     if (format === "" || ring.indexOf(format) !== -1) continue
     ring.push(format)
   }
@@ -44,7 +53,7 @@ function clockFormatRing(configured, configuredAlt, presets) {
 
 function nextClockFormat(ring, current) {
   if (!ring || ring.length === 0) return ""
-  var index = ring.indexOf(String(current === undefined || current === null ? "" : current))
+  var index = ring.indexOf(str(current))
   return ring[(index + 1) % ring.length]
 }
 
@@ -68,16 +77,16 @@ function keyForDate(date) {
 function coerceWeekStart(value) {
   if (value === undefined || value === null) return null
   if (typeof value === "number")
-    return isFinite(value) ? ((Math.round(value) % 7) + 7) % 7 : null
+    return isFinite(value) ? mod7(Math.round(value)) : null
 
-  var text = String(value).replace(/^\s+|\s+$/g, "").toLowerCase()
+  var text = str(value).trim().toLowerCase()
   if (text === "") return null
 
   for (var i = 0; i < WEEKDAY_NAMES.length; i++)
     if (WEEKDAY_NAMES[i] === text || WEEKDAY_NAMES[i].substr(0, 3) === text) return i
 
   var parsed = parseInt(text, 10)
-  return isFinite(parsed) ? ((parsed % 7) + 7) % 7 : null
+  return isFinite(parsed) ? mod7(parsed) : null
 }
 
 function normalizedWeekStart(value, fallback) {
@@ -133,7 +142,7 @@ var DEFAULT_LIFE_EXPECTANCY = 90
 function parseBirthYear(value, currentYear) {
   var now = Math.round(Number(currentYear))
   if (!isFinite(now)) return 0
-  var text = String(value === undefined || value === null ? "" : value).replace(/^\s+|\s+$/g, "")
+  var text = str(value).trim()
   if (!/^\d{4}$/.test(text)) return 0
   var year = parseInt(text, 10)
   if (!isFinite(year) || year > now || year < now - 120) return 0
@@ -147,7 +156,7 @@ function ageFromBirthYear(birthYear, currentYear) {
 }
 
 function parseAge(value) {
-  var text = String(value === undefined || value === null ? "" : value).replace(/^\s+|\s+$/g, "")
+  var text = str(value).trim()
   if (!/^\d+$/.test(text)) return 0
   var years = parseInt(text, 10)
   if (!isFinite(years) || years <= 0 || years > 120) return 0
@@ -155,7 +164,7 @@ function parseAge(value) {
 }
 
 function parseLifeExpectancy(value) {
-  var text = String(value === undefined || value === null ? "" : value).replace(/^\s+|\s+$/g, "")
+  var text = str(value).trim()
   if (!/^\d+$/.test(text)) return DEFAULT_LIFE_EXPECTANCY
   var years = parseInt(text, 10)
   if (!isFinite(years) || years <= 0 || years > 150) return DEFAULT_LIFE_EXPECTANCY

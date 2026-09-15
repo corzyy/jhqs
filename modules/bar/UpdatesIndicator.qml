@@ -19,8 +19,8 @@ Item {
     // PERF: single display string + hover color (was 4x hover + 2x toString()
     // driving implicitWidth relayout per count change, in both orientations).
     readonly property string _displayStr: UpdateService.displayCount.toString()
-    readonly property color _iconFg: mouse.containsMouse ? Theme.accent : Theme.textPrimary
-    readonly property color _textFg: mouse.containsMouse ? Theme.accent : Theme.textPrimary
+    // Ein Hover-Farbpfad (icon/text waren identisch belegt).
+    readonly property color _fg: mouse.containsMouse ? Theme.accent : Theme.textPrimary
     implicitWidth: (root.vertical ? colContent.implicitWidth : rowContent.implicitWidth) + 12
     implicitHeight: (root.vertical ? colContent.implicitHeight : rowContent.implicitHeight) + 8
 
@@ -35,7 +35,7 @@ Item {
             renderType: Theme.textRenderType
             text: "󰚰"
             font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
-            color: root._iconFg
+            color: root._fg
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
@@ -44,7 +44,7 @@ Item {
             visible: Theme.barLabelVisible("updates") && UpdateService.displayCount > 0
             text: root._displayStr
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold
-            color: root._textFg
+            color: root._fg
             anchors.verticalCenter: parent.verticalCenter
         }
     }
@@ -60,7 +60,7 @@ Item {
             renderType: Theme.textRenderType
             text: "󰚰"
             font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
-            color: root._iconFg
+            color: root._fg
             anchors.horizontalCenter: parent.horizontalCenter
         }
         Text {
@@ -69,7 +69,7 @@ Item {
             visible: Theme.barLabelVisible("updates") && UpdateService.displayCount > 0
             text: root._displayStr
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold
-            color: root._textFg
+            color: root._fg
             anchors.horizontalCenter: parent.horizontalCenter
         }
     }

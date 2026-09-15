@@ -24,6 +24,8 @@ QtObject {
     function fs(px: real): int { return Themes.Theme.fs(px) }
 
     readonly property var styleOverrides: ({})
+    // Standard-Rahmen: bewusst vier Einzel-Properties (Call-Sites lesen sie
+    // namentlich). Alle Defaults sind 1 / 1.0 — nur bei Bedarf divergieren.
     readonly property int normalBorderWidth: 1
     readonly property int hoverBorderWidth: 1
     readonly property int selectedBorderWidth: 1
@@ -33,6 +35,8 @@ QtObject {
     readonly property real selectedBorderAlpha: 1.0
     readonly property real focusBorderAlpha: 1.0
 
+    // Signaturen behalten (fg/ac/ug) für Border.controlColor-Kompatibilität;
+    // aktuell hängt die Farbe nur vom State ab, nicht vom Inhalt.
     function normalStateColor(fg: color, ac: color, ug: color): color { return Themes.Theme.divider }
     function hoverStateColor(fg: color, ac: color, ug: color): color { return Themes.Theme.divider }
     function selectedStateColor(fg: color, ac: color, ug: color): color { return Themes.Theme.accent }

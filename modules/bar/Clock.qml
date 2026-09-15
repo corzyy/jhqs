@@ -50,31 +50,35 @@ Item {
     readonly property string _vDayStr: (vertical && isDate) ? (_dayNum + ordinalSuffix(_dayNum)) : ""
     readonly property string _vMonStr: (vertical && isDate) ? Qt.formatDateTime(c.date, "MMM") : ""
     readonly property color _hoverColor: mouse.containsMouse ? Theme.primary : Theme.textPrimary
+    readonly property color _dimColor: mouse.containsMouse ? Theme.primary : Theme.textMuted
+
+    // Geteilte Text-Basis (ein Pfad für alle 5 Labels statt kopiertem Boilerplate).
+    component ClockLabel: Text {
+        antialiasing: Theme.textAa
+        renderType: Theme.textRenderType
+        font.family: Theme.fontFamily
+    }
 
     Row {
         id: row
         visible: !root.vertical
         anchors.centerIn: parent
         spacing: 8
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             id: dayText
             visible: !root.isTimeOnly
             text: root._dayStr
             color: root._hoverColor
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
             opacity: visible ? 1 : 0
             width: visible ? implicitWidth : 0
         }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             id: timeText
             text: root._timeStr
             color: root._hoverColor
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
         }
     }
@@ -83,51 +87,41 @@ Item {
         visible: root.vertical
         anchors.centerIn: parent
         spacing: 2
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             text: root._hhStr
             color: root._hoverColor
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
         }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             text: root._mmStr
             color: root._hoverColor
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
         }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             visible: !root.isTimeOnly && !root.isDate
             text: root._dddStr
-            color: mouse.containsMouse ? Theme.primary : Theme.textMuted
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            color: root._dimColor
+            font.pixelSize: Theme.fs(10); font.weight: Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
             opacity: visible ? 0.85 : 0
             height: visible ? implicitHeight : 0
         }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             visible: root.isDate
             text: root._vDayStr
-            color: mouse.containsMouse ? Theme.primary : Theme.textMuted
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            color: root._dimColor
+            font.pixelSize: Theme.fs(10); font.weight: Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
             opacity: visible ? 0.85 : 0
             height: visible ? implicitHeight : 0
         }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
+        ClockLabel {
             visible: root.isDate
             text: root._vMonStr
-            color: mouse.containsMouse ? Theme.primary : Theme.textMuted
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            color: root._dimColor
+            font.pixelSize: Theme.fs(10); font.weight: Font.Normal
             anchors.horizontalCenter: parent.horizontalCenter
             opacity: visible ? 0.85 : 0
             height: visible ? implicitHeight : 0

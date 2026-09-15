@@ -257,60 +257,15 @@ Scope {
                 acceptedButtons: Qt.AllButtons
                 onClicked: scope.dismissed()
             }
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                id: updBox
-                width: 410
-                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 36, updAnchor.screenHeight - updAnchor.edgeOffset - 24))
-                BarAnchor {
-                    id: updAnchor
-                    moduleId: "updates"
-                    barPos: scope.barPos
-                    panelWidth: updBox.width
-                    panelHeight: updBox.implicitHeight
-                    screenWidth: updBox.parent.width
-                    screenHeight: updBox.parent.height
-                    gap: scope.panelGap
-                    fallbackX: (updBox.parent.width - updBox.width) / 2
-                    fallbackY: (updBox.parent.height - updBox.implicitHeight) / 2
-                }
-                x: updAnchor.panelX
-                y: updAnchor.panelY
-                color: Theme.bg
-                border.color: Theme.panelBorderColor
-                border.width: 2
-                radius: 0
-                clip: true
-                PanelSpring {
-                    id: updSpring
-                    slideFade: true
-                    shown: scope.showUpdates
-                    hiddenX: scope.barPos === "left" ? -(updBox.width + 5) : scope.barPos === "right" ? (updBox.width + 5) : 0
-                    hiddenY: scope.barPos === "top" ? -(updBox.implicitHeight + 5) : scope.barPos === "bottom" ? (updBox.implicitHeight + 5) : 0
-                }
-                visible: updSpring.boxVisible
-                opacity: updSpring.fade
-                scale: updSpring.zoom
-                transformOrigin: updAnchor.origin
-                transform: Translate { x: updSpring.slideX; y: updSpring.slideY }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    onClicked: mouse => mouse.accepted = true
-                    onPressed: mouse => mouse.accepted = true
-                    onWheel: wheel => wheel.accepted = true
-                }
-                Flickable {
-                    anchors.fill: parent
-                    anchors.margins: 18
-                    contentHeight: contentCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: contentHeight > height
-                    Column {
-                        id: contentCol
-                        width: parent.width
-                        spacing: 14
+            PanelShell {
+                moduleId: "updates"
+                barPos: scope.barPos
+                panelGap: scope.panelGap
+                shown: scope.showUpdates
+                boxWidth: 410
+                contentMargins: 18
+                contentSpacing: 14
+                heightPadding: 36
                         RowLayout {
                             width: parent.width
                             spacing: 10
@@ -393,7 +348,7 @@ Scope {
                             model: scope.sections
                             delegate: Column {
                                 required property var modelData
-                                width: contentCol.width
+                                width: parent.width
                                 spacing: 6
                                 visible: scope.count(modelData.id) > 0
                                 Hairline { width: parent.width }
@@ -478,8 +433,6 @@ Scope {
                                 }
                             }
                         }
-                    }
-                }
             }
         }
     }

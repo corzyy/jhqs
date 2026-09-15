@@ -138,59 +138,16 @@ Scope {
                 acceptedButtons: Qt.AllButtons
                 onClicked: scope.dismissed()
             }
-            Rectangle {
-                id: vitBox
-                width: 380
-                implicitHeight: Math.max(200, Math.min(contentCol.implicitHeight + 36, vitAnchor.screenHeight - vitAnchor.edgeOffset - 24))
-                BarAnchor {
-                    id: vitAnchor
-                    moduleId: "vitals"
-                    barPos: scope.barPos
-                    panelWidth: vitBox.width
-                    panelHeight: vitBox.implicitHeight
-                    screenWidth: vitBox.parent.width
-                    screenHeight: vitBox.parent.height
-                    gap: scope.panelGap
-                    fallbackX: (vitBox.parent.width - vitBox.width) / 2
-                    fallbackY: (vitBox.parent.height - vitBox.implicitHeight) / 2
-                }
-                x: vitAnchor.panelX
-                y: vitAnchor.panelY
-                radius: 0
-                color: Theme.bg
-                border.color: Theme.panelBorderColor
-                border.width: 2
-                clip: true
-                PanelSpring {
-                    id: vitSpring
-                    slideFade: true
-                    shown: scope.showVitals
-                    hiddenX: scope.barPos === "left" ? -(vitBox.width + 5) : scope.barPos === "right" ? (vitBox.width + 5) : 0
-                    hiddenY: scope.barPos === "top" ? -(vitBox.implicitHeight + 5) : scope.barPos === "bottom" ? (vitBox.implicitHeight + 5) : 0
-                }
-                visible: vitSpring.boxVisible
-                opacity: vitSpring.fade
-                scale: vitSpring.zoom
-                transformOrigin: vitAnchor.origin
-                transform: Translate { x: vitSpring.slideX; y: vitSpring.slideY }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    onClicked: mouse => mouse.accepted = true
-                    onPressed: mouse => mouse.accepted = true
-                    onWheel: wheel => wheel.accepted = true
-                }
-                Flickable {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    contentHeight: contentCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: contentHeight > height
-                    Column {
-                        id: contentCol
-                        width: parent.width
-                        spacing: 10
+            PanelShell {
+                moduleId: "vitals"
+                barPos: scope.barPos
+                panelGap: scope.panelGap
+                shown: scope.showVitals
+                boxWidth: 380
+                minHeight: 200
+                heightPadding: 36
+                contentMargins: 12
+                contentSpacing: 10
                         RowLayout {
                             width: parent.width
                             spacing: 8
@@ -280,8 +237,6 @@ Scope {
                             color: Theme.textMuted
                             wrapMode: Text.WordWrap
                         }
-                    }
-                }
             }
         }
     }

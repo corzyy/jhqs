@@ -6,6 +6,7 @@ import QtQuick.Layouts
 import Quickshell.Wayland
 import "../themes"
 import "../services"
+import "../Commons"
 import "../Ui"
 import "./jhqsmenu" as JHQ
 import "./jhqsmenu/views" as Views
@@ -803,13 +804,15 @@ Scope {
         webAppRepairProc.running = true
     }
     function clearWebAppStatus() { webAppStatus = ""; webAppLog = ""; webAppSuccess = false }
-    function webAppOpAppend(line) {
-        let parts = ("" + (line || "")).split("\n")
-        let lines = []
+    // Geteilte Log-Sanitisierung für WebApp-/Paket-Operationen (eine Regex-
+    // Kette statt 2x kopierter ANSI/CR/Steuerzeichen-Bereinigung + 60-Zeilen-Cap).
+    function sanitizeOpLines(text: string): var {
+        const parts = ("" + (text || "")).split("\n")
+        const lines = []
         for (let i = 0; i < parts.length; i++) {
             let s = parts[i]
             if (s.charAt(s.length - 1) === "\r") s = s.slice(0, -1)
-            let ci = s.lastIndexOf("\r")
+            const ci = s.lastIndexOf("\r")
             if (ci !== -1) s = s.slice(ci + 1)
             s = s.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
                 .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
@@ -819,11 +822,17 @@ Scope {
             if (s.length === 0) continue
             lines.push(s)
         }
+        return lines
+    }
+    function capOpLines(cur: var, lines: var): var {
+        const next = cur.concat(lines)
+        return next.length > 60 ? next.slice(next.length - 60) : next
+    }
+    function webAppOpAppend(line) {
+        const lines = sanitizeOpLines(line)
         if (lines.length === 0) return
-        let cur = webAppLog.length > 0 ? webAppLog.split("\n") : []
-        cur = cur.concat(lines)
-        if (cur.length > 60) cur = cur.slice(cur.length - 60)
-        webAppLog = cur.join("\n")
+        const cur = webAppLog.length > 0 ? webAppLog.split("\n") : []
+        webAppLog = capOpLines(cur, lines).join("\n")
     }
     function installWebApp(name, url, iconRef) {
         let n = ("" + (name || "")).trim()
@@ -1577,25 +1586,11 @@ Scope {
     property bool packageOpKernelUpdated: false
     function packageOpAppend(line) {
         if (("" + (line || "")).split("\n").some(p => p.trim() === "__JHQS_KERNEL_UPDATED__")) packageOpKernelUpdated = true
-        let parts = ("" + (line || "")).split("\n")
-        let lines = []
-        for (let i = 0; i < parts.length; i++) {
-            let s = parts[i]
-            if (s.trim() === "__JHQS_KERNEL_UPDATED__") continue
-            if (s.charAt(s.length - 1) === "\r") s = s.slice(0, -1)
-            let ci = s.lastIndexOf("\r")
-            if (ci !== -1) s = s.slice(ci + 1)
-            s = s.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
-                .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
-                .replace(/\x1b[()][0-9A-B]/g, "")
-                .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
-                .replace(/\s+$/, "")
-            if (s.length === 0) continue
-            lines.push(s)
-        }
+        // Marker-Zeilen vor dem Sanitizen filtern (s. sanitizeOpLines).
+        const raw = ("" + (line || "")).split("\n").filter(p => p.trim() !== "__JHQS_KERNEL_UPDATED__").join("\n")
+        const lines = sanitizeOpLines(raw)
         if (lines.length === 0) return
-        let l = packageOpLines.concat(lines)
-        if (l.length > 60) l = l.slice(l.length - 60)
+        const l = capOpLines(packageOpLines, lines)
         packageOpLines = l
         packageOpLog = l.join("\n")
     }
@@ -1664,8 +1659,10 @@ Scope {
         clearSearch()
     }
 
+    // Shell-Quoting für doppelte Anführungszeichen — delegiert an die
+    // geteilte Util-Funktion (identische Ersetzungen, eine Quelle).
     function escShellArg(path: string): string {
-        return path.replace(/\\/g, "\\\\").replace(/\"/g, "\\\"").replace(/\$/g, "\\$").replace(/`/g, "\\`")
+        return Util.shellEscapeDq(path)
     }
     // Display-only wallpaper switch (swaybg + current-file pointers), used by
     // setWallpaper and by design-snapshot restores. Never triggers theming.

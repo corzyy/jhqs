@@ -19,19 +19,21 @@ Scope {
     signal unlocked()
     signal lockRequested()
 
-    function lock(): void {
-        if (locked) return
+    // Einziger Reset-Pfad für den PIN-Zustand (war 3x kopiert).
+    function resetPinState(): void {
         pinInput = ""
         failed = false
         errorText = ""
+    }
+    function lock(): void {
+        if (locked) return
+        resetPinState()
         refreshWallpaper()
         locked = true
     }
     function unlock(): void {
         locked = false
-        pinInput = ""
-        failed = false
-        errorText = ""
+        resetPinState()
         unlocked()
     }
     function refreshWallpaper(): void {
@@ -39,10 +41,15 @@ Scope {
     }
     function submitPin(): void {
         if (pinInput.length === 0) return
+        clearPinError()
+        authProc.command = [Quickshell.shellDir + "/scripts/lock-auth.sh", pinInput]
+        if (!authProc.running) authProc.running = true
+    }
+
+    // Fehler-Reset ohne die gerade eingegebene PIN zu löschen.
+    function clearPinError(): void {
         failed = false
         errorText = ""
-        authProc.command = ["/home/jakob/.config/quickshell/jhqs/scripts/lock-auth.sh", pinInput]
-        if (!authProc.running) authProc.running = true
     }
 
     Process {
@@ -61,8 +68,6 @@ Scope {
         stderr: StdioCollector { }
         onExited: (code) => {
             if (code === 0) {
-                lockScope.failed = false
-                lockScope.errorText = ""
                 lockScope.unlock()
             } else {
                 lockScope.failed = true
@@ -75,7 +80,7 @@ Scope {
     Timer {
         id: failTimer
         interval: 1500
-        onTriggered: { lockScope.failed = false; lockScope.errorText = "" }
+        onTriggered: lockScope.clearPinError()
     }
 
     Variants {

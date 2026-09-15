@@ -38,33 +38,34 @@ Singleton {
         // in QV4::fromData/fromQVariantMap on open (all recent crashes
         // share that stack). Rebuild a sanitized snapshot here so no
         // caller can smuggle a QObject into `history`.
-        let safe = null
         try {
             if (!entry) return null
-            let sid = Number(entry.id)
-            if (!isFinite(sid)) sid = -1
-            let sUrg = Number(entry.urgency)
-            if (!isFinite(sUrg)) sUrg = 1
-            let sTime = 0
-            try {
-                let t = entry.time
-                if (typeof t === "number" && isFinite(t)) sTime = Math.round(t)
-                else if (t instanceof Date && !isNaN(t.getTime())) sTime = t.getTime()
-                else if (t !== undefined && t !== null) {
-                    let d = new Date(t)
-                    sTime = isNaN(d.getTime()) ? Date.now() : d.getTime()
-                } else sTime = Date.now()
-            } catch (e) { sTime = Date.now() }
-            safe = {
-                id: Math.round(sid),
+            return {
+                id: Math.round(finiteNumber(entry.id, -1)),
                 appName: String(entry.appName || "Notification").slice(0, 120),
                 summary: String(entry.summary || "").slice(0, 300),
                 body: String(entry.body || "").slice(0, 500),
-                urgency: Math.round(sUrg),
-                time: Math.round(sTime)
+                urgency: Math.round(finiteNumber(entry.urgency, 1)),
+                time: Math.round(normalizeTime(entry.time))
             }
         } catch (e) { return null }
-        return safe
+    }
+
+    function finiteNumber(value: var, fallback: real): real {
+        const n = Number(value)
+        return isFinite(n) ? n : fallback
+    }
+
+    function normalizeTime(t: var): real {
+        try {
+            if (typeof t === "number" && isFinite(t)) return Math.round(t)
+            if (t instanceof Date && !isNaN(t.getTime())) return t.getTime()
+            if (t !== undefined && t !== null) {
+                const d = new Date(t)
+                if (!isNaN(d.getTime())) return d.getTime()
+            }
+        } catch (e) {}
+        return Date.now()
     }
     function remove(id: int): void {
         let before = history.length

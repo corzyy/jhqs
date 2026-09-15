@@ -143,6 +143,39 @@ ShellRoot {
 
     function closeAll() { activePanel = panel.none }
 
+    // Geteilte Loader-Hülle für Panels (8x identisches active/async-Muster).
+    // Menü/Settings bleiben eigene Loader (Sonder-Props: systemTrigger, section).
+    component PanelLoader: Loader {
+        required property bool shown
+        active: shown
+        asynchronous: true
+    }
+
+    // Name -> Panel-Enum (eine Tabelle für IPC-Namen und Modul-IDs statt
+    // dreier kopierter Zuordnungsstellen: IpcHandler, onClosePanel, openSettings).
+    readonly property var panelForName: ({
+        menu: panel.menu, calendar: panel.calendar, weather: panel.weather,
+        network: panel.network, volume: panel.volume, bluetooth: panel.bluetooth,
+        updates: panel.updates, vitals: panel.vitals, systemtray: panel.systemTray,
+        settings: panel.settings
+    })
+    // Bar-Modul-IDs weichen teils ab (launcher->menu, clock->calendar).
+    readonly property var panelForModule: ({
+        launcher: panel.menu, clock: panel.calendar, weather: panel.weather,
+        network: panel.network, volume: panel.volume, bluetooth: panel.bluetooth,
+        vitals: panel.vitals, systemtray: panel.systemTray, updates: panel.updates,
+        settings: panel.settings
+    })
+
+    function toggleNamedPanel(name: string): void {
+        const p = panelForName[name]
+        if (p !== undefined) toggleExclusive(p)
+    }
+    function showNamedPanel(name: string): void {
+        const p = panelForName[name]
+        if (p !== undefined) openPanel(p)
+    }
+
     function openPanel(p: int) {
         refreshBarAnchors()
         activePanel = p
@@ -207,21 +240,8 @@ ShellRoot {
         // closePanel is O(1) and cannot drift out of sync with panel enum.
         // PERF: switch instead of per-signal object alloc + 10 prop reads.
         onClosePanel: moduleId => {
-            let isOpen = false
-            switch (moduleId) {
-            case "launcher": isOpen = root.menuVisible; break
-            case "clock": isOpen = root.calendarVisible; break
-            case "weather": isOpen = root.weatherVisible; break
-            case "network": isOpen = root.networkVisible; break
-            case "volume": isOpen = root.volumeVisible; break
-            case "bluetooth": isOpen = root.bluetoothVisible; break
-            case "vitals": isOpen = root.vitalsVisible; break
-            case "systemtray": isOpen = root.systemTrayVisible; break
-            case "updates": isOpen = root.updatesVisible; break
-            case "settings": isOpen = root.settingsVisible; break
-            default: isOpen = false
-            }
-            if (isOpen) root.closeAll()
+            const p = panelForModule[moduleId]
+            if (p !== undefined && root.activePanel === p) root.closeAll()
         }
     }
 
@@ -288,26 +308,26 @@ ShellRoot {
             + " settings=" + root.settingsVisible
             + " systemtray=" + root.systemTrayVisible
         }
-        function toggleCalendar(): void { root.toggleExclusive(panel.calendar) }
-        function showCalendar(): void { root.openPanel(panel.calendar) }
+        function toggleCalendar(): void { root.toggleNamedPanel("calendar") }
+        function showCalendar(): void { root.showNamedPanel("calendar") }
         function hideCalendar(): void { root.closeAll() }
-        function toggleWeather(): void { root.toggleExclusive(panel.weather) }
-        function showWeather(): void { root.openPanel(panel.weather) }
+        function toggleWeather(): void { root.toggleNamedPanel("weather") }
+        function showWeather(): void { root.showNamedPanel("weather") }
         function hideWeather(): void { root.closeAll() }
-        function toggleNetwork(): void { root.toggleExclusive(panel.network) }
-        function showNetwork(): void { root.openPanel(panel.network) }
+        function toggleNetwork(): void { root.toggleNamedPanel("network") }
+        function showNetwork(): void { root.showNamedPanel("network") }
         function hideNetwork(): void { root.closeAll() }
-        function toggleVolume(): void { root.toggleExclusive(panel.volume) }
-        function showVolume(): void { root.openPanel(panel.volume) }
+        function toggleVolume(): void { root.toggleNamedPanel("volume") }
+        function showVolume(): void { root.showNamedPanel("volume") }
         function hideVolume(): void { root.closeAll() }
-        function toggleBluetooth(): void { root.toggleExclusive(panel.bluetooth) }
-        function showBluetooth(): void { root.openPanel(panel.bluetooth) }
+        function toggleBluetooth(): void { root.toggleNamedPanel("bluetooth") }
+        function showBluetooth(): void { root.showNamedPanel("bluetooth") }
         function hideBluetooth(): void { root.closeAll() }
-        function toggleVitals(): void { root.toggleExclusive(panel.vitals) }
-        function showVitals(): void { root.openPanel(panel.vitals) }
+        function toggleVitals(): void { root.toggleNamedPanel("vitals") }
+        function showVitals(): void { root.showNamedPanel("vitals") }
         function hideVitals(): void { root.closeAll() }
-        function toggleSystemTray(): void { root.toggleExclusive(panel.systemTray) }
-        function showSystemTray(): void { root.openPanel(panel.systemTray) }
+        function toggleSystemTray(): void { root.toggleNamedPanel("systemtray") }
+        function showSystemTray(): void { root.showNamedPanel("systemtray") }
         function hideSystemTray(): void { root.closeAll() }
         function toggleSettings(): void { if (root.settingsVisible) root.closeAll(); else root.openSettings("global") }
         function showSettings(s: string): void { root.openSettings(s || "global") }
@@ -348,7 +368,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: calLoader; active: root.calendarVisible; asynchronous: true; sourceComponent: calComp }
+    PanelLoader { id: calLoader; shown: root.calendarVisible; sourceComponent: calComp }
     Component {
         id: calComp
         Panels.CalendarMenu {
@@ -358,7 +378,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: weatherLoader; active: root.weatherVisible; asynchronous: true; sourceComponent: weatherComp }
+    PanelLoader { id: weatherLoader; shown: root.weatherVisible; sourceComponent: weatherComp }
     Component {
         id: weatherComp
         Panels.WeatherPanel {
@@ -367,7 +387,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: trayLoader; active: root.systemTrayVisible; asynchronous: true; sourceComponent: trayComp }
+    PanelLoader { id: trayLoader; shown: root.systemTrayVisible; sourceComponent: trayComp }
     Component {
         id: trayComp
         Panels.SystemTrayPanel {
@@ -376,7 +396,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: netLoader; active: root.networkVisible; asynchronous: true; sourceComponent: netComp }
+    PanelLoader { id: netLoader; shown: root.networkVisible; sourceComponent: netComp }
     Component {
         id: netComp
         Panels.NetworkPanel {
@@ -385,7 +405,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: volLoader; active: root.volumeVisible; asynchronous: true; sourceComponent: volComp }
+    PanelLoader { id: volLoader; shown: root.volumeVisible; sourceComponent: volComp }
     Component {
         id: volComp
         Panels.VolumePanel {
@@ -394,7 +414,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: btLoader; active: root.bluetoothVisible; asynchronous: true; sourceComponent: btPanelComp }
+    PanelLoader { id: btLoader; shown: root.bluetoothVisible; sourceComponent: btPanelComp }
     Component {
         id: btPanelComp
         Panels.BluetoothPanel {
@@ -403,7 +423,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: updLoader; active: root.updatesVisible; asynchronous: true; sourceComponent: updPanelComp }
+    PanelLoader { id: updLoader; shown: root.updatesVisible; sourceComponent: updPanelComp }
     Component {
         id: updPanelComp
         Panels.UpdateCenterPanel {
@@ -412,7 +432,7 @@ ShellRoot {
         }
     }
 
-    Loader { id: vitalsLoader; active: root.vitalsVisible; asynchronous: true; sourceComponent: vitalsPanelComp }
+    PanelLoader { id: vitalsLoader; shown: root.vitalsVisible; sourceComponent: vitalsPanelComp }
     Component {
         id: vitalsPanelComp
         Panels.VitalsPanel {

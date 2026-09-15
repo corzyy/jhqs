@@ -8,12 +8,10 @@ Item {
     Text {
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
-        id: launcherIcon
         anchors.centerIn: parent
         text: ""
         font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18)
         color: m.containsMouse ? Theme.primary : Theme.textPrimary
-        scale: 1.0
     }
     MouseArea {
         id: m

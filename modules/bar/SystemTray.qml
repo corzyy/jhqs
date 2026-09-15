@@ -90,54 +90,35 @@ Item {
         }
     }
     function click(button: int, x: real, y: real): void {
-        if (root.vertical) {
-            let revealH = Math.round(root.revealExtent)
-            let pinnedH = root.pinnedItems.length * root.extent
-            if (root.rawItems.length > 0) {
-                if (y < revealH) {
-                    if (root.revealProgress > 0.5) {
-                        let i = Math.floor(y / root.extent)
-                        if (i >= 0 && i < root.drawerCount) {
-                            iconClick(root.drawerItems[i], vDrawerRepeater.itemAt(i), button)
-                        }
-                    }
-                    return
-                }
-            }
-            if (y >= revealH && y < revealH + pinnedH) {
-                let j = Math.floor((y - revealH) / root.extent)
-                if (j >= 0 && j < root.pinnedItems.length) iconClick(root.pinnedItems[j], vPinnedRepeater.itemAt(j), button)
-                return
-            }
-            if (root.rawItems.length > 0 && y >= revealH + pinnedH && y < revealH + pinnedH + root.chevronPx) {
-                if (button === Qt.RightButton) root.requestManage()
-                else if (button === Qt.LeftButton) root.touchExpand = !root.expanded
-                return
+        // Beide Orientierungen teilen die 3-Zonen-Logik (Drawer / Pinned /
+        // Chevron) — nur Achse und Repeater unterscheiden sich.
+        if (root.vertical)
+            clickAt(y, vDrawerRepeater, vPinnedRepeater, button)
+        else
+            clickAt(x, hDrawerRepeater, hPinnedRepeater, button)
+    }
+
+    // Eindimensionaler Hit-Test entlang der Bar-Achse.
+    function clickAt(pos: real, drawerRepeater: var, pinnedRepeater: var, button: int): void {
+        const revealLen = Math.round(root.revealExtent)
+        const pinnedLen = root.pinnedItems.length * root.extent
+        if (root.rawItems.length > 0 && pos < revealLen) {
+            if (root.revealProgress > 0.5) {
+                const i = Math.floor(pos / root.extent)
+                if (i >= 0 && i < root.drawerCount)
+                    iconClick(root.drawerItems[i], drawerRepeater.itemAt(i), button)
             }
             return
         }
-        let revealW = Math.round(root.revealExtent)
-        let pinnedW = root.pinnedItems.length * root.extent
-        if (root.rawItems.length > 0) {
-            if (x < revealW) {
-                if (root.revealProgress > 0.5) {
-                    let i = Math.floor(x / root.extent)
-                    if (i >= 0 && i < root.drawerCount) {
-                        iconClick(root.drawerItems[i], hDrawerRepeater.itemAt(i), button)
-                    }
-                }
-                return
-            }
-        }
-        if (x >= revealW && x < revealW + pinnedW) {
-            let j = Math.floor((x - revealW) / root.extent)
-            if (j >= 0 && j < root.pinnedItems.length) iconClick(root.pinnedItems[j], hPinnedRepeater.itemAt(j), button)
+        if (pos >= revealLen && pos < revealLen + pinnedLen) {
+            const j = Math.floor((pos - revealLen) / root.extent)
+            if (j >= 0 && j < root.pinnedItems.length)
+                iconClick(root.pinnedItems[j], pinnedRepeater.itemAt(j), button)
             return
         }
-        if (root.rawItems.length > 0 && x >= revealW + pinnedW && x < revealW + pinnedW + root.chevronPx) {
+        if (root.rawItems.length > 0 && pos >= revealLen + pinnedLen && pos < revealLen + pinnedLen + root.chevronPx) {
             if (button === Qt.RightButton) root.requestManage()
             else if (button === Qt.LeftButton) root.touchExpand = !root.expanded
-            return
         }
     }
     function wheel(dy: real): bool {

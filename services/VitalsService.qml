@@ -40,11 +40,21 @@ Singleton {
     readonly property int critThreshold: Math.max(20, Math.min(99, parseInt(vitalsFile.adapter.critThreshold) || 90))
     readonly property bool hasVisibleMetric: showCpu || showRam || showGpu
 
-    function setShowCpu(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showCpu === nv) return; vitalsFile.adapter.showCpu = nv; vitalsFile.writeAdapter() }
-    function setShowRam(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showRam === nv) return; vitalsFile.adapter.showRam = nv; vitalsFile.writeAdapter() }
-    function setShowGpu(v: bool): void { let nv = !!v; if (!!vitalsFile.adapter.showGpu === nv) return; vitalsFile.adapter.showGpu = nv; vitalsFile.writeAdapter() }
-    function setShowLabels(v: bool): void { let nv = !!v; if ((vitalsFile.adapter.showLabels !== false) === nv) return; vitalsFile.adapter.showLabels = nv; vitalsFile.writeAdapter() }
-    function setShowTopProcs(v: bool): void { let nv = !!v; if ((vitalsFile.adapter.showTopProcs !== false) === nv) return; vitalsFile.adapter.showTopProcs = nv; vitalsFile.writeAdapter() }
+    // Einziger Schreibpfad für Bool-Flags (5x identisches Muster).
+    // defaultTrue: Flags mit !==-false-Semantik (Labels/TopProcs).
+    function setFlag(key: string, v: bool, defaultTrue: bool): void {
+        const nv = !!v
+        const current = defaultTrue ? (vitalsFile.adapter[key] !== false) : !!vitalsFile.adapter[key]
+        if (current === nv) return
+        vitalsFile.adapter[key] = nv
+        vitalsFile.writeAdapter()
+    }
+
+    function setShowCpu(v: bool): void { setFlag("showCpu", v, false) }
+    function setShowRam(v: bool): void { setFlag("showRam", v, false) }
+    function setShowGpu(v: bool): void { setFlag("showGpu", v, false) }
+    function setShowLabels(v: bool): void { setFlag("showLabels", v, true) }
+    function setShowTopProcs(v: bool): void { setFlag("showTopProcs", v, true) }
     function setRefreshSeconds(n: int): void {
         let c = Math.max(1, Math.min(10, Math.round(n)))
         if (isNaN(c)) return
@@ -101,6 +111,30 @@ Singleton {
     }
     function refresh(): void { if (!vitalsProc.running) vitalsProc.running = true }
 
+    // GPU-Zweig (NVIDIA/AMD): Prozent + Verfügbarkeit + Name in einem Pfad.
+    function setGpu(pct: real, name: string): void {
+        if (isNaN(pct)) return
+        setPct("gpuPct", pct)
+        if (gpuAvailable !== true) gpuAvailable = true
+        if (name && name.length > 0 && gpuName !== name) gpuName = name
+    }
+
+    // Top-Liste nur bei echter Änderung zuweisen (epsilon 0.5 %).
+    function commitTopProcs(tops: var): void {
+        if (tops.length > 0) {
+            const cur = topProcs
+            let same = cur.length === Math.min(tops.length, 5)
+            if (same) {
+                for (let k = 0; k < cur.length; k++) {
+                    if (!tops[k] || cur[k].name !== tops[k].name
+                        || Math.abs(cur[k].cpu - tops[k].cpu) >= 0.5) { same = false; break }
+                }
+            }
+            if (!same) topProcs = tops.slice(0, 5)
+        } else if (topProcs.length !== 0) {
+            topProcs = []
+        }
+    }
     // PERF: epsilon-compare — assigning a property notifies every consumer
     // (bar widgets, panels) even when the value is identical. Polling at
     // 1-2s would otherwise fan out through the whole shell on every tick.
@@ -153,23 +187,15 @@ Singleton {
                         setPct("ramPct", Math.max(0, Math.min(100, used / t * 100)))
                     }
                 } else if (l.indexOf("GPU_NVIDIA ") === 0) {
-                    let rest = l.substring(11).trim()
-                    let c = rest.indexOf(",")
-                    let pct = parseFloat(c >= 0 ? rest.substring(0, c).trim() : rest)
-                    let name = c >= 0 ? rest.substring(c + 1).trim() : ""
-                    if (!isNaN(pct)) {
-                        setPct("gpuPct", pct)
-                        if (gpuAvailable !== true) gpuAvailable = true
-                        if (name.length > 0 && gpuName !== name) gpuName = name
-                    }
+                    const rest = l.substring(11).trim()
+                    const c = rest.indexOf(",")
+                    setGpu(
+                        parseFloat(c >= 0 ? rest.substring(0, c).trim() : rest),
+                        c >= 0 ? rest.substring(c + 1).trim() : ""
+                    )
                 } else if (l.indexOf("GPU_AMD ") === 0) {
-                    let rest = l.substring(8).trim().split(/\s+/)
-                    let pct = parseFloat(rest[0])
-                    if (!isNaN(pct)) {
-                        setPct("gpuPct", pct)
-                        if (gpuAvailable !== true) gpuAvailable = true
-                        if (gpuName.length === 0) gpuName = "AMDGPU"
-                    }
+                    const rest = l.substring(8).trim().split(/\s+/)
+                    setGpu(parseFloat(rest[0]), "AMDGPU")
                 } else if (l === "GPU_NONE") {
                     if (gpuAvailable !== false) gpuAvailable = false
                 } else if (l.indexOf("LOAD ") === 0) {
@@ -185,20 +211,8 @@ Singleton {
                     }
                 }
             }
-            if (tops.length > 0) {
-                // PERF: only assign when the list actually changed (name+cpu).
-                let cur = topProcs
-                let same = cur.length === Math.min(tops.length, 5)
-                if (same) {
-                    for (let k = 0; k < cur.length; k++) {
-                        if (!tops[k] || cur[k].name !== tops[k].name
-                            || Math.abs(cur[k].cpu - tops[k].cpu) >= 0.5) { same = false; break }
-                    }
-                }
-                if (!same) topProcs = tops.slice(0, 5)
-            } else if (topProcs.length !== 0) {
-                topProcs = []
-            }
+            // PERF: only assign when the list actually changed (s. commitTopProcs).
+            commitTopProcs(tops)
         } catch (e) { }
     }
 

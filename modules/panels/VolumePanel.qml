@@ -532,61 +532,12 @@ Scope {
                 acceptedButtons: Qt.AllButtons
                 onClicked: scope.dismissed()
             }
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                id: volBox
-                // Vertical rectangle: narrow width, height grows with content.
-                width: 320
-                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 20, volAnchor.screenHeight - volAnchor.edgeOffset - 24))
-                BarAnchor {
-                    id: volAnchor
-                    moduleId: "volume"
-                    barPos: scope.barPos
-                    panelWidth: volBox.width
-                    panelHeight: volBox.implicitHeight
-                    screenWidth: volBox.parent.width
-                    screenHeight: volBox.parent.height
-                    gap: scope.panelGap
-                    fallbackX: (volBox.parent.width - volBox.width) / 2
-                    fallbackY: (volBox.parent.height - volBox.implicitHeight) / 2
-                }
-                x: volAnchor.panelX
-                y: volAnchor.panelY
-                color: Theme.bg
-                border.color: Theme.panelBorderColor
-                border.width: 2
-                radius: 0
-                clip: true
-                PanelSpring {
-                    id: volSpring
-                    slideFade: true
-                    shown: scope.showVolume
-                    hiddenX: scope.barPos === "left" ? -(volBox.width + 5) : scope.barPos === "right" ? (volBox.width + 5) : 0
-                    hiddenY: scope.barPos === "top" ? -(volBox.implicitHeight + 5) : scope.barPos === "bottom" ? (volBox.implicitHeight + 5) : 0
-                }
-                visible: volSpring.boxVisible
-                opacity: volSpring.fade
-                scale: volSpring.zoom
-                transformOrigin: volAnchor.origin
-                transform: Translate { x: volSpring.slideX; y: volSpring.slideY }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    onClicked: mouse => mouse.accepted = true
-                    onPressed: mouse => mouse.accepted = true
-                    onWheel: wheel => wheel.accepted = true
-                }
-                Flickable {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    contentHeight: contentCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: contentHeight > height
-                    Column {
-                        id: contentCol
-                        width: parent.width
-                        spacing: 8
+            PanelShell {
+                moduleId: "volume"
+                barPos: scope.barPos
+                panelGap: scope.panelGap
+                shown: scope.showVolume
+                boxWidth: 320
                         // Header: title + status pill + mixer shortcut.
                         RowLayout {
                             width: parent.width
@@ -889,8 +840,6 @@ Scope {
                                 }
                             }
                         }
-                    }
-                }
             }
         }
     }

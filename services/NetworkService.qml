@@ -37,28 +37,43 @@ Singleton {
                 let lines = ((text || "").trim()).split("\n")
                 let radio = ((lines[0] || "").trim()).toLowerCase()
                 root.wifiEnabled = radio !== "disabled" && radio !== "deaktiviert"
-                let ssid = "", type = ""
-                for (let i = 1; i < lines.length - 1; i++) {
-                    let p = (lines[i] || "").split(":")
-                    if (p.length < 2) continue
-                    let t = (p[1] || "").trim()
-                    if (t.indexOf("802-11-wireless") === 0 || t === "wifi") { ssid = (p[0] || "").trim(); type = "wifi"; break }
-                }
-                if (ssid === "") {
-                    for (let i = 1; i < lines.length - 1; i++) {
-                        let p = (lines[i] || "").split(":")
-                        if (p.length < 2) continue
-                        let t = (p[1] || "").trim()
-                        if (t.indexOf("802-3-ethernet") === 0 || t === "ethernet") { ssid = (p[0] || "").trim(); type = "ethernet"; break }
-                    }
-                }
-                if (root.ssid !== ssid) root.ssid = ssid
-                if (root.activeType !== type) root.activeType = type
+                const found = findActiveConn(lines)
+                if (root.ssid !== found.ssid) root.ssid = found.ssid
+                if (root.activeType !== found.type) root.activeType = found.type
                 let sig = parseInt((lines[lines.length - 1] || "").trim())
                 sig = isNaN(sig) ? 0 : Math.max(0, Math.min(100, sig))
                 if (root.signal !== sig) root.signal = sig
             }
         }
+    }
+    // Shell-Quoting für doppelte Anführungszeichen (ein Pfad statt 6x kopiert).
+    function shellDq(s: string): string {
+        return String(s || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+    }
+    // Aktive Verbindung: erst WLAN, dann Ethernet (eine Schleife pro Typ
+    // über die gleiche Zeilenmenge statt 2x kopierter Schleifen).
+    function findActiveConn(lines: var): var {
+        const rows = []
+        for (let i = 1; i < lines.length - 1; i++) {
+            const p = (lines[i] || "").split(":")
+            if (p.length < 2) continue
+            rows.push({ name: (p[0] || "").trim(), type: (p[1] || "").trim() })
+        }
+        const matchers = [
+            { type: "wifi", keys: ["802-11-wireless", "wifi"] },
+            { type: "ethernet", keys: ["802-3-ethernet", "ethernet"] }
+        ]
+        for (let m = 0; m < matchers.length; m++) {
+            for (let r = 0; r < rows.length; r++) {
+                const t = rows[r].type
+                for (let k = 0; k < matchers[m].keys.length; k++) {
+                    const key = matchers[m].keys[k]
+                    if (t === key || (key.length > 4 && t.indexOf(key) === 0))
+                        return { ssid: rows[r].name, type: matchers[m].type }
+                }
+            }
+        }
+        return { ssid: "", type: "" }
     }
     function refreshLink() { if (!linkProc.running) linkProc.running = true }
 
@@ -148,9 +163,9 @@ Singleton {
     function setWifiEnabled(on: bool): void { runNetAct("nmcli radio wifi " + (on ? "on" : "off") + " 2>/dev/null; echo done") }
     function toggleWifi(): void { setWifiEnabled(!wifiEnabled) }
     function connectWifi(ssid: string, password: string): void {
-        let s = (ssid || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+        const s = shellDq(ssid)
         if ((password || "").length > 0) {
-            let p = password.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+            const p = shellDq(password)
             runNetAct("nmcli dev wifi connect \"" + s + "\" password \"" + p + "\" 2>/dev/null || nmcli con up id \"" + s + "\" 2>/dev/null; echo done")
         } else {
             runNetAct("nmcli dev wifi connect \"" + s + "\" 2>/dev/null || nmcli con up id \"" + s + "\" 2>/dev/null; echo done")
@@ -158,16 +173,13 @@ Singleton {
     }
     function disconnectWifi(): void { runNetAct("nmcli dev disconnect $(nmcli -t -f DEVICE,TYPE dev 2>/dev/null | grep ':wifi' | head -1 | cut -d: -f1) 2>/dev/null; echo done") }
     function forgetWifi(ssid: string): void {
-        let s = (ssid || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
-        runNetAct("nmcli con delete id \"" + s + "\" 2>/dev/null; echo done")
+        runNetAct("nmcli con delete id \"" + shellDq(ssid) + "\" 2>/dev/null; echo done")
     }
     function ethConnect(name: string): void {
-        let n = (name || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
-        runNetAct("nmcli con up id \"" + n + "\" 2>/dev/null; echo done")
+        runNetAct("nmcli con up id \"" + shellDq(name) + "\" 2>/dev/null; echo done")
     }
     function ethDisconnect(name: string): void {
-        let n = (name || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
-        runNetAct("nmcli con down id \"" + n + "\" 2>/dev/null; echo done")
+        runNetAct("nmcli con down id \"" + shellDq(name) + "\" 2>/dev/null; echo done")
     }
 
     property string activeConnName: ""
@@ -228,7 +240,7 @@ Singleton {
         }
     }
     function setDnsPreset(mode: string): void {
-        let uuid = (root.activeConnUuid || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"")
+        const uuid = shellDq(root.activeConnUuid)
         if (uuid === "" || root.dnsBusy) return
         let cmd = ""
         if (mode in dnsPresets) {
@@ -267,11 +279,16 @@ Singleton {
         }
     }
     function fmtBytes(v: string): string {
-        let n = parseFloat(v)
+        const n = parseFloat(v)
         if (isNaN(n) || n <= 0) return "--"
-        if (n >= 1073741824) return (Math.round(n / 1073741824 * 10) / 10) + " GB"
-        if (n >= 1048576) return (Math.round(n / 1048576 * 10) / 10) + " MB"
-        if (n >= 1024) return (Math.round(n / 1024 * 10) / 10) + " KB"
+        const units = [
+            [1073741824, "GB"],
+            [1048576, "MB"],
+            [1024, "KB"]
+        ]
+        for (let i = 0; i < units.length; i++) {
+            if (n >= units[i][0]) return (Math.round(n / units[i][0] * 10) / 10) + " " + units[i][1]
+        }
         return Math.round(n) + " B"
     }
     function refreshStats() { if (!statsProc.running) statsProc.running = true }

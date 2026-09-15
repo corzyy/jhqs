@@ -492,61 +492,12 @@ Scope {
                 acceptedButtons: Qt.AllButtons
                 onClicked: scope.dismissed()
             }
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                id: netBox
-                // Vertical rectangle: narrow width, height grows with content.
-                width: 320
-                implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 20, netAnchor.screenHeight - netAnchor.edgeOffset - 24))
-                BarAnchor {
-                    id: netAnchor
-                    moduleId: "network"
-                    barPos: scope.barPos
-                    panelWidth: netBox.width
-                    panelHeight: netBox.implicitHeight
-                    screenWidth: netBox.parent.width
-                    screenHeight: netBox.parent.height
-                    gap: scope.panelGap
-                    fallbackX: (netBox.parent.width - netBox.width) / 2
-                    fallbackY: (netBox.parent.height - netBox.implicitHeight) / 2
-                }
-                x: netAnchor.panelX
-                y: netAnchor.panelY
-                color: Theme.bg
-                border.color: Theme.panelBorderColor
-                border.width: 2
-                radius: 0
-                clip: true
-                PanelSpring {
-                    id: netSpring
-                    slideFade: true
-                    shown: scope.showNetwork
-                    hiddenX: scope.barPos === "left" ? -(netBox.width + 5) : scope.barPos === "right" ? (netBox.width + 5) : 0
-                    hiddenY: scope.barPos === "top" ? -(netBox.implicitHeight + 5) : scope.barPos === "bottom" ? (netBox.implicitHeight + 5) : 0
-                }
-                visible: netSpring.boxVisible
-                opacity: netSpring.fade
-                scale: netSpring.zoom
-                transformOrigin: netAnchor.origin
-                transform: Translate { x: netSpring.slideX; y: netSpring.slideY }
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    onClicked: mouse => mouse.accepted = true
-                    onPressed: mouse => mouse.accepted = true
-                    onWheel: wheel => wheel.accepted = true
-                }
-                Flickable {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    contentHeight: contentCol.implicitHeight
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    interactive: contentHeight > height
-                    Column {
-                        id: contentCol
-                        width: parent.width
-                        spacing: 8
+            PanelShell {
+                moduleId: "network"
+                barPos: scope.barPos
+                panelGap: scope.panelGap
+                shown: scope.showNetwork
+                boxWidth: 320
                         // Header: title + status pill + rescan shortcut.
                         RowLayout {
                             width: parent.width
@@ -799,8 +750,6 @@ Scope {
                                 }
                             }
                         }
-                    }
-                }
             }
         }
     }

@@ -32,17 +32,20 @@ Scope {
     property bool vitalsOpen: false
     property bool trayOpen: false
     property bool updatesOpen: false
+    // Modul -> Sichtbarkeitsflag (Tabelle statt if-Kette; neue Panels nur hier).
     function moduleActive(id: string): bool {
-        if (id === "launcher") return topBarScope.menuOpen
-        if (id === "clock") return topBarScope.calendarOpen
-        if (id === "weather") return topBarScope.weatherOpen
-        if (id === "network") return topBarScope.networkOpen
-        if (id === "volume") return topBarScope.volumeOpen
-        if (id === "bluetooth") return topBarScope.bluetoothOpen
-        if (id === "vitals") return topBarScope.vitalsOpen
-        if (id === "systemtray") return topBarScope.trayOpen
-        if (id === "updates") return topBarScope.updatesOpen
-        return false
+        const flag = {
+            launcher: "menuOpen",
+            clock: "calendarOpen",
+            weather: "weatherOpen",
+            network: "networkOpen",
+            volume: "volumeOpen",
+            bluetooth: "bluetoothOpen",
+            vitals: "vitalsOpen",
+            systemtray: "trayOpen",
+            updates: "updatesOpen"
+        }[id]
+        return flag !== undefined ? !!topBarScope[flag] : false
     }
 
     property bool dragActive: false

@@ -36,9 +36,15 @@ Singleton {
         volumeFile.writeAdapter()
     }
 
-    readonly property string icon: isMuted || pct === 0 ? "󰝟"
-                               : pct < 34 ? "󰕿"
-                               : pct < 67 ? "󰖀" : "󰕾"
+    readonly property string icon: volumeIcon(isMuted, pct)
+
+    // Schwellen in einer Tabelle statt verschachteltem Ternary.
+    function volumeIcon(muted: bool, percent: int): string {
+        if (muted || percent === 0) return "󰝟"
+        if (percent < 34) return "󰕿"
+        if (percent < 67) return "󰖀"
+        return "󰕾"
+    }
 
     Process {
         id: volProbe
@@ -74,31 +80,39 @@ Singleton {
     Process { id: volMuteToggle; command: ["/usr/bin/wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] }
     Process { id: volSetProc; command: ["bash", "-c", "echo"] }
 
-    function stepUp(): void {
-        // STABILITY: guard key-hold storms (20/s). Coalesce — intermediate
-        // steps are obsolete the moment a newer one arrives.
-        if (volUp.running) return
-        volUp.running = true
+    function stepUp(): void { runVolumeProc(volUp) }
+    function stepDown(): void { runVolumeProc(volDown) }
+
+    // STABILITY: guard key-hold storms (20/s). Coalesce — intermediate
+    // steps are obsolete the moment a newer one arrives.
+    function runVolumeProc(proc: var): void {
+        if (proc.running) return
+        proc.running = true
         Theme.triggerVolumeOsd()
     }
-    function stepDown(): void {
-        if (volDown.running) return
-        volDown.running = true
-        Theme.triggerVolumeOsd()
+    // Führt fn gegen die PipeWire-Senke aus; false bei Fallback-Bedarf.
+    // (Ersetzt 3x identische try/sinkReady-Blöcke.)
+    function trySink(fn: var): bool {
+        try {
+            if (sinkReady) {
+                fn(sink)
+                return true
+            }
+        } catch (e) {}
+        return false
     }
     function toggleMute(): void {
-        try {
-            if (sinkReady) { sink.audio.muted = !sink.audio.muted; return }
-        } catch (e) {}
+        if (trySink(sink => { sink.audio.muted = !sink.audio.muted })) return
         if (!volMuteToggle.running) volMuteToggle.running = true
     }
     function setVolumeFrac(v: real): void {
-        let v2 = Math.max(0, Math.min(1, v))
-        try {
-            if (sinkReady) { sink.audio.volume = v2; if (sink.audio.muted && v2 > 0) sink.audio.muted = false; return }
-        } catch (e) {}
+        const target = Math.max(0, Math.min(1, v))
+        if (trySink(sink => {
+            sink.audio.volume = target
+            if (sink.audio.muted && target > 0) sink.audio.muted = false
+        })) return
         // PERF: throttle fallback slider path (30ms) — each tick forks 2x wpctl.
-        _pendingVol = v2
+        _pendingVol = target
         if (!volThrottle.running) { volThrottle.start(); flushFallbackVol() }
     }
     property real _pendingVol: -1

@@ -81,55 +81,76 @@ Item {
         return false
     }
 
+    // Klick-Tabelle: (Modul, Taste) -> Aktion. Neue Module nur hier
+    // eintragen statt die if/else-Kette zu verlängern. systemtray und
+    // workspaces brauchen Koordinaten und bleiben eigene Funktionen.
     function click(button: int, x: real, y: real): void {
         // Right-click toggles the module label when the widget supports it.
         // Icon-only modules (no toggleLabel) fall through to legacy actions.
         if (button === Qt.RightButton) {
             if (toggleModuleLabel()) return
         }
-        if (moduleId === "launcher") {
-            if (button === Qt.LeftButton) requestMenu()
-        } else if (moduleId === "clock") {
-            if (button === Qt.RightButton) Theme.toggleClockFormat()
-            else if (button === Qt.LeftButton) requestCalendar()
-        } else if (moduleId === "weather") {
-            if (button === Qt.LeftButton) requestWeather()
-            else if (button === Qt.MiddleButton) WeatherService.refresh()
-            else if (button === Qt.RightButton) WeatherService.refresh()
-        } else if (moduleId === "network") {
-            if (button === Qt.LeftButton) requestNetwork()
-        } else if (moduleId === "volume") {
-            if (button === Qt.MiddleButton) VolumeService.toggleMute()
-            else if (button === Qt.RightButton) VolumeService.toggleMute()
-            else if (button === Qt.LeftButton) requestVolume()
-        } else if (moduleId === "bluetooth") {
-            if (button === Qt.MiddleButton) BluetoothService.togglePower()
-            else if (button === Qt.RightButton) BluetoothService.togglePower()
-            else if (button === Qt.LeftButton) requestBluetooth()
-        } else if (moduleId === "vitals") {
-            if (button === Qt.MiddleButton) VitalsService.refresh()
-            else if (button === Qt.LeftButton) requestVitals()
-        } else if (moduleId === "updates") {
-            if (button === Qt.MiddleButton) UpdateService.checkNow()
-            else if (button === Qt.LeftButton) requestUpdates()
-        } else if (moduleId === "systemtray") {
-            try {
-                let t = widgetLoader.item
-                if (!t || !t.click) return
-                let p = t.mapFromItem(root, x, y)
-                t.click(button, p.x, p.y)
-            } catch (e) { }
-        } else if (moduleId === "workspaces") {
-            if (button !== Qt.LeftButton) return
-            try {
-                let w = widgetLoader.item
-                if (!w) return
-                let inner = w.wsInnerItem ?? w
-                let p = inner.mapFromItem(root, x, y)
-                if (w.activateAt) w.activateAt(p.x, p.y)
-                else if (inner.activateAt) inner.activateAt(p.x, p.y)
-            } catch (e) { }
+        const left = button === Qt.LeftButton
+        const middle = button === Qt.MiddleButton
+        const right = button === Qt.RightButton
+        switch (moduleId) {
+        case "launcher":
+            if (left) requestMenu()
+            break
+        case "clock":
+            if (right) Theme.toggleClockFormat()
+            else if (left) requestCalendar()
+            break
+        case "weather":
+            if (left) requestWeather()
+            else if (middle || right) WeatherService.refresh()
+            break
+        case "network":
+            if (left) requestNetwork()
+            break
+        case "volume":
+            if (middle || right) VolumeService.toggleMute()
+            else if (left) requestVolume()
+            break
+        case "bluetooth":
+            if (middle || right) BluetoothService.togglePower()
+            else if (left) requestBluetooth()
+            break
+        case "vitals":
+            if (middle) VitalsService.refresh()
+            else if (left) requestVitals()
+            break
+        case "updates":
+            if (middle) UpdateService.checkNow()
+            else if (left) requestUpdates()
+            break
+        case "systemtray":
+            clickSystemTray(button, x, y)
+            break
+        case "workspaces":
+            if (left) clickWorkspaces(x, y)
+            break
         }
+    }
+
+    function clickSystemTray(button: int, x: real, y: real): void {
+        try {
+            let t = widgetLoader.item
+            if (!t || !t.click) return
+            let p = t.mapFromItem(root, x, y)
+            t.click(button, p.x, p.y)
+        } catch (e) { }
+    }
+
+    function clickWorkspaces(x: real, y: real): void {
+        try {
+            let w = widgetLoader.item
+            if (!w) return
+            let inner = w.wsInnerItem ?? w
+            let p = inner.mapFromItem(root, x, y)
+            if (w.activateAt) w.activateAt(p.x, p.y)
+            else if (inner.activateAt) inner.activateAt(p.x, p.y)
+        } catch (e) { }
     }
 
     function screenNameForWheel(): string {

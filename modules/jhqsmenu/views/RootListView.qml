@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import "../../../themes"
+import "../../../Commons"
 import "../../../Ui"
 import "./" as Views
 
@@ -116,7 +117,7 @@ Item {
                         Item {
                             Layout.preferredWidth: 36; Layout.preferredHeight: 18
                             Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
-                            IconImage { anchors.centerIn: parent; width: 18; height: 18; source: Quickshell.iconPath(entry.icon); asynchronous: true; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
+                            IconImage { anchors.centerIn: parent; width: 18; height: 18; source: Util.iconSource(entry.icon, ""); asynchronous: true; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
                         }
                         Text { text: entry.name || entry.id || "—"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? (Theme.accent) : (Theme.textPrimary); Layout.fillWidth: true; elide: Text.ElideRight
                             antialiasing: Theme.textAa
@@ -254,7 +255,7 @@ Item {
                     Item {
                         Layout.preferredWidth: 36; Layout.preferredHeight: 18
                         Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
-                        IconImage { anchors.centerIn: parent; width: 18; height: 18; source: Quickshell.iconPath(srow.entry.icon); asynchronous: true; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
+                        IconImage { anchors.centerIn: parent; width: 18; height: 18; source: Util.iconSource(srow.entry.icon, ""); asynchronous: true; implicitSize: Qt.size(36, 36); mipmap: Theme.imageMipmap }
                     }
                     Text { text: srow.entry.name || srow.entry.id || "—"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); font.weight: Font.Medium; color: isSelected ? (Theme.accent) : (Theme.textPrimary); Layout.fillWidth: true; elide: Text.ElideRight
                         antialiasing: Theme.textAa

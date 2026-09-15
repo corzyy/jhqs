@@ -252,16 +252,36 @@ Singleton {
     // Minimal is the only shell theme: former Modern branches deleted.
     // minimalTheme stays as a constant for SettingsService.
     readonly property bool minimalTheme: true
+
+    // Einzige Schreibpfade für Adapter-Settings (ein Guard statt ~20x
+    // kopierter clamp/compare/write-Blöcke). Alle Adapter deklarieren
+    // Defaults, daher ist adapter[key] nie undefined.
+    function setAdapterBool(fileView: var, key: string, v: bool): void {
+        const nv = !!v
+        if (!!fileView.adapter[key] === nv) return
+        fileView.adapter[key] = nv
+        fileView.writeAdapter()
+    }
+    function setAdapterInt(fileView: var, key: string, v: var, lo: int, hi: int): void {
+        const c = Math.max(lo, Math.min(hi, Math.round(Number(v))))
+        if (isNaN(c)) return // statt NaN in die Config zu schreiben, ignorieren
+        if (Math.round(Number(fileView.adapter[key])) === c) return
+        fileView.adapter[key] = c
+        fileView.writeAdapter()
+    }
+    function setAdapterReal(fileView: var, key: string, v: var, lo: real, hi: real): void {
+        let c = Math.max(lo, Math.min(hi, Number(v)))
+        if (isNaN(c)) return
+        c = Math.round(c * 100) / 100
+        if (Math.abs(Number(fileView.adapter[key]) - c) < 0.001) return
+        fileView.adapter[key] = c
+        fileView.writeAdapter()
+    }
     // Shell rounding (Global > Rounding). Single source for all shell
     // radii; synced to MangoWM border_radius by the Global slider.
     readonly property int cornerRadius: Math.max(0, Math.min(40, Math.round(shellFile.adapter.radius ?? 0)))
     readonly property int cornerRadiusSmall: Math.max(0, Math.min(12, Math.round(cornerRadius * 0.6)))
-    function setCornerRadius(v: int): void {
-        let c = Math.max(0, Math.min(40, Math.round(v)))
-        if (Math.round(shellFile.adapter.radius ?? 0) === c) return
-        shellFile.adapter.radius = c
-        shellFile.writeAdapter()
-    }
+    function setCornerRadius(v: int): void { setAdapterInt(shellFile, "radius", v, 0, 40) }
     readonly property int barThickness: Math.max(20, Math.min(48, Math.round(shellFile.adapter.thickness !== undefined ? shellFile.adapter.thickness : 30)))
     readonly property string barPosition: {
         let p = shellFile.adapter.position
@@ -273,19 +293,8 @@ Singleton {
         if (o === undefined || o === null || isNaN(o)) return 1.0
         return Math.max(0.0, Math.min(1.0, o))
     }
-    function setBarThickness(v: int): void {
-        let c = Math.max(20, Math.min(48, Math.round(v)))
-        if (Math.round(shellFile.adapter.thickness) === c) return
-        shellFile.adapter.thickness = c
-        shellFile.writeAdapter()
-    }
-    function setBarOpacity(v: real): void {
-        let c = Math.max(0.0, Math.min(1.0, v))
-        c = Math.round(c * 100) / 100
-        if (Math.abs((shellFile.adapter.opacity ?? 1.0) - c) < 0.001) return
-        shellFile.adapter.opacity = c
-        shellFile.writeAdapter()
-    }
+    function setBarThickness(v: int): void { setAdapterInt(shellFile, "thickness", v, 20, 48) }
+    function setBarOpacity(v: real): void { setAdapterReal(shellFile, "opacity", v, 0.0, 1.0) }
     function setBarPosition(pos: string): void {
         if (pos !== "top" && pos !== "bottom" && pos !== "left" && pos !== "right") return
         if (shellFile.adapter.position === pos) return
@@ -293,12 +302,7 @@ Singleton {
         shellFile.writeAdapter()
     }
     readonly property bool animationsEnabled: shellFile.adapter.animationsEnabled
-    function setAnimationsEnabled(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.animationsEnabled === nv) return
-        shellFile.adapter.animationsEnabled = nv
-        shellFile.writeAdapter()
-    }
+    function setAnimationsEnabled(v: bool): void { setAdapterBool(shellFile, "animationsEnabled", v) }
     readonly property string clockPosition: (shellFile.adapter.clockPosition === "left" || shellFile.adapter.clockPosition === "right") ? shellFile.adapter.clockPosition : "center"
     // Clock label formats (right-click the clock to cycle):
     // full: "Monday 20:15" | short: "Mon 20:15" | date: "8th May 20:15" | timeOnly: "20:15"
@@ -326,35 +330,13 @@ Singleton {
         shellFile.writeAdapter()
     }
     readonly property int workspaceSpacing: Math.max(0, Math.min(24, Math.round(shellFile.adapter.workspaceSpacing !== undefined ? shellFile.adapter.workspaceSpacing : 4)))
-    function setWorkspaceSpacing(v: int): void {
-        let c = Math.max(0, Math.min(24, Math.round(v)))
-        if (Math.round(shellFile.adapter.workspaceSpacing !== undefined ? shellFile.adapter.workspaceSpacing : 4) === c) return
-        shellFile.adapter.workspaceSpacing = c
-        shellFile.writeAdapter()
-    }
+    function setWorkspaceSpacing(v: int): void { setAdapterInt(shellFile, "workspaceSpacing", v, 0, 24) }
     readonly property real workspaceScale: Math.max(0.5, Math.min(2.0, shellFile.adapter.workspaceScale ?? 1.0))
-    function setWorkspaceScale(v: real): void {
-        let c = Math.max(0.5, Math.min(2.0, v))
-        c = Math.round(c * 100) / 100
-        if (Math.abs((shellFile.adapter.workspaceScale ?? 1.0) - c) < 0.001) return
-        shellFile.adapter.workspaceScale = c
-        shellFile.writeAdapter()
-    }
+    function setWorkspaceScale(v: real): void { setAdapterReal(shellFile, "workspaceScale", v, 0.5, 2.0) }
     readonly property bool textBold: !!shellFile.adapter.textBold
-    function setTextBold(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.textBold === nv) return
-        shellFile.adapter.textBold = nv
-        shellFile.writeAdapter()
-    }
+    function setTextBold(v: bool): void { setAdapterBool(shellFile, "textBold", v) }
     readonly property real fontScale: Math.max(0.85, Math.min(1.25, shellFile.adapter.fontScale ?? 1.0))
-    function setFontScale(v: real): void {
-        let c = Math.max(0.85, Math.min(1.25, v))
-        c = Math.round(c * 100) / 100
-        if (Math.abs((shellFile.adapter.fontScale ?? 1.0) - c) < 0.001) return
-        shellFile.adapter.fontScale = c
-        shellFile.writeAdapter()
-    }
+    function setFontScale(v: real): void { setAdapterReal(shellFile, "fontScale", v, 0.85, 1.25) }
     function fs(px: real): int { return Math.max(1, Math.round(px * fontScale)) }
     // PERF: one-shot AA migration runs synchronously at startup (was an
     // 800ms Timer waking the event loop after boot for a file default).
@@ -378,36 +360,11 @@ Singleton {
     readonly property bool imageMipmap: shellFile.adapter.aaImageMipmap !== undefined ? !!shellFile.adapter.aaImageMipmap : false
     readonly property bool itemAntialiasing: shapesAa
     readonly property int textRenderType: textNative ? Text.NativeRendering : Text.QtRendering
-    function setShapesAa(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.aaShapes === nv) return
-        shellFile.adapter.aaShapes = nv
-        shellFile.writeAdapter()
-    }
-    function setTextAa(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.aaText === nv) return
-        shellFile.adapter.aaText = nv
-        shellFile.writeAdapter()
-    }
-    function setTextNative(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.aaTextNative === nv) return
-        shellFile.adapter.aaTextNative = nv
-        shellFile.writeAdapter()
-    }
-    function setImageSmooth(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.aaImageSmooth === nv) return
-        shellFile.adapter.aaImageSmooth = nv
-        shellFile.writeAdapter()
-    }
-    function setImageMipmap(v: bool): void {
-        let nv = !!v
-        if (!!shellFile.adapter.aaImageMipmap === nv) return
-        shellFile.adapter.aaImageMipmap = nv
-        shellFile.writeAdapter()
-    }
+    function setShapesAa(v: bool): void { setAdapterBool(shellFile, "aaShapes", v) }
+    function setTextAa(v: bool): void { setAdapterBool(shellFile, "aaText", v) }
+    function setTextNative(v: bool): void { setAdapterBool(shellFile, "aaTextNative", v) }
+    function setImageSmooth(v: bool): void { setAdapterBool(shellFile, "aaImageSmooth", v) }
+    function setImageMipmap(v: bool): void { setAdapterBool(shellFile, "aaImageMipmap", v) }
     property int barEffectiveWidth: 30
     property int barEffectiveHeight: 30
     property var barAnchors: ({})
@@ -490,36 +447,16 @@ Singleton {
         barWindowRect = {x: nx, y: ny, w: nw, h: nh}
     }
     readonly property int barModuleSpacing: Math.max(-12, Math.min(24, shellFile.adapter.moduleSpacing !== undefined ? shellFile.adapter.moduleSpacing : 8))
-    function setBarModuleSpacing(v: int): void {
-        let c = Math.max(-12, Math.min(24, Math.round(v)))
-        if ((shellFile.adapter.moduleSpacing !== undefined ? shellFile.adapter.moduleSpacing : 8) === c) return
-        shellFile.adapter.moduleSpacing = c
-        shellFile.writeAdapter()
-    }
+    function setBarModuleSpacing(v: int): void { setAdapterInt(shellFile, "moduleSpacing", v, -12, 24) }
     readonly property int barEdgeDistance: Math.max(0, Math.min(600, shellFile.adapter.edgeDistance !== undefined ? shellFile.adapter.edgeDistance : 0))
-    function setBarEdgeDistance(v: int): void {
-        let c = Math.max(0, Math.min(600, Math.round(v)))
-        if ((shellFile.adapter.edgeDistance !== undefined ? shellFile.adapter.edgeDistance : 0) === c) return
-        shellFile.adapter.edgeDistance = c
-        shellFile.writeAdapter()
-    }
+    function setBarEdgeDistance(v: int): void { setAdapterInt(shellFile, "edgeDistance", v, 0, 600) }
     readonly property int barTopDistance: Math.max(0, Math.min(32, shellFile.adapter.topDistance !== undefined ? shellFile.adapter.topDistance : 0))
-    function setBarTopDistance(v: int): void {
-        let c = Math.max(0, Math.min(32, Math.round(v)))
-        if ((shellFile.adapter.topDistance !== undefined ? shellFile.adapter.topDistance : 0) === c) return
-        shellFile.adapter.topDistance = c
-        shellFile.writeAdapter()
-    }
+    function setBarTopDistance(v: int): void { setAdapterInt(shellFile, "topDistance", v, 0, 32) }
     readonly property int barContentPadding: Math.max(0, Math.min(32, shellFile.adapter.contentPadding !== undefined ? shellFile.adapter.contentPadding : 12))
-    function setBarContentPadding(v: int): void {
-        let c = Math.max(0, Math.min(32, Math.round(v)))
-        if ((shellFile.adapter.contentPadding !== undefined ? shellFile.adapter.contentPadding : 12) === c) return
-        shellFile.adapter.contentPadding = c
-        shellFile.writeAdapter()
-    }
+    function setBarContentPadding(v: int): void { setAdapterInt(shellFile, "contentPadding", v, 0, 32) }
     readonly property bool panelAccentBorder: !!shellFile.adapter.panelAccentBorder
     readonly property color panelBorderColor: panelAccentBorder ? accent : divider
-    function setPanelAccentBorder(v: bool): void { let nv=!!v; if(!!shellFile.adapter.panelAccentBorder===nv) return; shellFile.adapter.panelAccentBorder=nv; shellFile.writeAdapter() }
+    function setPanelAccentBorder(v: bool): void { setAdapterBool(shellFile, "panelAccentBorder", v) }
     readonly property real panelBlur: 0.0
     readonly property real panelBgAlpha: 1.0 - panelBlur * 0.48
     readonly property color panelBg: frostFill(bg, 0.48, 0.52)
@@ -659,12 +596,7 @@ Singleton {
         adapter: JsonAdapter { property bool enabled: false }
     }
     readonly property bool dndEnabled: !!dndFile.adapter.enabled
-    function setDndEnabled(v: bool): void {
-        let nv = !!v
-        if (dndFile.adapter.enabled === nv) return
-        dndFile.adapter.enabled = nv
-        dndFile.writeAdapter()
-    }
+    function setDndEnabled(v: bool): void { setAdapterBool(dndFile, "enabled", v) }
     function toggleDnd(): void { setDndEnabled(!dndEnabled) }
 
     FileView {
@@ -674,12 +606,7 @@ Singleton {
         adapter: JsonAdapter { property bool enabled: false }
     }
     readonly property bool gamemodeEnabled: !!gamemodeFile.adapter.enabled
-    function setGamemodeEnabled(v: bool): void {
-        let nv = !!v
-        if (gamemodeFile.adapter.enabled === nv) return
-        gamemodeFile.adapter.enabled = nv
-        gamemodeFile.writeAdapter()
-    }
+    function setGamemodeEnabled(v: bool): void { setAdapterBool(gamemodeFile, "enabled", v) }
     function toggleGamemode(): void { setGamemodeEnabled(!gamemodeEnabled) }
 
     FileView {

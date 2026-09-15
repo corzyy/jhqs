@@ -35,6 +35,30 @@ QtObject {
         return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
     }
 
+    // Icon-Name oder Glyphe? Menüeinträge tragen Nerd/MDI-Glyphen (PUA) im
+    // `icon`-Feld; ungültige Namen würden pro Menü-Öffnung ~18
+    // "Could not load icon"-Warnungen in den Icon-Loader spammen.
+    // Theme-Namen sind ASCII — alles andere kann kein Icon-Name sein.
+    function isGlyphIcon(value: string): bool {
+        const s = String(value || "")
+        return s.length > 0 && /[^\x20-\x7E]/.test(s)
+    }
+
+    // Warnungsfreie Icon-Quelle: Pfade passieren, Theme-Namen werden
+    // aufgelöst, Glyphen/leere/unbekannte Namen ergeben `fallback`
+    // (meist "" — IconImage bleibt leer wie bei fehlgeschlagenem Load).
+    function iconSource(icon: var, fallback: string): string {
+        const s = String(icon || "").trim()
+        if (s.length === 0 || isGlyphIcon(s)) return fallback || ""
+        if (s[0] === "/" || s.indexOf("file://") === 0 || s.indexOf("image://") === 0 || s.indexOf("qrc:") === 0) return s
+        try {
+            if (Quickshell.hasThemeIcon(s)) return Quickshell.iconPath(s)
+            const low = s.toLowerCase()
+            if (low !== s && Quickshell.hasThemeIcon(low)) return Quickshell.iconPath(low)
+        } catch (e) {}
+        return fallback || ""
+    }
+
     function shellEscapeDq(value: string): string {
         return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$").replace(/`/g, "\\`")
     }

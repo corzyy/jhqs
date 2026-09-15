@@ -75,52 +75,69 @@ Item {
         // invalidating every _valueText() binding in a loop.
         return Math.round(snapped * _snapFactor) / _snapFactor
     }
-    // PERF: computed once per stepSize change, not per drag pixel.
-    readonly property real _snapFactor: {
-        if (decimals > 0) return Math.pow(10, decimals)
-        if (stepSize > 0 && stepSize < 1) {
-            let s = stepSize.toString()
-            let dot = s.indexOf(".")
-            if (dot !== -1) return Math.pow(10, s.length - dot - 1)
+    // Nachkommastellen aus stepSize (einmalig nutzbar für Snap + Anzeige).
+    function _stepDecimals(): int {
+        if (decimals > 0) return decimals
+        if (_isDiscrete && stepSize > 0 && stepSize < 1) {
+            let dot = stepSize.toString().indexOf(".")
+            if (dot !== -1) return stepSize.toString().length - dot - 1
         }
-        return 1
+        return 0
     }
+    // PERF: computed once per stepSize change, not per drag pixel.
+    // _stepDecimals() ist 0 ohne Nachkommastellen -> 10^0 = 1 (kein Runden).
+    readonly property real _snapFactor: Math.pow(10, _stepDecimals())
     function _valueText(): string {
         if (valueText.length > 0) return valueText
-        if (decimals > 0) return value.toFixed(decimals)
-        if (_isDiscrete && stepSize < 1) {
-            let s = stepSize.toString()
-            let dot = s.indexOf(".")
-            if (dot !== -1) return value.toFixed(s.length - dot - 1)
-        }
+        const d = _stepDecimals()
+        if (d > 0) return value.toFixed(d)
         return Math.round(value).toString()
+    }
+    // Ein einziger Schreibpfad für Wertänderungen (sonst 8x dupliziert).
+    function _commit(v: real): void {
+        v = _snap(v)
+        if (v !== value) {
+            root.value = v
+            root.moved(v)
+        }
+    }
+    function _nudge(steps: real): void {
+        const step = _isDiscrete ? stepSize : Math.max(1, Math.round(_range * 0.02))
+        _commit(value + steps * step)
     }
     function setValueFromRatio(r: real) {
         if (!enabled) return
-        let v = from + r * _range
-        v = _snap(v)
-        if (v !== value) { root.value = v; root.moved(v) }
+        _commit(from + r * _range)
     }
 
-    Text {
+    // Geteilte Kopfzeilen-Typografie (Label links, Wert rechts).
+    component Caption: Text {
         antialiasing: Theme.textAa
         renderType: Theme.textRenderType
+        required property color baseColor
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fs(11)
+        height: visible ? 18 : 0
+        color: root.enabled ? baseColor : Theme.withAlpha(baseColor, 0.38)
+    }
+
+    Caption {
         id: labelText
         visible: root.label.length > 0
         text: root.label
-        font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium
-        color: root.enabled ? Theme.textSecondary : Theme.withAlpha(Theme.textSecondary, 0.38)
-        anchors.top: parent.top; anchors.left: parent.left; height: visible ? 18 : 0
+        baseColor: Theme.textSecondary
+        font.weight: Font.Medium
+        anchors.top: parent.top
+        anchors.left: parent.left
     }
-    Text {
-        antialiasing: Theme.textAa
-        renderType: Theme.textRenderType
+    Caption {
         id: valueLabel
         visible: root.label.length > 0
         text: root._valueText()
-        font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11)
-        color: root.enabled ? Theme.textMuted : Theme.withAlpha(Theme.textMuted, 0.38)
-        anchors.top: parent.top; anchors.right: parent.right; height: visible ? 18 : 0; horizontalAlignment: Text.AlignRight
+        baseColor: Theme.textMuted
+        anchors.top: parent.top
+        anchors.right: parent.right
+        horizontalAlignment: Text.AlignRight
     }
 
     Item {
@@ -362,11 +379,11 @@ Item {
             onClicked: mouse => updateFromMouse(root._vertical ? mouse.y : mouse.x)
             onWheel: wheel => {
                 if (!root.wheelEnabled) return
-                let step = root._isDiscrete ? root.stepSize : (root._range * 0.05)
                 let dir = wheel.angleDelta.y > 0 ? 1 : -1
                 if (root._vertical) dir = -dir
-                let nv = root._snap(root.value + dir * step)
-                if (nv !== root.value) { root.value = nv; root.moved(nv) }
+                // Wheel springt in 5-%-Schritten (diskret: eine Stufe).
+                if (root._isDiscrete) root._nudge(dir)
+                else root._commit(root.value + dir * root._range * 0.05)
                 wheel.accepted = true
             }
             function updateFromMouse(m) {
@@ -378,14 +395,13 @@ Item {
         }
         Keys.onPressed: event => {
             if (!root.enabled) return
-            let step = root._isDiscrete ? root.stepSize : Math.max(1, Math.round(root._range * 0.02))
             let handled = true
-            if (event.key === Qt.Key_Left || event.key === Qt.Key_Down) { let nv = root._snap(root.value - step); if (nv !== root.value) { root.value = nv; root.moved(nv) } }
-            else if (event.key === Qt.Key_Right || event.key === Qt.Key_Up) { let nv = root._snap(root.value + step); if (nv !== root.value) { root.value = nv; root.moved(nv) } }
-            else if (event.key === Qt.Key_PageDown) { let nv = root._snap(root.value - step*5); if (nv !== root.value) { root.value = nv; root.moved(nv) } }
-            else if (event.key === Qt.Key_PageUp) { let nv = root._snap(root.value + step*5); if (nv !== root.value) { root.value = nv; root.moved(nv) } }
-            else if (event.key === Qt.Key_Home) { if (root.value !== root.from) { root.value = root.from; root.moved(root.from) } }
-            else if (event.key === Qt.Key_End) { if (root.value !== root.to) { root.value = root.to; root.moved(root.to) } }
+            if (event.key === Qt.Key_Left || event.key === Qt.Key_Down) root._nudge(-1)
+            else if (event.key === Qt.Key_Right || event.key === Qt.Key_Up) root._nudge(1)
+            else if (event.key === Qt.Key_PageDown) root._nudge(-5)
+            else if (event.key === Qt.Key_PageUp) root._nudge(5)
+            else if (event.key === Qt.Key_Home) root._commit(root.from)
+            else if (event.key === Qt.Key_End) root._commit(root.to)
             else handled = false
             if (handled) event.accepted = true
         }

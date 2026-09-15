@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import "../../../themes"
+import "../../../Commons"
 import "../../../Ui"
 
 Item {
@@ -117,7 +118,6 @@ Item {
         }
     }
 
-    ScrollIndicator { flick: removeList; show: removeList.visible }
     ColumnLayout {
         anchors.fill: parent
         spacing: 8
@@ -282,11 +282,16 @@ Item {
             }
         }
 
-        ListView {
-            id: removeList
-            visible: !root.isInstall
+        // ScrollIndicator braucht ein Sibling-Flickable unter plain Item
+        // (Anker an Nicht-Siblings sind illegal) — daher der Wrapper.
+        Item {
             Layout.fillWidth: true; Layout.fillHeight: true
             Layout.leftMargin: 0; Layout.rightMargin: 0
+            visible: !root.isInstall
+            ListView {
+            id: removeList
+            visible: !root.isInstall
+            anchors.fill: parent
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             // PERF: recycle delegates.
@@ -323,7 +328,7 @@ Item {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                     IconImage {
                         Layout.preferredWidth: 20; Layout.preferredHeight: 20
-                        source: entry && entry.icon ? Quickshell.iconPath(entry.icon) : ""
+                        source: Util.iconSource(entry && entry.icon, "")
                         implicitSize: Qt.size(36, 36)
                         asynchronous: true
                         visible: entry && entry.icon && ("" + entry.icon).length > 0
@@ -399,6 +404,8 @@ Item {
                     color: Theme.textMuted; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(11); Layout.alignment: Qt.AlignHCenter
                 }
             }
+            }
+            ScrollIndicator { flick: removeList; show: removeList.visible }
         }
 
         Text {

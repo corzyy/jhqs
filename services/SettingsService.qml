@@ -87,9 +87,18 @@ Singleton {
     Component.onCompleted: Qt.callLater(() => { syncFromFile() })
     function refresh(): void { syncFromFile() }
 
-    function applyKittyPadding(v): void { let c = clampInt(v, 0, 40, kittyPadding); kittyPadding = c; settingsFile.adapter.kittyPadding = c; persist(); runBackend(["kitty", "padding=" + c]) }
-    function applyKittyFont(v): void { let c = clampReal(v, 6, 32, kittyFontSize); c = Math.round(c * 2) / 2; kittyFontSize = c; settingsFile.adapter.kittyFontSize = c; persist(); runBackend(["kitty", "font_size=" + c]) }
-    function applyKittyOpacity(v): void { let c = clampReal(v, 0.3, 1.0, kittyOpacity); c = Math.round(c * 100) / 100; kittyOpacity = c; settingsFile.adapter.kittyOpacity = c; persist(); runBackend(["kitty", "opacity=" + c]) }
-    function applyFishPrompt(s): void { fishPrompt = s; settingsFile.adapter.fishPrompt = s; persist(); runBackend(["fish", "prompt=" + s]) }
-    function applyBrightness(v): void { let c = clampInt(v, 5, 100, brightness); brightness = c; settingsFile.adapter.brightness = c; persist(); runBackend(["brightness", "level=" + c]) }
+    // Einziger Schreibpfad: clampen -> Property -> Adapter -> persistieren -> Backend.
+    // (Vorher 5x kopiert für kitty/fish/brightness.)
+    function applySetting(key: string, value: var, backend: var): void {
+        settingsFile.adapter[key] = value
+        root[key] = value
+        persist()
+        runBackend(backend)
+    }
+
+    function applyKittyPadding(v): void { const c = clampInt(v, 0, 40, kittyPadding); applySetting("kittyPadding", c, ["kitty", "padding=" + c]) }
+    function applyKittyFont(v): void { const c = Math.round(clampReal(v, 6, 32, kittyFontSize) * 2) / 2; applySetting("kittyFontSize", c, ["kitty", "font_size=" + c]) }
+    function applyKittyOpacity(v): void { const c = Math.round(clampReal(v, 0.3, 1.0, kittyOpacity) * 100) / 100; applySetting("kittyOpacity", c, ["kitty", "opacity=" + c]) }
+    function applyFishPrompt(s): void { applySetting("fishPrompt", s, ["fish", "prompt=" + s]) }
+    function applyBrightness(v): void { const c = clampInt(v, 5, 100, brightness); applySetting("brightness", c, ["brightness", "level=" + c]) }
 }

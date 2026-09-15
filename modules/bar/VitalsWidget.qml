@@ -21,9 +21,17 @@ Item {
     readonly property string _cpuText: Math.round(VitalsService.cpuPct) + "%"
     readonly property string _ramText: Math.round(VitalsService.ramPct) + "%"
     readonly property string _gpuText: Math.round(VitalsService.gpuPct) + "%"
-    readonly property color _cpuColor: _hovered ? Theme.accent : (VitalsService.severity(VitalsService.cpuPct) === 2 ? Theme.errorColor : (VitalsService.severity(VitalsService.cpuPct) === 1 ? Theme.tertiary : Theme.textPrimary))
-    readonly property color _ramColor: _hovered ? Theme.accent : (VitalsService.severity(VitalsService.ramPct) === 2 ? Theme.errorColor : (VitalsService.severity(VitalsService.ramPct) === 1 ? Theme.tertiary : Theme.textPrimary))
-    readonly property color _gpuColor: _hovered ? Theme.accent : (VitalsService.severity(VitalsService.gpuPct) === 2 ? Theme.errorColor : (VitalsService.severity(VitalsService.gpuPct) === 1 ? Theme.tertiary : Theme.textPrimary))
+    // Ein Farbmapping statt 3x kopiertem Severity-Ternary.
+    function metricColor(pct: real): color {
+        if (_hovered) return Theme.accent
+        const sev = VitalsService.severity(pct)
+        if (sev === 2) return Theme.errorColor
+        if (sev === 1) return Theme.tertiary
+        return Theme.textPrimary
+    }
+    readonly property color _cpuColor: metricColor(VitalsService.cpuPct)
+    readonly property color _ramColor: metricColor(VitalsService.ramPct)
+    readonly property color _gpuColor: metricColor(VitalsService.gpuPct)
 
     RowLayout {
         id: row
