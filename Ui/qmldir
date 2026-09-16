@@ -3,3 +3,12 @@ PanelShell 1.0 PanelShell.qml
 PanelSpring 1.0 PanelSpring.qml
 MSlider 1.0 MSlider.qml
 ScrollIndicator 1.0 ScrollIndicator.qml
+Anim 1.0 Anim.qml
+CAnim 1.0 CAnim.qml
+AnchorAnim 1.0 AnchorAnim.qml
+StateLayer 1.0 StateLayer.qml
+AnimLoader 1.0 AnimLoader.qml
+PanelCorner 1.0 PanelCorner.qml
+PanelFillet 1.0 PanelFillet.qml
+IslandMorph 1.0 IslandMorph.qml
+CaelestiaPopout 1.0 CaelestiaPopout.qml

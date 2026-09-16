@@ -14,6 +14,10 @@ Item {
     opacity: bodyRoot.scope.showModules ? 1 : 0
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showModules
+    scale: bodyRoot.scope.showModules ? 1 : 0.97
+    transformOrigin: Item.Center
+    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     property string subview: "root"
     property int selectedIndex: 0

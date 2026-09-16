@@ -14,7 +14,7 @@ Scope {
     property bool showUpdates: false
     signal dismissed()
     property bool _winVisible: showUpdates
-    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showUpdates) scope._winVisible = false }
+    Timer { id: hideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!scope.showUpdates) scope._winVisible = false }
     onShowUpdatesChanged: {
         if (showUpdates) {
             _winVisible = true
@@ -23,8 +23,9 @@ Scope {
         } else hideTimer.restart()
     }
     readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
 
     readonly property int compactRowLimit: 3
     property var expandedSections: ({})

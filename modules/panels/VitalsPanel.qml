@@ -13,7 +13,7 @@ Scope {
     property bool showVitals: false
     signal dismissed()
     property bool _winVisible: showVitals
-    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showVitals) scope._winVisible = false }
+    Timer { id: hideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!scope.showVitals) scope._winVisible = false }
     onShowVitalsChanged: {
         if (showVitals) {
             _winVisible = true
@@ -22,8 +22,9 @@ Scope {
         } else hideTimer.restart()
     }
     readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
 
     // PERF: barColor()/fmtGb() ran 2x per card + subtitle concat per tick.
     // Cache inside the card (one severity eval per card per tick).

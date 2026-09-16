@@ -111,6 +111,15 @@ Scope {
         return Math.max(0.35, 1.0 - (d / Math.max(1, delegateRoot.width)) * 0.9)
     }
     property bool isDismissing: false
+    // Caelestia toast motion (Notification.qml / Toasts.qml idioms):
+    //  - enter/exit slides on the emphasized-decelerate curve (DefaultSpatial
+    //    duration), fades on the effects curve, scale on the spatial curve
+    //  - dismiss collapses the height on the spatial curve so the stack below
+    //    closes the gap instead of jumping
+    //  - stack siblings glide to their new row (Column re-layout) on the
+    //    spatial curve — the ListView move/displaced equivalent
+    Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+    Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
     onIsDismissingChanged: {
         try { progressAnim.stop() } catch(e) { }
         if (isDismissing && cachedDelegateHeight === 0) {
@@ -128,9 +137,10 @@ Scope {
         delegateRoot.leaving = true
         delegateRoot.isDismissing = true
         collapseTimer.toExpire = !!toExpire
-        let wait = 0
-        try { wait = 0} catch(e) { wait = 0 }
-        collapseTimer.interval = wait
+        // Exit choreography: fade/slide out first (FastEffects), then
+        // collapse the height (DefaultSpatial). Durations collapse to 0
+        // with animations off, preserving the old instant dismiss.
+        collapseTimer.interval = Theme.durFastEffects
         collapseTimer.restart()
     }
     Timer {
@@ -140,9 +150,7 @@ Scope {
         onTriggered: {
             try { delegateRoot.cachedDelegateHeight = 0 } catch(e) { }
             finishTimer.toExpire = toExpire
-            let wait = 0
-            try { wait = 0} catch(e) { wait = 0 }
-            finishTimer.interval = wait
+            finishTimer.interval = Theme.durDefaultSpatial
             finishTimer.restart()
         }
     }
@@ -189,7 +197,7 @@ Scope {
         }
         border.color: isCritical ? Theme.errorColor : Theme.panelBorderColor
         border.width: 2
-        radius: 0
+        radius: Theme.cornerRadius
         clip: true
         scale: entranceScale
         opacity: delegateRoot.targetOpacity * delegateRoot.dragFade
@@ -200,6 +208,14 @@ Scope {
         property real baseSlideX: delegateRoot.baseSlideX
         property real baseSlideY: delegateRoot.baseSlideY
         transform: Translate { x: card.slideX; y: card.baseSlideY }
+        // Caelestia enter/exit motion: fade on the effects curve, scale on
+        // the spatial curve, directional slide out on emphasized-decelerate
+        // (Caelestia Notification.x). Drag stays direct (dragProxy.x has no
+        // Behavior); only the enter/exit offsets glide.
+        Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+        Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+        Behavior on baseSlideX { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveEmphasizedDecelerate } }
+        Behavior on baseSlideY { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
 
         HoverHandler { id: hover }
         property bool isHovered: hover.hovered

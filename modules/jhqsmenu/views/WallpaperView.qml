@@ -18,8 +18,8 @@ scale: bodyRoot.scope.showWallpaper ? 1 : 0.97
 transformOrigin: Item.Center
 // PERF: no animation when hidden or animations off (was animating opacity +
 // scale on every view switch, even to invisible).
-Behavior on opacity { enabled: Theme.animationsEnabled && bodyRoot.scope.showWallpaper; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-Behavior on scale { enabled: Theme.animationsEnabled && bodyRoot.scope.showWallpaper; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 readonly property var modeLabels: ({ "stretch": "Stretch", "fit": "Fit", "fill": "Fill", "center": "Center", "tile": "Tile" })
 function modeLabel(id) { return modeLabels[id] !== undefined ? modeLabels[id] : id }
 function cycleMode(dir) {
@@ -38,6 +38,21 @@ GridView {
     // PERF: recycle grid delegates (500 wallpapers).
     reuseItems: true
     cacheBuffer: 400
+    // Grid item motion: fade on add/remove, glide on move.
+    add: Transition {
+        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects }
+    }
+    remove: Transition {
+        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects }
+    }
+    move: Transition {
+        NumberAnimation { properties: "x,y"; duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial }
+        NumberAnimation { property: "opacity"; to: 1; duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects }
+    }
+    displaced: Transition {
+        NumberAnimation { properties: "x,y"; duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial }
+        NumberAnimation { property: "opacity"; to: 1; duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects }
+    }
     onCurrentIndexChanged: if(visible) positionViewAtIndex(currentIndex, GridView.Visible)
     delegate: Item {
         id: wpDelegate; required property var modelData; required property int index

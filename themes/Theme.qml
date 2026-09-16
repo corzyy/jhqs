@@ -455,7 +455,9 @@ Singleton {
     readonly property int barContentPadding: Math.max(0, Math.min(32, shellFile.adapter.contentPadding !== undefined ? shellFile.adapter.contentPadding : 12))
     function setBarContentPadding(v: int): void { setAdapterInt(shellFile, "contentPadding", v, 0, 32) }
     readonly property bool panelAccentBorder: !!shellFile.adapter.panelAccentBorder
-    readonly property color panelBorderColor: panelAccentBorder ? accent : divider
+    // Accent border on: accent outline. Off: no outline at all (fully
+    // fused borderless panels, tray-menu style) — not even divider.
+    readonly property color panelBorderColor: panelAccentBorder ? accent : "transparent"
     function setPanelAccentBorder(v: bool): void { setAdapterBool(shellFile, "panelAccentBorder", v) }
     readonly property real panelBlur: 0.0
     readonly property real panelBgAlpha: 1.0 - panelBlur * 0.48
@@ -651,7 +653,7 @@ Singleton {
         calendarFile.writeAdapter()
     }
 
-    readonly property var barModuleIds: ["launcher", "workspaces", "activewindow", "clock", "weather", "updates", "systemtray", "network", "volume", "bluetooth", "vitals"]
+    readonly property var barModuleIds: ["launcher", "workspaces", "activewindow", "clock", "weather", "updates", "systemtray", "network", "volume", "bluetooth", "vitals", "controlcenter", "netanjahu"]
     readonly property var barSections: ["left", "twofifths", "center", "fourfifths", "right"]
     function barNormalizeSection(s: string): string {
         let v = (s || "").trim().toLowerCase()
@@ -693,7 +695,7 @@ Singleton {
         }
     }
     function barDefaultLayout(): var {
-        return { left: ["launcher", "workspaces", "activewindow"], twofifths: [], center: ["clock", "weather", "updates"], fourfifths: [], right: ["systemtray", "network", "volume", "bluetooth", "vitals"] }
+        return { left: ["launcher", "workspaces", "activewindow"], twofifths: [], center: ["clock", "weather", "updates"], fourfifths: [], right: ["controlcenter", "systemtray", "network", "volume", "bluetooth", "vitals"] }
     }
     function toStrArray(v: var): var {
         let out = []
@@ -801,7 +803,9 @@ Singleton {
         {id: "volume", title: "Volume", icon: "󰕾"},
         {id: "bluetooth", title: "Bluetooth", icon: "󰂯"},
         {id: "vitals", title: "Vitals", icon: "󰻠"},
-        {id: "systemtray", title: "System Tray", icon: "󰆍"}
+        {id: "systemtray", title: "System Tray", icon: "󰆍"},
+        {id: "controlcenter", title: "Control Center", icon: "󰘮"},
+        {id: "netanjahu", title: "Netanjahu", icon: ""}
     ]
     function setBarLayout(left: var, twofifths: var, center: var, fourfifths: var, right: var): void {
         if (right === undefined && fourfifths === undefined) {
@@ -1071,15 +1075,105 @@ Singleton {
     readonly property real pressScale: 0.94
     readonly property real iconPopScale: 1.08
 
-    readonly property int panelAnimFade: animationsEnabled ? 200 : 0
-    readonly property int panelAnimSlide: animationsEnabled ? 350 : 0
-    readonly property int panelAnimScale: animationsEnabled ? 400 : 0
-    readonly property int panelAnimExit: animationsEnabled ? 150 : 0
-    readonly property int panelAnimCollapse: animationsEnabled ? 200 : 0
-    readonly property int expanderDur: animationsEnabled ? 200 : 0
-    readonly property int celestiaPanelDur: animationsEnabled ? 500 : 0
-    readonly property var celestiaPanelCurve: [0.38, 1.21, 0.22, 1, 1, 1]
-    readonly property int panelHideDelay: animationsEnabled ? panelAnimExit + 20 : 0
+    // ---- Caelestia-expressive motion tokens (caelestia-dots/shell) ----
+    // Durations match AnimDurationTokens; curves match AnimCurves. Kept
+    // separate from the legacy animFast/animNormal aliases so existing
+    // call-sites keep working while new Ui/Anim primitives bind here.
+    // All durations collapse to 0 when animations are disabled.
+    readonly property int durSmall: animationsEnabled ? 200 : 0
+    readonly property int durNormal: animationsEnabled ? 400 : 0
+    readonly property int durLarge: animationsEnabled ? 600 : 0
+    readonly property int durExtraLarge: animationsEnabled ? 1000 : 0
+    readonly property int durFastSpatial: animationsEnabled ? 350 : 0
+    readonly property int durDefaultSpatial: animationsEnabled ? 500 : 0
+    readonly property int durSlowSpatial: animationsEnabled ? 650 : 0
+    readonly property int durFastEffects: animationsEnabled ? 150 : 0
+    readonly property int durDefaultEffects: animationsEnabled ? 200 : 0
+    readonly property int durSlowEffects: animationsEnabled ? 300 : 0
+    // BezierSpline control points (6 values per cubic segment). The
+    // emphasized curve is two segments (12 values), everything else one.
+    readonly property var curveStandard: [0.2, 0, 0, 1, 1, 1]
+    readonly property var curveStandardAccel: [0.3, 0, 1, 1, 1, 1]
+    readonly property var curveStandardDecel: [0, 0, 0, 1, 1, 1]
+    readonly property var curveEmphasizedFull: [0.05, 0, 0.133333, 0.06, 0.166667, 0.4, 0.208333, 0.82, 0.25, 1, 1, 1]
+    readonly property var curveFastSpatial: [0.42, 1.67, 0.21, 0.9, 1, 1]
+    readonly property var curveDefaultSpatial: [0.38, 1.21, 0.22, 1, 1, 1]
+    readonly property var curveSlowSpatial: [0.39, 1.29, 0.35, 0.98, 1, 1]
+    readonly property var curveFastEffects: [0.31, 0.94, 0.34, 1, 1, 1]
+    readonly property var curveDefaultEffects: [0.34, 0.8, 0.34, 1, 1, 1]
+    readonly property var curveSlowEffects: [0.34, 0.88, 0.34, 1, 1, 1]
+    // Type ids mirror Caelestia Anim.Type so ports read 1:1.
+    readonly property int animTypeStandardSmall: 0
+    readonly property int animTypeStandard: 1
+    readonly property int animTypeStandardLarge: 2
+    readonly property int animTypeStandardExtraLarge: 3
+    readonly property int animTypeEmphasizedSmall: 4
+    readonly property int animTypeEmphasized: 5
+    readonly property int animTypeEmphasizedLarge: 6
+    readonly property int animTypeEmphasizedExtraLarge: 7
+    readonly property int animTypeFastSpatial: 8
+    readonly property int animTypeDefaultSpatial: 9
+    readonly property int animTypeSlowSpatial: 10
+    readonly property int animTypeFastEffects: 11
+    readonly property int animTypeDefaultEffects: 12
+    readonly property int animTypeSlowEffects: 13
+    function animDurationFor(type: int): int {
+        switch (type) {
+        case animTypeStandardSmall: return durSmall
+        case animTypeStandard: return durNormal
+        case animTypeStandardLarge: return durLarge
+        case animTypeStandardExtraLarge: return durExtraLarge
+        case animTypeEmphasizedSmall: return durSmall
+        case animTypeEmphasized: return durNormal
+        case animTypeEmphasizedLarge: return durLarge
+        case animTypeEmphasizedExtraLarge: return durExtraLarge
+        case animTypeFastSpatial: return durFastSpatial
+        case animTypeDefaultSpatial: return durDefaultSpatial
+        case animTypeSlowSpatial: return durSlowSpatial
+        case animTypeFastEffects: return durFastEffects
+        case animTypeDefaultEffects: return durDefaultEffects
+        case animTypeSlowEffects: return durSlowEffects
+        default: return durNormal
+        }
+    }
+    function animCurveFor(type: int): var {
+        switch (type) {
+        case animTypeFastSpatial: return curveFastSpatial
+        case animTypeDefaultSpatial: return curveDefaultSpatial
+        case animTypeSlowSpatial: return curveSlowSpatial
+        case animTypeFastEffects: return curveFastEffects
+        case animTypeDefaultEffects: return curveDefaultEffects
+        case animTypeSlowEffects: return curveSlowEffects
+        case animTypeEmphasizedSmall:
+        case animTypeEmphasized:
+        case animTypeEmphasizedLarge:
+        case animTypeEmphasizedExtraLarge: return curveEmphasizedFull
+        default: return curveStandard
+        }
+    }
+
+    readonly property int panelAnimFade: durDefaultEffects
+    // Panel slide rides DefaultSpatial (500ms): panels travel their full
+    // height out from behind the bar edge (Caelestia drawer offsetScale
+    // timing) — FastSpatial would rush the ~400px emerge.
+    readonly property int panelAnimSlide: durDefaultSpatial
+    readonly property int panelAnimScale: durNormal
+    readonly property int panelAnimExit: durFastEffects
+    readonly property int panelAnimCollapse: durDefaultEffects
+    readonly property int expanderDur: durDefaultEffects
+    readonly property int celestiaPanelDur: durDefaultSpatial
+    readonly property var celestiaPanelCurve: curveDefaultSpatial
+    // Windows/loaders stay mapped until the popout close run has finished:
+    // Caelestia closes on the same expressive default spatial Behavior as it
+    // opens (500ms, no fast exit), so the old FastEffects-based delay would
+    // tear the surface down mid-flight.
+    readonly property int panelHideDelay: animationsEnabled ? durDefaultSpatial + 20 : 0
+    // Attached-bar morph: dropdown boxes sit flush with the bar edge
+    // instead of floating detached below it. Must stay 0: the panel
+    // windows are placed on the compositor's remaining area (bar bottom =
+    // window top), so any overlap is clipped and only wastes the border.
+    // The rounded top corners still merge into the bar for the morph look.
+    readonly property int panelAttachOverlap: 0
     readonly property real panelOvershootScale: 1.35
     readonly property real panelOvershootSlide: 1.25
     readonly property int panelSlideOffset: 18

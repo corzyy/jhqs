@@ -17,10 +17,11 @@ Scope {
     signal dismissed()
     signal openSettings(string section)
     property bool centered: false
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
     property bool _winVisible: showMenu
-    Timer { id: menuHideTimer; interval: Theme.animSlow + 20; repeat: false; onTriggered: if (!jhqsMenuScope.showMenu) jhqsMenuScope._winVisible = false }
+    Timer { id: menuHideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!jhqsMenuScope.showMenu) jhqsMenuScope._winVisible = false }
     onShowMenuChanged: {
         if (showMenu) { _winVisible = true; menuHideTimer.stop() } else menuHideTimer.restart()
     }
@@ -326,7 +327,7 @@ Scope {
     property bool fontRescanning: false
     Process {
         id: fontListProc
-        command: ["bash", "-c", "fc-list : family 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | grep -i -E 'JetBrains ?Mono|Geist ?Mono|Inter' | sort -u | head -n 800"]
+        command: ["bash", "-c", "fc-list : family 2>/dev/null | tr ',' '\\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | grep -i -E 'JetBrains ?Mono|Geist ?Mono|Inter|Google ?Sans ?Flex' | sort -u | head -n 800"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = (text || "").trim()
@@ -970,9 +971,406 @@ Scope {
         if (matchesAll(f, words)) return 2
         return -1
     }
+    // Math quick-calc (Settings > Search > Features > Math). Deliberately NOT
+    // eval(): a tiny recursive-descent parser over a strict token set, so a
+    // query can never execute anything. Supports + - * / % ^ (** too),
+    // parentheses, unary +/-, decimals, constants pi/e and single-arg
+    // functions sqrt abs sin cos tan floor ceil round exp ln log.
+    function mathTokenize(s: string): var {
+        let toks = []
+        let i = 0
+        while (i < s.length) {
+            let c = s[i]
+            if (c === " " || c === "\t") { i++; continue }
+            if ((c >= "0" && c <= "9") || c === ".") {
+                let j = i, dot = false
+                while (j < s.length && ((s[j] >= "0" && s[j] <= "9") || s[j] === ".")) {
+                    if (s[j] === ".") { if (dot) break; dot = true }
+                    j++
+                }
+                let num = s.slice(i, j)
+                if (num === "." || num === "") return null
+                toks.push({ t: "n", v: parseFloat(num) })
+                i = j
+                continue
+            }
+            if ((c >= "a" && c <= "z") || (c >= "A" && c <= "Z")) {
+                let j = i
+                while (j < s.length && ((s[j] >= "a" && s[j] <= "z") || (s[j] >= "A" && s[j] <= "Z"))) j++
+                toks.push({ t: "id", v: s.slice(i, j).toLowerCase() })
+                i = j
+                continue
+            }
+            if (c === "*" && s[i + 1] === "*") { toks.push({ t: "op", v: "^" }); i += 2; continue }
+            if (c === "(" || c === ")") { toks.push({ t: c, v: c }); i++; continue }
+            if (c === "+" || c === "-" || c === "*" || c === "/" || c === "%" || c === "^") { toks.push({ t: "op", v: c }); i++; continue }
+            return null
+        }
+        return toks
+    }
+    function mathParse(toks: var): real {
+        let pos = 0
+        function peek(): var { return pos < toks.length ? toks[pos] : null }
+        function eat(): var { return toks[pos++] }
+        function parseExpr(): real {
+            let v = parseTerm()
+            while (true) {
+                let t = peek()
+                if (t && t.t === "op" && (t.v === "+" || t.v === "-")) { eat(); let r = parseTerm(); v = t.v === "+" ? v + r : v - r }
+                else return v
+            }
+        }
+        function parseTerm(): real {
+            let v = parsePow()
+            while (true) {
+                let t = peek()
+                if (t && t.t === "op" && (t.v === "*" || t.v === "/" || t.v === "%")) {
+                    eat()
+                    let r = parsePow()
+                    if (t.v === "*") v = v * r
+                    else if (t.v === "/") v = v / r
+                    else v = v % r
+                } else return v
+            }
+        }
+        function parsePow(): real {
+            let base = parseUnary()
+            let t = peek()
+            if (t && t.t === "op" && t.v === "^") { eat(); return Math.pow(base, parsePow()) }
+            return base
+        }
+        function parseUnary(): real {
+            let t = peek()
+            if (t && t.t === "op" && (t.v === "+" || t.v === "-")) { eat(); let v = parseUnary(); return t.v === "-" ? -v : v }
+            return parsePrimary()
+        }
+        function parsePrimary(): real {
+            let t = peek()
+            if (!t) throw "end"
+            if (t.t === "n") { eat(); return t.v }
+            if (t.t === "(") { eat(); let v = parseExpr(); let c = peek(); if (!c || c.t !== ")") throw "paren"; eat(); return v }
+            if (t.t === "id") {
+                eat()
+                let name = t.v
+                if (name === "pi") return Math.PI
+                if (name === "e") return Math.E
+                let o = peek()
+                if (!o || o.t !== "(") throw "fn"
+                eat()
+                let a = parseExpr()
+                let c = peek()
+                if (!c || c.t !== ")") throw "paren"
+                eat()
+                if (name === "sqrt") return Math.sqrt(a)
+                if (name === "abs") return Math.abs(a)
+                if (name === "sin") return Math.sin(a)
+                if (name === "cos") return Math.cos(a)
+                if (name === "tan") return Math.tan(a)
+                if (name === "floor") return Math.floor(a)
+                if (name === "ceil") return Math.ceil(a)
+                if (name === "round") return Math.round(a)
+                if (name === "exp") return Math.exp(a)
+                if (name === "ln") return Math.log(a)
+                if (name === "log") return Math.log(a) / Math.LN10
+                throw "fn"
+            }
+            throw "tok"
+        }
+        let v = parseExpr()
+        if (pos !== toks.length) throw "trail"
+        return v
+    }
+    // Reactive calc result for top-level search. valid=false unless the whole
+    // trimmed query parses as math (plain words/versions never match).
+    property var mathResult: {
+        try {
+            if (isInSubmenu) return { valid: false }
+            if (!SettingsService.searchMath) return { valid: false }
+            let raw = (filterText || "").trim()
+            if (raw.length < 3) return { valid: false }
+            let norm = raw.replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-")
+            if (!/[0-9]/.test(norm)) return { valid: false }
+            if (!/[+\-*/%^()]/.test(norm)) return { valid: false }
+            let toks = mathTokenize(norm)
+            if (!toks || toks.length === 0) return { valid: false }
+            let v = mathParse(toks)
+            if (typeof v !== "number" || !isFinite(v)) return { valid: false }
+            let txt = "" + parseFloat(v.toFixed(10))
+            if (txt === "-0") txt = "0"
+            return { valid: true, expr: raw, valueText: txt }
+        } catch (e) { return { valid: false } }
+    }
+    // Clipboard copy shared by all Features results (math/units/generator/
+    // emoji). execDetached: the menu Loader is destroyed on dismissed(),
+    // which would kill a Process before it can exec (same rule as session
+    // actions). The value travels as argv ($1), so quotes/$/`/spaces are safe.
+    function copyToClipboard(t: string): bool {
+        try {
+            let v = "" + (t || "")
+            if (v === "") return false
+            Quickshell.execDetached(["bash", "-c", "printf '%s' \"$1\" | wl-copy >/dev/null 2>&1 || printf '%s' \"$1\" | xclip -selection clipboard >/dev/null 2>&1 || true", "jhqs-copy", v])
+            dismissed()
+            return true
+        } catch (e) { return false }
+    }
+    function copyMathResult(): bool {
+        try {
+            let m = mathResult
+            if (!m || !m.valid) return false
+            return copyToClipboard(m.valueText)
+        } catch (e) { return false }
+    }
+    // Shared number formatting for math/units results: up to 10 decimals,
+    // trailing zeros stripped, "" when not a finite number.
+    function formatNum(v: real): string {
+        if (typeof v !== "number" || !isFinite(v)) return ""
+        let t = "" + parseFloat(v.toFixed(10))
+        return t === "-0" ? "0" : t
+    }
+    // Units quick-convert (Settings > Search > Features > Units). Queries
+    // like "100km mi", "100 km in mi" or "32F C". Only same-category pairs
+    // convert; data sizes use binary (1024) steps.
+    function unitLookup(u: string): var {
+        let n = ("" + (u || "")).toLowerCase().replace(/°/g, "")
+        if (n === "") return null
+        const tables = {
+            length: { mm: 0.001, cm: 0.01, m: 1, meter: 1, km: 1000, kilometer: 1000, kilometre: 1000, inch: 0.0254, in: 0.0254, foot: 0.3048, feet: 0.3048, ft: 0.3048, yard: 0.9144, yd: 0.9144, mile: 1609.344, mi: 1609.344 },
+            mass: { mg: 0.000001, g: 0.001, gram: 0.001, kg: 1, tonne: 1000, t: 1000, ounce: 0.028349523125, oz: 0.028349523125, pound: 0.45359237, lb: 0.45359237 },
+            volume: { ml: 0.001, liter: 1, litre: 1, l: 1, gallon: 3.785411784, gal: 3.785411784, quart: 0.946352946, qt: 0.946352946, pint: 0.473176473, pt: 0.473176473, cup: 0.2365882368, floz: 0.0295735295625 },
+            data: { b: 1, byte: 1, kb: 1024, mb: 1048576, gb: 1073741824, tb: 1099511627776 },
+            time: { ms: 0.001, s: 1, sec: 1, second: 1, min: 60, minute: 60, h: 3600, hr: 3600, hour: 3600, day: 86400, week: 604800 },
+            speed: { kph: 100 / 360, mph: 0.44704, knot: 0.514444, fps: 0.3048 }
+        }
+        for (let cat in tables) {
+            if (tables[cat][n] !== undefined) return { cat: cat, factor: tables[cat][n], unit: n }
+        }
+        // Plurals: meters->meter, lbs->lb, inches->inch. Only when the
+        // shortened form exists, so real units never misfire.
+        let shorts = []
+        if (n.length > 2 && n.charAt(n.length - 1) === "s") shorts.push(n.slice(0, -1))
+        if (n.length > 3 && n.slice(-2) === "es") shorts.push(n.slice(0, -2))
+        for (let s = 0; s < shorts.length; s++) {
+            for (let cat in tables) {
+                if (tables[cat][shorts[s]] !== undefined) return { cat: cat, factor: tables[cat][shorts[s]], unit: shorts[s] }
+            }
+        }
+        const temps = ["c", "celsius", "f", "fahrenheit", "k", "kelvin"]
+        if (temps.indexOf(n) !== -1) return { cat: "temp", unit: n.charAt(0) }
+        return null
+    }
+    function convertTemp(v: real, from: string, to: string): real {
+        let c = from === "f" ? (v - 32) * 5 / 9 : from === "k" ? v - 273.15 : v
+        return to === "f" ? c * 9 / 5 + 32 : to === "k" ? c + 273.15 : c
+    }
+    property var unitsResult: {
+        try {
+            if (isInSubmenu) return { valid: false }
+            if (!SettingsService.searchUnits) return { valid: false }
+            let raw = (filterText || "").trim()
+            if (raw === "") return { valid: false }
+            let m = raw.toLowerCase().replace(/°/g, "").match(/^(-?\d+(?:\.\d+)?)\s*([a-z]+)\s*(?:in|to|as|=|>)?\s*([a-z]+)$/)
+            if (!m) return { valid: false }
+            let amt = parseFloat(m[1])
+            if (!isFinite(amt)) return { valid: false }
+            let a = unitLookup(m[2]), b = unitLookup(m[3])
+            if (!a || !b) return { valid: false }
+            let out = 0
+            if (a.cat === "temp" || b.cat === "temp") {
+                if (a.cat !== "temp" || b.cat !== "temp") return { valid: false }
+                out = convertTemp(amt, a.unit, b.unit)
+            } else {
+                if (a.cat !== b.cat) return { valid: false }
+                out = amt * a.factor / b.factor
+            }
+            let txt = formatNum(out)
+            if (txt === "") return { valid: false }
+            return { valid: true, expr: ("" + m[1] + " " + m[2] + " → " + m[3]), valueText: txt }
+        } catch (e) { return { valid: false } }
+    }
+    // UUID / password / PIN generator (Settings > Search > Features >
+    // Generator). Evaluated live like math; nothing is stored, Enter copies.
+    // Passwords skip ambiguous (0O1lI) and shell-tricky ($`"'\ space) chars.
+    function makeUuid(): string {
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+            let r = Math.floor(Math.random() * 16)
+            return (c === "x" ? r : ((r & 0x3) | 0x8)).toString(16)
+        })
+    }
+    function makePassword(n: int): string {
+        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#%^&*-_+=?"
+        let out = ""
+        for (let i = 0; i < n; i++) out += chars.charAt(Math.floor(Math.random() * chars.length))
+        return out
+    }
+    function makePin(n: int): string {
+        let out = ""
+        for (let i = 0; i < n; i++) out += Math.floor(Math.random() * 10)
+        return out
+    }
+    property var genResult: {
+        try {
+            if (isInSubmenu) return { valid: false }
+            if (!SettingsService.searchGen) return { valid: false }
+            let raw = (filterText || "").trim()
+            let q = raw.toLowerCase()
+            if (q === "uuid" || q === "uuid4") return { valid: true, expr: "UUID v4", valueText: makeUuid() }
+            let m = q.match(/^(pw|pass|password|pin)\s*(\d{1,3})?$/)
+            if (!m) return { valid: false }
+            if (m[1] === "pin") {
+                let np = (m[2] === undefined || m[2] === "") ? 6 : Math.max(4, Math.min(32, parseInt(m[2], 10)))
+                if (isNaN(np)) return { valid: false }
+                return { valid: true, expr: "PIN · " + np + " digits", valueText: makePin(np) }
+            }
+            let n = (m[2] === undefined || m[2] === "") ? 16 : Math.max(4, Math.min(128, parseInt(m[2], 10)))
+            if (isNaN(n)) return { valid: false }
+            return { valid: true, expr: "Password · " + n + " chars", valueText: makePassword(n) }
+        } catch (e) { return { valid: false } }
+    }
+    // Emoji picker (Settings > Search > Features > Emoji). Curated inline
+    // table [glyph, name, keywords]: instant, no file IO per keystroke.
+    // Triggers: ":fire", "emoji fire" or "em fire". Enter copies the glyph.
+    property var emojiData: [
+        ["😀", "grin", "grinning happy smile face"], ["😁", "beaming", "grin teeth happy smile"],
+        ["😂", "joy", "laugh tears cry lol funny"], ["🤣", "rofl", "laugh rolling floor funny"],
+        ["😊", "smile", "blush happy pleased"], ["😍", "heart eyes", "love crush adore"],
+        ["😎", "cool", "sunglasses chill confident"], ["🤔", "thinking", "hmm wonder ponder"],
+        ["😐", "neutral", "meh straight face"], ["🙄", "roll eyes", "annoyed sarcastic whatever"],
+        ["😴", "sleep", "tired snore bed"], ["😷", "mask", "sick ill"],
+        ["🤯", "mind blown", "explode shock wow"], ["🥳", "party face", "celebrate birthday cheers"],
+        ["😢", "cry", "tear sad upset"], ["😭", "sob", "bawl wail sad tears"],
+        ["😡", "rage", "angry red mad furious"], ["🥺", "pleading", "puppy eyes beg cute"],
+        ["😱", "scream", "shock fear horror"], ["🤠", "cowboy", "yeehaw hat western"],
+        ["👻", "ghost", "spooky halloween boo"], ["💀", "skull", "dead death danger"],
+        ["🤖", "robot", "bot ai machine"], ["👽", "alien", "ufo martian space"],
+        ["🤡", "clown", "circus creepy funny"],
+        ["👍", "thumbs up", "like yes approve"], ["👎", "thumbs down", "dislike no"],
+        ["👏", "clap", "applause bravo congrats"], ["🙏", "pray", "thanks please hope"],
+        ["💪", "flex", "strong muscle power gym"], ["👌", "ok hand", "perfect fine"],
+        ["✌️", "victory", "peace v two"], ["🤝", "handshake", "deal agree"],
+        ["👋", "wave", "hi hello hey bye"], ["✊", "fist", "power solidarity"],
+        ["🙌", "cheers", "hooray praise hands up"], ["🫶", "heart hands", "love finger heart"],
+        ["👆", "point up", "up above"], ["👇", "point down", "down below"],
+        ["👈", "point left", "left back previous"], ["👉", "point right", "right next forward"],
+        ["✋", "raised hand", "stop high five"], ["👀", "eyes", "look watching see"],
+        ["🧠", "brain", "smart think mind"], ["💅", "nails", "polish manicure sassy"],
+        ["❤️", "red heart", "love like favorite"], ["🧡", "orange heart", "love"],
+        ["💛", "yellow heart", "love friendship"], ["💚", "green heart", "love"],
+        ["💙", "blue heart", "love trust"], ["💜", "purple heart", "love"],
+        ["🖤", "black heart", "dark goth love"], ["🤍", "white heart", "pure love"],
+        ["💔", "broken heart", "breakup sad split"], ["💕", "two hearts", "love sweet"],
+        ["💖", "sparkling heart", "love shine"], ["💯", "hundred", "100 perfect score"],
+        ["✨", "sparkles", "new magic clean shine"], ["⭐", "star", "favorite rate"],
+        ["🌟", "glowing star", "shining special"], ["💥", "boom", "collision explode bang"],
+        ["🔥", "fire", "hot lit flame trending"], ["🎉", "tada", "party popper celebrate"],
+        ["✅", "check", "yes done correct true"], ["❌", "cross", "no wrong false"],
+        ["⚠️", "warning", "caution alert careful"], ["❓", "question", "help what"],
+        ["❗", "exclaim", "important alert"], ["💡", "bulb", "idea tip light"],
+        ["📌", "pin", "pushpin location important"], ["📎", "paperclip", "attach clip"],
+        ["📝", "memo", "note write"], ["🔍", "search", "magnify find zoom inspect"],
+        ["🔒", "lock", "private secure closed"], ["🔓", "unlock", "open public"],
+        ["🔑", "key", "password access"], ["🛠️", "tools", "hammer wrench fix build"],
+        ["⚙️", "gear", "settings config cog"], ["🗑️", "trash", "delete bin remove"],
+        ["💾", "floppy", "save disk retro"], ["🚀", "rocket", "launch fast ship deploy"],
+        ["⏰", "alarm", "clock time wake"], ["🎯", "target", "bullseye goal hit"],
+        ["🔗", "link", "url chain connect"], ["🔔", "bell", "notification ring alert"],
+        ["📊", "chart", "bar stats data graph"], ["📈", "chart up", "growth trending profit"],
+        ["📉", "chart down", "decline loss fall"], ["🧪", "test tube", "science lab experiment"],
+        ["🏷️", "label", "tag category"],
+        ["💻", "laptop", "computer macbook code dev"], ["🖥️", "desktop", "monitor pc screen"],
+        ["⌨️", "keyboard", "typing keys"], ["📱", "phone", "iphone mobile smartphone"],
+        ["📧", "email", "mail envelope letter"], ["🌐", "globe", "web internet world"],
+        ["🔋", "battery", "charge power"], ["📶", "signal", "wifi bars reception"],
+        ["☀️", "sun", "sunny weather day"], ["🌙", "moon", "night crescent sleep"],
+        ["☁️", "cloud", "overcast cloudy"], ["🌧️", "rain", "wet drizzle weather"],
+        ["⛈️", "storm", "thunder lightning"], ["❄️", "snow", "winter snowflake cold"],
+        ["🌈", "rainbow", "pride colorful"], ["🌊", "wave", "ocean surf sea"],
+        ["🌍", "earth europe", "globe world africa"], ["🌎", "earth americas", "globe world usa"],
+        ["🌏", "earth asia", "globe world"], ["🌸", "blossom", "flower sakura spring"],
+        ["🌹", "rose", "flower love romantic"], ["🍀", "clover", "lucky leaf"],
+        ["☕", "coffee", "tea hot drink morning"], ["🍺", "beer", "drink cheers bar"],
+        ["🍷", "wine", "drink red cheers"], ["🍕", "pizza", "slice cheese food"],
+        ["🍔", "burger", "fast food"], ["🍩", "donut", "doughnut sweet"],
+        ["🎂", "birthday cake", "party celebrate"], ["🍎", "apple", "fruit red mac"],
+        ["🍓", "strawberry", "berry fruit"], ["🍪", "cookie", "biscuit sweet"],
+        ["🍿", "popcorn", "movie cinema snack"],
+        ["🐧", "penguin", "tux linux bird"], ["🐱", "cat", "kitty kitten meow"],
+        ["🐶", "dog", "puppy woof pet"], ["🦊", "fox", "clever orange"],
+        ["🐼", "panda", "bear china cute"], ["🐸", "frog", "toad green"],
+        ["🦄", "unicorn", "magic rainbow"], ["🐝", "bee", "honey buzz"],
+        ["🦋", "butterfly", "pretty"], ["🐢", "turtle", "tortoise slow"],
+        ["🐙", "octopus", "tentacles kraken"], ["🦁", "lion", "king brave"],
+        ["🐰", "rabbit", "bunny easter"],
+        ["⚽", "soccer", "football sport goal"], ["🏀", "basketball", "sport nba hoop"],
+        ["🎮", "gaming", "controller videogame play"], ["🎲", "dice", "random gamble roll"],
+        ["🎸", "guitar", "music rock band"], ["🎵", "music note", "song tune melody"],
+        ["🎧", "headphones", "listen audio music"], ["🎬", "clapper", "movie film cinema"],
+        ["📷", "camera", "photo picture"], ["✈️", "plane", "travel flight vacation"],
+        ["🚗", "car", "drive auto vehicle"], ["🚲", "bike", "bicycle cycling"],
+        ["→", "arrow right", "next forward"], ["←", "arrow left", "back previous"],
+        ["↑", "arrow up", "top"], ["↓", "arrow down", "bottom"],
+        ["⇒", "double arrow", "imply therefore"], ["✓", "check mark", "tick done correct"],
+        ["✗", "x mark", "wrong ballot cross"], ["★", "black star", "favorite rate solid"],
+        ["☆", "white star", "outline rate"], ["♪", "music note", "eighth melody"],
+        ["∑", "sum", "sigma total math"], ["π", "pi", "math 3.14"],
+        ["λ", "lambda", "functional math"], ["Ω", "omega", "ohm resistance"],
+        ["∞", "infinity", "endless forever math"], ["≠", "not equal", "unequal math"],
+        ["≈", "approx", "almost similar math"], ["±", "plus minus", "tolerance math"],
+        ["÷", "divide", "division math"], ["×", "multiply", "times math"],
+        ["√", "square root", "radical math"], ["•", "bullet", "point dot list"],
+        ["…", "ellipsis", "dots more continue"], ["°", "degree", "angle temperature"],
+        ["©", "copyright", "c rights"], ["®", "registered", "r trademark"],
+        ["™", "trademark", "tm brand"], ["€", "euro", "money currency eur"],
+        ["£", "pound", "money gbp sterling"], ["¥", "yen", "money jpy yuan"],
+        ["♥", "heart suit", "cards love poker"], ["☮", "peace", "hippie harmony"],
+        ["♻️", "recycle", "reuse green eco"], ["⚡", "zap", "lightning fast bolt energy"]
+    ]
+    property var filteredEmoji: {
+        try {
+            if (isInSubmenu) return []
+            if (!SettingsService.searchEmoji) return []
+            let raw = (filterText || "").trim().toLowerCase()
+            if (raw === "") return []
+            let needle = ""
+            if (raw.charAt(0) === ":") needle = raw.slice(1).trim()
+            else if (raw.startsWith("emoji ")) needle = raw.slice(6).trim()
+            else if (raw.startsWith("em ")) needle = raw.slice(3).trim()
+            else return []
+            let words = needle === "" ? [] : needle.split(/\s+/).filter(w => w.length > 0)
+            let out = []
+            for (let i = 0; i < emojiData.length; i++) {
+                let e = emojiData[i]
+                if (!e || e.length < 2) continue
+                let name = ("" + e[1]).toLowerCase()
+                let keys = (e.length > 2 ? "" + e[2] : "").toLowerCase()
+                let rank = 2
+                let ok = true
+                for (let w = 0; w < words.length; w++) {
+                    let wd = words[w]
+                    if (name.startsWith(wd)) rank = Math.min(rank, 0)
+                    else if (name.indexOf(wd) !== -1) rank = Math.min(rank, 1)
+                    else if (keys !== "" && keys.indexOf(wd) !== -1) rank = Math.min(rank, 2)
+                    else { ok = false; break }
+                }
+                if (ok) out.push({ glyph: "" + e[0], name: "" + e[1], keys: e.length > 2 ? "" + e[2] : "", rank: rank, idx: i })
+            }
+            out.sort((a, b) => (a.rank - b.rank) || (a.idx - b.idx))
+            let res = []
+            for (let k = 0; k < out.length && k < 8; k++) res.push({ glyph: out[k].glyph, name: out[k].name, keys: out[k].keys })
+            return res
+        } catch (e) { return [] }
+    }
     function clearSearch() {
         filterText = ""; _q = ""; filterDebounce.stop(); selectedIndex = 0; syncQueryInput("")
         try { if (bodyRootRef) bodyRootRef.selectedIndex = 0 } catch(e) { }
+    }
+    // Search toggles (Settings > Search): exact-match auto-expand only fires
+    // when the target section is searchable at all (menu row or category).
+    function autoExpandAllowed(title: string): bool {
+        try {
+            if (title === "Apps") return SettingsService.searchApps || SettingsService.searchMenu
+            if (title === "About") return SettingsService.searchMenu
+            return SettingsService.searchMenu || SettingsService.searchEnabledForCategory(title)
+        } catch (e) { return true }
     }
     function tryAutoExpandCategory(): void {
         if (isInSubmenu) return
@@ -985,6 +1383,7 @@ Scope {
             if (e.title.toLowerCase() === q && (e.submenu || e.title === "Apps")) { m = e; break }
         }
         if (!m) return
+        if (!autoExpandAllowed(m.title)) return
         if (m.title === "Apps") { showNewAppMenu = true; clearSearch() }
         else if (m.title === "Style") { showStyle = true; clearSearch(); refreshWallpapers() }
         else if (m.title === "Setup") { showSetup = true; clearSearch() }
@@ -1036,6 +1435,10 @@ Scope {
                 if (r.row === "app") { let e = r.entry; return "app:" + (e ? e.name || e.id : "none") + " idx=" + si }
                 if (r.row === "menu") return "menu:" + (r.entry ? r.entry.title : "none") + " idx=" + si
                 if (r.row === "cat") return "cat:" + r.category + "->" + (r.entry ? r.entry.title : "none") + " idx=" + si
+                if (r.row === "math") return "math:" + (r.expr || "?") + "=" + (r.valueText || "?") + " idx=" + si
+                if (r.row === "units") return "units:" + (r.expr || "?") + "=" + (r.valueText || "?") + " idx=" + si
+                if (r.row === "gen") return "gen:" + (r.expr || "?") + " idx=" + si
+                if (r.row === "emoji") return "emoji:" + (r.entry ? r.entry.glyph + " " + r.entry.name : "none") + " idx=" + si
                 return "none idx=" + si
             }
             if (si < filteredApps.length) { let e = filteredApps[si]; return "app:" + (e ? e.name || e.id : "none") + " idx=" + si }
@@ -1049,7 +1452,7 @@ Scope {
     IpcHandler {
         target: "jhqsMenu"
         function setQuery(t: string): void { jhqsMenuScope.filterText = t; jhqsMenuScope.selectedIndex = 0; jhqsMenuScope.syncQueryInput(jhqsMenuScope.filterText) }
-        function getCounts(): string { return "filter=\"" + jhqsMenuScope.filterText + "\" menu=" + jhqsMenuScope.filteredMenu.length + " cats=" + jhqsMenuScope.categoryOptionsCount + " (" + jhqsMenuScope.filteredCategorySections.length + " sections) apps=" + jhqsMenuScope.filteredApps.length + " newapps=" + jhqsMenuScope.filteredNewApps.length + " packages=" + jhqsMenuScope.filteredPackages.length + " webapps=" + jhqsMenuScope.filteredWebApps.length + " wallpaper=" + jhqsMenuScope.filteredWallpapers.length + " themes=" + jhqsMenuScope.filteredThemes.length + " fonts=" + jhqsMenuScope.filteredFontGroups.length + " total=" + jhqsMenuScope.totalCount + " selected=" + jhqsMenuScope.selectedIndex }
+        function getCounts(): string { return "filter=\"" + jhqsMenuScope.filterText + "\" menu=" + jhqsMenuScope.filteredMenu.length + " cats=" + jhqsMenuScope.categoryOptionsCount + " (" + jhqsMenuScope.filteredCategorySections.length + " sections) apps=" + jhqsMenuScope.filteredApps.length + " math=" + ((jhqsMenuScope.mathResult && jhqsMenuScope.mathResult.valid) ? jhqsMenuScope.mathResult.valueText : "-") + " units=" + ((jhqsMenuScope.unitsResult && jhqsMenuScope.unitsResult.valid) ? jhqsMenuScope.unitsResult.valueText : "-") + " gen=" + ((jhqsMenuScope.genResult && jhqsMenuScope.genResult.valid) ? "1" : "0") + " emoji=" + jhqsMenuScope.filteredEmoji.length + " newapps=" + jhqsMenuScope.filteredNewApps.length + " packages=" + jhqsMenuScope.filteredPackages.length + " webapps=" + jhqsMenuScope.filteredWebApps.length + " wallpaper=" + jhqsMenuScope.filteredWallpapers.length + " themes=" + jhqsMenuScope.filteredThemes.length + " fonts=" + jhqsMenuScope.filteredFontGroups.length + " total=" + jhqsMenuScope.totalCount + " selected=" + jhqsMenuScope.selectedIndex }
         function pressEnter(): void { if (jhqsMenuScope.bodyRootRef) { jhqsMenuScope.selectedIndex = jhqsMenuScope.bodyRootRef.selectedIndex; jhqsMenuScope.bodyRootRef.activateCurrent() } }
         function pressEsc(): void { if (!jhqsMenuScope.handleEsc()) jhqsMenuScope.dismissed() }
         function moveDown(): void { if (jhqsMenuScope.totalCount === 0) return; jhqsMenuScope.selectedIndex = jhqsMenuScope.showWallpaper ? Math.min(jhqsMenuScope.selectedIndex + 3, jhqsMenuScope.totalCount - 1) : (jhqsMenuScope.selectedIndex + 1) % jhqsMenuScope.totalCount }
@@ -1276,8 +1679,8 @@ Scope {
                 }
             }
         } catch(e) { }
-        // Only show JetBrains Mono, Geist Mono and Inter
-        let allowed = ["jetbrainsmono", "geistmono", "inter"]
+        // Only show JetBrains Mono, Geist Mono, Inter and Google Sans Flex
+        let allowed = ["jetbrainsmono", "geistmono", "inter", "googlesansflex"]
         all = all.filter(f => {
             try {
                 let n = ("" + f).toLowerCase().replace(/[\s_\-]+/g, "")
@@ -1296,12 +1699,13 @@ Scope {
         return all.filter(f => ("" + f).toLowerCase().includes(q)).slice(0, 100)
     }
     // Merge weight variants (Regular/Medium/Bold/...) into one group per typeface,
-    // e.g. "JetBrains Mono" + "Geist Mono" + "Inter". Only the Regular (400) cut is kept.
+    // e.g. "JetBrains Mono" + "Geist Mono" + "Inter" + "Google Sans Flex". Only the Regular (400) cut is kept.
     function fontGroupTitleFor(family: string): string {
         try {
             let n = ("" + family).toLowerCase().replace(/[\s_\-]+/g, "")
             if (n.includes("jetbrainsmono")) return "JetBrains Mono"
             if (n.includes("geistmono")) return "Geist Mono"
+            if (n.includes("googlesansflex")) return "Google Sans Flex"
             if (n.startsWith("inter")) return "Inter"
         } catch(e) { }
         return ("" + family).trim()
@@ -1341,7 +1745,7 @@ Scope {
                 let rest = f.slice(g.length).trim().replace(/^[-_\s]+/, "")
                 return rest === "" ? "Regular" : rest
             }
-            let rest2 = f.replace(/^(JetBrains\s?Mono|Geist\s?Mono|GeistMono|JetBrainsMono|Inter(\s?(Display|Variable))?)\s*/i, "").trim()
+            let rest2 = f.replace(/^(JetBrains\s?Mono|Geist\s?Mono|GeistMono|JetBrainsMono|Google\s?Sans\s?Flex|Inter(\s?(Display|Variable))?)\s*/i, "").trim()
             return rest2 === "" ? "Regular" : rest2
         } catch(e) { return ("" + variant).trim() }
     }
@@ -1368,8 +1772,8 @@ Scope {
             if (map[g].indexOf(fam) === -1) map[g].push(fam)
         }
         order.sort((a, b) => {
-            let ra = a === "JetBrains Mono" ? 0 : a === "Geist Mono" ? 1 : a === "Inter" ? 2 : 3
-            let rb = b === "JetBrains Mono" ? 0 : b === "Geist Mono" ? 1 : b === "Inter" ? 2 : 3
+            let ra = a === "JetBrains Mono" ? 0 : a === "Geist Mono" ? 1 : a === "Inter" ? 2 : a === "Google Sans Flex" ? 3 : 4
+            let rb = b === "JetBrains Mono" ? 0 : b === "Geist Mono" ? 1 : b === "Inter" ? 2 : b === "Google Sans Flex" ? 3 : 4
             if (ra !== rb) return ra - rb
             return ("" + a).toLowerCase() < ("" + b).toLowerCase() ? -1 : 1
         })
@@ -1734,6 +2138,9 @@ Scope {
         let active = null
         if (showStyle) active = styleMenu; else if (showInstall) active = installMenu; else if (showRemove) active = removeMenu; else if (showSession) active = sessionMenu; else if (showSetup) active = setupMenu; else if (showLearn) active = learnMenu
         if (active) return q === "" ? active : active.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
+        // Settings > Search: browsing (empty query) is unaffected, only
+        // top-level search results are gated.
+        if (q !== "" && !SettingsService.searchMenu) return []
         let base = q === "" ? menuModel : menuModel.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
         if (q !== "" && base.length > 1) {
             let sysRows = base.filter(m => m.title === "System")
@@ -1749,6 +2156,9 @@ Scope {
         for (let i = 0; i < menuModel.length; i++) {
             let m = menuModel[i]
             if (!m.submenu || m.submenu.length === 0) continue
+            // Settings > Search: per-category toggle (Learn/Style/Setup/
+            // Install/Remove/System). Unknown categories stay visible.
+            try { if (!SettingsService.searchEnabledForCategory(m.title)) continue } catch (e) { }
             let matched = m.submenu.filter(e => matchesAll(e.title.toLowerCase(), words))
             if (matched.length === 0 && matchesAll(m.title.toLowerCase(), words)) matched = m.submenu.slice()
             if (m.title === "Style") {
@@ -1774,6 +2184,8 @@ Scope {
     property var filteredApps: {
         if (isInSubmenu) return []
         let q = qLower(); if (q === "") return []
+        // Settings > Search: applications toggle.
+        try { if (!SettingsService.searchApps) return [] } catch (e) { }
         let words = queryWordsFor(q)
         let multi = words.length > 1
         // _appSearchIndex is already alphabetical, so bucketing preserves
@@ -1837,21 +2249,48 @@ Scope {
         }
         let groups = searchGroupOrder
         let out = []
+        // Features answers (math/units/generator) always come first: exact
+        // computed replies, not ranked fuzzy hits. Emoji rows go last: their
+        // triggers (":" / "emoji ") never collide with other results.
+        try {
+            let m = mathResult
+            if (m && m.valid) out.push({ row: "math", key: "math|" + m.expr, section: "Math", expr: m.expr, valueText: m.valueText, entry: { title: m.valueText, icon: "=" } })
+        } catch (e) { }
+        try {
+            let u = unitsResult
+            if (u && u.valid) out.push({ row: "units", key: "units|" + u.expr, section: "Units", expr: u.expr, valueText: u.valueText, entry: { title: u.valueText, icon: "↔" } })
+        } catch (e) { }
+        try {
+            let g = genResult
+            if (g && g.valid) out.push({ row: "gen", key: "gen|" + g.expr, section: "Generator", expr: g.expr, valueText: g.valueText, entry: { title: g.valueText, icon: "*" } })
+        } catch (e) { }
         for (let g = 0; g < groups.length; g++) {
             if (groups[g] === "apps") {
                 let apps = filteredApps
-                for (let i = 0; i < apps.length; i++) out.push({ row: "app", section: "Anwendungen", entry: apps[i] })
+                for (let i = 0; i < apps.length; i++) out.push({ row: "app", key: "app|" + ((apps[i] && (apps[i].id || apps[i].name)) || i), section: "Anwendungen", entry: apps[i] })
             } else if (groups[g] === "menu") {
                 let ms = filteredMenu
-                for (let i = 0; i < ms.length; i++) out.push({ row: "menu", section: "", entry: ms[i] })
+                for (let i = 0; i < ms.length; i++) out.push({ row: "menu", key: "menu|" + (ms[i].title || i), section: "", entry: ms[i] })
             } else {
                 let secs = filteredCategorySections
                 for (let i = 0; i < secs.length; i++) {
-                    for (let j = 0; j < secs[i].options.length; j++) out.push({ row: "cat", section: secs[i].category, category: secs[i].category, entry: secs[i].options[j] })
+                    for (let j = 0; j < secs[i].options.length; j++) out.push({ row: "cat", key: "cat|" + secs[i].category + "|" + (secs[i].options[j].title || j), section: secs[i].category, category: secs[i].category, entry: secs[i].options[j] })
                 }
             }
         }
+        try {
+            let em = filteredEmoji
+            for (let i = 0; i < em.length; i++) out.push({ row: "emoji", key: "emoji|" + em[i].glyph + "|" + em[i].name, section: "Emoji", expr: em[i].keys, valueText: em[i].glyph, entry: em[i] })
+        } catch (e) { }
         return out
+    }
+    // Reverse lookup for ListModel-backed result rows (RootListView syncs its
+    // ListView via stable `key`s and resolves the live row object on click).
+    function searchRowForKey(k: string): var {
+        if (!k) return null
+        let rows = searchRows
+        for (let i = 0; i < rows.length; i++) if (rows[i] && rows[i].key === k) return rows[i]
+        return null
     }
     property int totalCount: showWallpaper ? filteredWallpapers.length : showThemes ? filteredThemes.length : showFont ? filteredFontGroups.length : showNewAppMenu ? filteredNewApps.length : showPackages ? filteredPackages.length : showKeybinds ? filteredKeybinds.length : searchRows.length
     property int selectedIndex: 0
@@ -2010,6 +2449,9 @@ Scope {
             if (r.row === "app") { launchAppEntry(r.entry); return }
             if (r.row === "menu") { activateRootMenuRow(r.entry); return }
             if (r.row === "cat") { if (r.entry) executeCategoryOption(r.category, r.entry); return }
+            if (r.row === "math") { copyMathResult(); return }
+            if (r.row === "units" || r.row === "gen") { copyToClipboard(r.valueText); return }
+            if (r.row === "emoji") { if (r.entry && r.entry.glyph) copyToClipboard(r.entry.glyph); return }
             return
         }
         if (selectedIndex < filteredApps.length) {
@@ -2087,9 +2529,38 @@ Scope {
                 }
                 x: jhqsMenuScope.centered ? (parent.width - width) / 2 : menuAnchor.panelX
                 y: jhqsMenuScope.centered ? (parent.height - height) / 2 : menuAnchor.panelY
+                // Anchor morph (Caelestia popout ClipWrapper x/y): the menu
+                // glides after its bar anchor / centered toggle once open
+                // (settled gate: never chase the open morph itself).
+                // Initial placement never animates.
+                // Size morphs are gated out as well: while a view animates
+                // its implicit size, x/y re-target every frame off the
+                // animating width/height — a Behavior would lag behind that
+                // stream and keep sliding for another full duration after
+                // the resize (the "menu repositions itself" bug). With the
+                // gate, x/y track the animated size exactly, so the box
+                // stays centered on its anchor (or screen center) for the
+                // whole morph and ends exactly where it settles.
+                readonly property bool _posBehaviorEnabled: Theme.animationsEnabled && jhqsMenuScope.showMenu && menuSpring.settled && !(menuLoader.item && menuLoader.item.sizeMorphing)
+                Behavior on x { enabled: menuLoader._posBehaviorEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+                Behavior on y { enabled: menuLoader._posBehaviorEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+                // Island morph (Dynamic-Island open): pill -> panel off the
+                // spring `grow` driver. Centered modals hold grow == 1 (no
+                // size morph, nudge + fade only).
+                IslandMorph {
+                    id: menuIsland
+                    grow: menuSpring.grow
+                    fullW: menuLoader.item ? menuLoader.item.implicitWidth : menuLoader.implicitWidth
+                    fullH: menuLoader.item ? menuLoader.item.implicitHeight : menuLoader.implicitHeight
+                    anchorW: jhqsMenuScope.centered ? 0 : ((menuAnchor.valid && menuAnchor.anchor) ? menuAnchor.anchor.w : 0)
+                    openRadius: Theme.cornerRadius
+                }
                 PanelSpring {
                     id: menuSpring
-                    slideFade: true
+                    // Bar-anchored menu emerges from the bar edge; the
+                    // centered modal has no bar edge, so it keeps the
+                    // subtle nudge instead of flinging across the screen.
+                    slideFade: jhqsMenuScope.centered
                     shown: jhqsMenuScope.showMenu
                     hiddenX: jhqsMenuScope.shellPosition === "left" ? -(menuLoader.width + 5) : jhqsMenuScope.shellPosition === "right" ? (menuLoader.width + 5) : 0
                     hiddenY: jhqsMenuScope.shellPosition === "top" ? -(menuLoader.height + 5) : jhqsMenuScope.shellPosition === "bottom" ? (menuLoader.height + 5) : 0
@@ -2099,9 +2570,41 @@ Scope {
                 scale: menuSpring.zoom
                 transformOrigin: jhqsMenuScope.centered ? Item.Center : menuAnchor.origin
                 transform: Translate { x: menuSpring.slideX; y: menuSpring.slideY }
-                width: item ? item.implicitWidth : implicitWidth
-                height: item ? item.implicitHeight : implicitHeight
+                // Square fused top corners (tray-menu joint).
+                // Centered mode is a floating modal: no patches there.
+                // Bar joint decor materializes with the island morph.
+                PanelCorner { side: "left"; edge: jhqsMenuScope.shellPosition === "bottom" ? "bottom" : "top"; visible: menuSpring.boxVisible && !jhqsMenuScope.centered; opacity: menuIsland.t }
+                PanelCorner { side: "right"; edge: jhqsMenuScope.shellPosition === "bottom" ? "bottom" : "top"; visible: menuSpring.boxVisible && !jhqsMenuScope.centered; opacity: menuIsland.t }
+                // Outward-curved shoulders on top of the fusion (Caelestia joint).
+                PanelFillet { side: "left"; edge: jhqsMenuScope.shellPosition === "bottom" ? "bottom" : "top"; visible: menuSpring.boxVisible && !jhqsMenuScope.centered; opacity: menuIsland.t }
+                PanelFillet { side: "right"; edge: jhqsMenuScope.shellPosition === "bottom" ? "bottom" : "top"; visible: menuSpring.boxVisible && !jhqsMenuScope.centered; opacity: menuIsland.t }
+                // Seam strip: erases the collar outline along the fused edge.
+                // Menu border is 1px, hence height 1 here (2px elsewhere).
+                Rectangle {
+                    antialiasing: Theme.shapesAa
+                    x: 0
+                    y: jhqsMenuScope.shellPosition === "bottom" ? menuLoader.height - 1 : 0
+                    width: menuLoader.width
+                    height: 1
+                    color: Theme.bg
+                    visible: menuSpring.boxVisible && !jhqsMenuScope.centered
+                    opacity: menuIsland.t
+                }
+                width: menuIsland.w
+                height: menuIsland.h
                 sourceComponent: Item {
+                    // Explicit island size + clip: the full-size content is
+                    // curtain-revealed by the growing pill (Loader itself
+                    // must stay unclipped: the joint decor paints outside).
+                    width: menuLoader.width
+                    height: menuLoader.height
+                    clip: true
+                    // Menu-open driver for inner content stages (menuSpring
+                    // itself is a sibling, so its grow is re-exposed here
+                    // where the views can bind to it). Clamped twin for
+                    // values that must not overshoot (corner radius).
+                    property real menuFade: menuSpring.grow
+                    property real menuT: Math.max(0, Math.min(1, menuFade))
                     property int catDynH: {
                         let rowH = 50
                         let rowGap = 3
@@ -2111,18 +2614,30 @@ Scope {
                         let overhead = (18 + 34 + 7 + 18)
                         return overhead + content + 2
                     }
-                    implicitWidth: jhqsMenuScope.showWallpaper ? 760 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp || jhqsMenuScope.showKeybinds) ? Theme.sharedMenuWidth : 300
-                    implicitHeight: jhqsMenuScope.showWallpaper ? 820 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp || jhqsMenuScope.showKeybinds) ? Theme.sharedMenuHeight : catDynH
-                    // PERF: layout Behaviors ran on every view switch even with
-                    // animations off or menu hidden. Gate them.
-                    Behavior on implicitWidth { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
-                    Behavior on implicitHeight { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                    // Final (un-animated) size the active view asks for.
+                    // implicitWidth/implicitHeight glide to it (Behavior
+                    // below); the delta marks a size morph in flight, which
+                    // the loader uses to suppress its x/y Behaviors while
+                    // the box grows/shrinks (they would otherwise chase the
+                    // animating size and drift afterwards).
+                    readonly property real targetWidth: jhqsMenuScope.showWallpaper ? 760 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp || jhqsMenuScope.showKeybinds) ? Theme.sharedMenuWidth : 300
+                    readonly property real targetHeight: jhqsMenuScope.showWallpaper ? 820 : (jhqsMenuScope.showPackages || jhqsMenuScope.showWebApp || jhqsMenuScope.showKeybinds) ? Theme.sharedMenuHeight : catDynH
+                    readonly property bool sizeMorphing: Math.abs(implicitWidth - targetWidth) > 0.5 || Math.abs(implicitHeight - targetHeight) > 0.5
+                    implicitWidth: targetWidth
+                    implicitHeight: targetHeight
+                    // Size morphs glide on the spatial curve while the menu is
+                    // open (Caelestia popout Wrapper implicit size Behavior).
+                    Behavior on implicitWidth { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+                    Behavior on implicitHeight { enabled: Theme.animationsEnabled && jhqsMenuScope.showMenu; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         id: panel
                         anchors.fill: parent
-                        radius: Theme.cornerRadius; color: Theme.bg; border.color: Theme.panelBorderColor; border.width: 1; clip: true
-                        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
+                        // Island morph: fully round pill tucked at the bar ->
+                        // panel corners as the box grows out.
+                        radius: Theme.cornerRadius + (Math.min(menuLoader.width, menuLoader.height) / 2 - Theme.cornerRadius) * (1 - menuT)
+                        color: Theme.bg; border.color: Theme.panelBorderColor; border.width: 1; clip: true
+                        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                     }
                     Item {
                         id: menuBody
@@ -2143,6 +2658,8 @@ Scope {
                             if (jhqsMenuScope.showPackages && !jhqsMenuScope.packageOpActive && packageView && packageView.handleKey(event)) { event.accepted = true; return }
                             if (jhqsMenuScope.showKeybinds && keybindsView && keybindsView.handleKey(event)) { event.accepted = true; return }
                             if (jhqsMenuScope.showWebApp && webAppView && webAppView.handleKey(event)) { event.accepted = true; return }
+                            // App launcher: the right-click context menu owns keys while open.
+                            if (jhqsMenuScope.showNewAppMenu && appMenu && appMenu.handleKey(event)) { event.accepted = true; return }
                             let n=bodyRoot.totalCount
                             if((event.modifiers & Qt.MetaModifier) && event.key===Qt.Key_M){ if(event.modifiers & Qt.ShiftModifier) { bodyRoot.scope.showNewAppMenu=true; bodyRoot.scope.clearSearch() } else bodyRoot.scope.dismissed(); event.accepted=true }
                             else if((event.modifiers & Qt.MetaModifier) && event.key===Qt.Key_Escape){ bodyRoot.scope.dismissed(); event.accepted=true }
@@ -2168,18 +2685,18 @@ Scope {
                                 visible: opacity > 0.01
                                 anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                 width: shown ? 36 : 0
-                                Behavior on width { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                                Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
                                 height: 36
                                 clip: true
                                 opacity: shown ? 1 : 0
-                                Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+                                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
                                 scale: shown ? 1 : 0.7
                                 transformOrigin: Item.Left
-                                Behavior on scale { NumberAnimation { duration: Theme.animSlow; easing.type: Theme.easingSmooth } }
+                                Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
                                 radius: Theme.cornerRadiusSmall
                                 color: "transparent"
                                 border.color: "transparent"; border.width: 0
-                                Behavior on color { ColorAnimation { duration: Theme.animFast; easing.type: Theme.easingSmooth } }
+                                Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                                 Text { anchors.centerIn: parent; anchors.verticalCenterOffset: -1; width: 36; height: 24; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; text: "‹"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(16); color: backBtnMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
@@ -2196,8 +2713,8 @@ Scope {
                             color: "transparent"
                             border.color: "transparent"
                             border.width: 0
-                            Behavior on color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
-                            Behavior on border.color { ColorAnimation { duration: Theme.animNormal; easing.type: Theme.easingSmooth } }
+                            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
+                            Behavior on border.color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 0; anchors.rightMargin: 0; spacing: 8
                                 TextInput {
@@ -2309,6 +2826,7 @@ Scope {
                                 id: appMenu
                                 scope: jhqsMenuScope
                                 bodyRoot: bodyRoot
+                                menuFade: menuFade
                             }
                             Views.PackageView {
                                 id: packageView

@@ -4,148 +4,142 @@ import "../../../themes"
 import "../../../services"
 import ".."
 
-Column {
+NexusControls.PageBase {
     id: root
-    width: parent ? parent.width : 400
-    spacing: 10
+    title: "Workspaces"
 
-    SettingsControls.SettingsSection {
-        title: "Style"
-        Row {
-            width: parent.width
-            spacing: 8
-            Repeater {
-                model: [
-                    { id: "default", label: "Default" },
-                    { id: "default2", label: "Default2" },
-                    { id: "m3", label: "M3" }
-                ]
-                delegate: Rectangle {
-                    required property var modelData
-                    readonly property string styleId: modelData.id
-                    readonly property bool isCurrent: Theme.workspaceStyle === styleId
-                    width: (parent.width - 16) / 3
-                    height: 64
-                    radius: Theme.cornerRadiusSmall
-                    antialiasing: Theme.shapesAa
-                    color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
-                        : styleMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                        : (Theme.withAlpha(Theme.textPrimary, 0.04))
-                    border.color: isCurrent ? Theme.accent : Theme.divider
-                    border.width: isCurrent ? 2 : 1
-                    Column {
-                        anchors.centerIn: parent
-                        spacing: 6
-                        Item {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            width: 56
-                            height: 22
-                            // Default: workspace numbers, focused one accented
-                            Row {
-                                visible: styleId === "default"
-                                anchors.centerIn: parent
-                                spacing: 7
-                                Repeater {
-                                    model: ["1", "2", "3"]
-                                    delegate: Text {
-                                        required property var modelData
-                                        required property int index
-                                        text: modelData
+    NexusControls.SectionHeader { first: true; text: "Style" }
+    Row {
+        width: parent.width
+        spacing: 8
+        Repeater {
+            model: [
+                { id: "default", label: "Default" },
+                { id: "default2", label: "Default2" },
+                { id: "m3", label: "M3" }
+            ]
+            delegate: Rectangle {
+                required property var modelData
+                readonly property string styleId: modelData.id
+                readonly property bool isCurrent: Theme.workspaceStyle === styleId
+                width: (parent.width - 16) / 3
+                height: 64
+                radius: 16
+                antialiasing: Theme.shapesAa
+                color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
+                    : styleMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
+                    : (Theme.surface_container)
+                border.color: isCurrent ? Theme.accent : Theme.divider
+                border.width: isCurrent ? 2 : 1
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Item {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 56
+                        height: 22
+                        // Default: workspace numbers, focused one accented
+                        Row {
+                            visible: styleId === "default"
+                            anchors.centerIn: parent
+                            spacing: 7
+                            Repeater {
+                                model: ["1", "2", "3"]
+                                delegate: Text {
+                                    required property var modelData
+                                    required property int index
+                                    text: modelData
+                                    font.family: Theme.iconFontFamily
+                                    font.pixelSize: Theme.fs(12)
+                                    font.weight: index === 1 ? Font.Bold : Font.Normal
+                                    color: index === 1 ? Theme.accent : Theme.textMuted
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                }
+                            }
+                        }
+                        // Default2: boxed cell with accent underline on focused
+                        Row {
+                            visible: styleId === "default2"
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Repeater {
+                                model: 3
+                                delegate: Rectangle {
+                                    required property int index
+                                    width: 15; height: 20; radius: 0
+                                    antialiasing: Theme.shapesAa
+                                    color: index === 1 ? Theme.withAlpha(Theme.accent, 0.20) : "transparent"
+                                    border.color: index === 1 ? Theme.accent : Theme.divider
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: index + 1
                                         font.family: Theme.iconFontFamily
-                                        font.pixelSize: Theme.fs(12)
+                                        font.pixelSize: Theme.fs(10)
                                         font.weight: index === 1 ? Font.Bold : Font.Normal
-                                        color: index === 1 ? Theme.accent : Theme.textMuted
+                                        color: index === 1 ? Theme.textPrimary : Theme.textMuted
                                         antialiasing: Theme.textAa
                                         renderType: Theme.textRenderType
                                     }
-                                }
-                            }
-                            // Default2: boxed cell with accent underline on focused
-                            Row {
-                                visible: styleId === "default2"
-                                anchors.centerIn: parent
-                                spacing: 5
-                                Repeater {
-                                    model: 3
-                                    delegate: Rectangle {
-                                        required property int index
-                                        width: 15; height: 20; radius: 0
-                                        antialiasing: Theme.shapesAa
-                                        color: index === 1 ? Theme.withAlpha(Theme.accent, 0.20) : "transparent"
-                                        border.color: index === 1 ? Theme.accent : Theme.divider
-                                        border.width: 1
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: index + 1
-                                            font.family: Theme.iconFontFamily
-                                            font.pixelSize: Theme.fs(10)
-                                            font.weight: index === 1 ? Font.Bold : Font.Normal
-                                            color: index === 1 ? Theme.textPrimary : Theme.textMuted
-                                            antialiasing: Theme.textAa
-                                            renderType: Theme.textRenderType
-                                        }
-                                        Rectangle {
-                                            visible: index === 1
-                                            anchors.left: parent.left; anchors.right: parent.right
-                                            anchors.bottom: parent.bottom
-                                            height: 2
-                                            color: Theme.accent
-                                        }
-                                    }
-                                }
-                            }
-                            // M3: pills sized by state, focused one accented
-                            Row {
-                                visible: styleId === "m3"
-                                anchors.centerIn: parent
-                                spacing: 4
-                                Repeater {
-                                    model: [8, 22, 8]
-                                    delegate: Rectangle {
-                                        required property var modelData
-                                        required property int index
-                                        width: modelData; height: 7; radius: 3.5
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        antialiasing: Theme.shapesAa
-                                        color: index === 1 ? Theme.accent : Theme.divider
+                                    Rectangle {
+                                        visible: index === 1
+                                        anchors.left: parent.left; anchors.right: parent.right
+                                        anchors.bottom: parent.bottom
+                                        height: 2
+                                        color: Theme.accent
                                     }
                                 }
                             }
                         }
-                        Text {
-                            antialiasing: Theme.textAa
-                            renderType: Theme.textRenderType
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: modelData.label
-                            font.family: Theme.iconFontFamily
-                            font.pixelSize: Theme.fs(11)
-                            font.weight: isCurrent ? Font.Medium : Font.Normal
-                            color: isCurrent ? Theme.textPrimary : Theme.textSecondary
+                        // M3: pills sized by state, focused one accented
+                        Row {
+                            visible: styleId === "m3"
+                            anchors.centerIn: parent
+                            spacing: 4
+                            Repeater {
+                                model: [8, 22, 8]
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    required property int index
+                                    width: modelData; height: 7; radius: 3.5
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    antialiasing: Theme.shapesAa
+                                    color: index === 1 ? Theme.accent : Theme.divider
+                                }
+                            }
                         }
                     }
-                    MouseArea { id: styleMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setWorkspaceStyle(styleId) }
+                    Text {
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: modelData.label
+                        font.family: Theme.iconFontFamily
+                        font.pixelSize: Theme.fs(11)
+                        font.weight: isCurrent ? Font.Medium : Font.Normal
+                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
+                    }
                 }
+                MouseArea { id: styleMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setWorkspaceStyle(styleId) }
             }
         }
     }
 
-    SettingsControls.SettingsSection {
-        title: "Mango Tags"
+    NexusControls.SectionHeader { text: "Mango Tags" }
+    NexusControls.ToggleRow {
+        first: true
+        last: true
         visible: MangoService.isMango
-        SettingsControls.SettingsRow {
-            title: "Dynamic tags"
-            subtitle: "Hide empty tags, show them on demand"
-            SettingsControls.SettingsToggle { on: MangoService.mangoDynamicTags; onToggled: n => MangoService.applyDynamicTags(n) }
-        }
+        text: "Dynamic tags"
+        subtext: "Hide empty tags, show them on demand"
+        checked: MangoService.mangoDynamicTags
+        onToggled: n => MangoService.applyDynamicTags(n)
     }
 
-    SettingsControls.SettingsSection {
-        title: "Spacing"
-        SettingsControls.SettingsSliderRow { label: "Distance"; from: 0; to: 24; stepSize: 1; unit: "px"; value: Theme.workspaceSpacing; onMoved: v => Theme.setWorkspaceSpacing(Math.round(v)); onApplied: v => Theme.setWorkspaceSpacing(Math.round(v)) }
-    }
+    NexusControls.SectionHeader { text: "Spacing" }
+    NexusControls.SliderRow { first: true; last: true; label: "Distance"; from: 0; to: 24; stepSize: 1; unit: "px"; value: Theme.workspaceSpacing; onMoved: v => Theme.setWorkspaceSpacing(Math.round(v)); onApplied: v => Theme.setWorkspaceSpacing(Math.round(v)) }
 
-    SettingsControls.SettingsSection {
-        title: "Scale"
-        SettingsControls.SettingsSliderRow { label: "Widget Scale"; from: 50; to: 200; stepSize: 5; unit: "%"; value: Theme.workspaceScale * 100; onMoved: v => Theme.setWorkspaceScale(v / 100); onApplied: v => Theme.setWorkspaceScale(v / 100) }
-    }
+    NexusControls.SectionHeader { text: "Scale" }
+    NexusControls.SliderRow { first: true; last: true; label: "Widget Scale"; from: 50; to: 200; stepSize: 5; unit: "%"; value: Theme.workspaceScale * 100; onMoved: v => Theme.setWorkspaceScale(v / 100); onApplied: v => Theme.setWorkspaceScale(v / 100) }
 }

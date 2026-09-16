@@ -40,16 +40,29 @@ Item {
     // per-widget `Behavior on implicitWidth` re-animated the whole bar on
     // every temp/volume string change — layout thrash).
 
+    // Caelestia button feel: content breathes on hover, squashes on press.
+    // Scale lives on a wrapper so Loader layout (implicitWidth/Height) never
+    // animates — only the painted content does (no bar layout thrash).
+    Item {
+        id: contentScale
+        anchors.centerIn: parent
+        width: Math.max(rowLoader.implicitWidth, colLoader.implicitWidth)
+        height: Math.max(rowLoader.implicitHeight, colLoader.implicitHeight)
+        scale: mouse.pressed ? Theme.pressScale : mouse.containsMouse ? Theme.hoverScale : 1
+        transformOrigin: Item.Center
+        Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+    }
+
     Loader {
         id: rowLoader
-        anchors.centerIn: parent
+        anchors.centerIn: contentScale
         active: !root.vertical && root.rowContent !== null
         asynchronous: false
         sourceComponent: root.rowContent
     }
     Loader {
         id: colLoader
-        anchors.centerIn: parent
+        anchors.centerIn: contentScale
         active: root.vertical && root.colContent !== null
         asynchronous: false
         sourceComponent: root.colContent

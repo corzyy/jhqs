@@ -47,10 +47,14 @@ QtObject {
     // Warnungsfreie Icon-Quelle: Pfade passieren, Theme-Namen werden
     // aufgelöst, Glyphen/leere/unbekannte Namen ergeben `fallback`
     // (meist "" — IconImage bleibt leer wie bei fehlgeschlagenem Load).
+    // Absolute Pfade werden als file:// URL zurückgegeben: ein roher
+    // "/home/..."-String wird von Quickshell zu "qrc:/home/..." aufgelöst
+    // und schlägt fehl (WebApp-.desktop-Dateien nutzen absolute Icon=).
     function iconSource(icon: var, fallback: string): string {
         const s = String(icon || "").trim()
         if (s.length === 0 || isGlyphIcon(s)) return fallback || ""
-        if (s[0] === "/" || s.indexOf("file://") === 0 || s.indexOf("image://") === 0 || s.indexOf("qrc:") === 0) return s
+        if (s[0] === "/") return fileUrl(s)
+        if (s.indexOf("file://") === 0 || s.indexOf("image://") === 0 || s.indexOf("qrc:") === 0) return s
         try {
             if (Quickshell.hasThemeIcon(s)) return Quickshell.iconPath(s)
             const low = s.toLowerCase()

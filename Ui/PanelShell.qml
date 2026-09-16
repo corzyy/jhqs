@@ -1,15 +1,18 @@
-// PanelShell — shared window-anchored container for all bar panels.
-// DRY: 7 panels duplicated this exact block (~50 lines each): BarAnchor
-// positioning, spring show/hide, click-swallowing, Flickable + content
-// column. Only module id, visibility flag, width and content differ.
+// PanelShell — shared container for all bar panels.
+//
+// The open/close run is the 1:1 Caelestia popout animation (Ui/CaelestiaPopout
+// — ClipWrapper + Wrapper + Content): the card is clipped at the bar's inner
+// edge and slides out from behind it on the expressive default spatial curve
+// (500ms) while the popout fades in over 200ms, exactly like the reference.
+// The old pill/size/scale morph is gone: Caelestia's popouts keep their full
+// size and are revealed by the curtain, so nothing reflows.
+//
 // Usage: PanelShell { moduleId: "volume"; shown: scope.showVolume; ... }
-// (SettingsPanel/CalendarMenu are intentionally excluded: centered modal
-// and Loader-anchored popup follow different geometry.)
 pragma ComponentBehavior: Bound
 import QtQuick
 import "../themes"
 
-Rectangle {
+Item {
     id: root
 
     required property string moduleId
@@ -25,63 +28,103 @@ Rectangle {
 
     default property alias content: contentCol.children
 
-    antialiasing: Theme.shapesAa
-    width: boxWidth
-    implicitHeight: Math.max(minHeight, Math.min(contentCol.implicitHeight + heightPadding, shellAnchor.screenHeight - shellAnchor.edgeOffset - 24))
+    // Full (open) card height; changes glide inside the popout while open.
+    readonly property real cardHeight: Math.max(minHeight, Math.min(contentCol.implicitHeight + heightPadding, shellAnchor.screenHeight - shellAnchor.edgeOffset - 24))
 
     BarAnchor {
         id: shellAnchor
         moduleId: root.moduleId
         barPos: root.barPos
-        panelWidth: root.width
-        panelHeight: root.implicitHeight
+        panelWidth: root.boxWidth
+        panelHeight: root.cardHeight
         screenWidth: root.parent.width
         screenHeight: root.parent.height
         gap: root.panelGap
-        fallbackX: (root.parent.width - root.width) / 2
-        fallbackY: (root.parent.height - root.implicitHeight) / 2
+        fallbackX: (root.parent.width - root.boxWidth) / 2
+        fallbackY: (root.parent.height - root.cardHeight) / 2
     }
-    x: shellAnchor.panelX
-    y: shellAnchor.panelY
-    color: Theme.bg
-    border.color: Theme.panelBorderColor
-    border.width: 2
-    radius: 0
-    clip: true
 
-    PanelSpring {
-        id: shellSpring
-        slideFade: true
+    CaelestiaPopout {
+        id: popout
+
         shown: root.shown
-        hiddenX: root.barPos === "left" ? -(root.width + 5) : root.barPos === "right" ? (root.width + 5) : 0
-        hiddenY: root.barPos === "top" ? -(root.implicitHeight + 5) : root.barPos === "bottom" ? (root.implicitHeight + 5) : 0
-    }
-    visible: shellSpring.boxVisible
-    opacity: shellSpring.fade
-    scale: shellSpring.zoom
-    transformOrigin: shellAnchor.origin
-    transform: Translate { x: shellSpring.slideX; y: shellSpring.slideY }
+        barPos: root.barPos
+        fullWidth: root.boxWidth
+        fullHeight: root.cardHeight
+        anchorCenter: shellAnchor.isVertical ? shellAnchor.cy : shellAnchor.cx
+        // Bar inner edge: the fixed edge the curtain reveals from.
+        edge: root.barPos === "bottom" ? shellAnchor.panelY + root.cardHeight : root.barPos === "right" ? shellAnchor.panelX + root.boxWidth : root.barPos === "left" ? shellAnchor.panelX : shellAnchor.panelY
+        screenSize: shellAnchor.isVertical ? shellAnchor.screenHeight : shellAnchor.screenWidth
+        margin: shellAnchor.margin
 
-    // Swallow clicks/wheel so they don't dismiss the panel.
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.AllButtons
-        onClicked: mouse => mouse.accepted = true
-        onPressed: mouse => mouse.accepted = true
-        onWheel: wheel => wheel.accepted = true
-    }
+        Rectangle {
+            id: card
 
-    Flickable {
-        anchors.fill: parent
-        anchors.margins: root.contentMargins
-        contentHeight: contentCol.implicitHeight
-        clip: true
-        boundsBehavior: Flickable.StopAtBounds
-        interactive: contentHeight > height
-        Column {
-            id: contentCol
+            // Frame: stretched by the popout (top edge pinned at the bar),
+            // radius clamped while short so it reads as a pill being pulled
+            // out of the bar.
             width: parent.width
-            spacing: root.contentSpacing
+            height: parent.height
+            antialiasing: Theme.shapesAa
+            color: Theme.bg
+            border.color: Theme.panelBorderColor
+            border.width: 2
+            radius: popout.frameRadius
+            // Unclipped: the fillets paint outside the box and the content
+            // stage overflows it; the popout viewport clips both exactly at
+            // the frame's far edge.
+            clip: false
+
+            // Swallow clicks/wheel so they don't dismiss the panel.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.AllButtons
+                onClicked: mouse => mouse.accepted = true
+                onPressed: mouse => mouse.accepted = true
+                onWheel: wheel => wheel.accepted = true
+            }
+
+            // Square fused corners (tray-menu joint): the patches melt the
+            // box straight into the bar while the far corners keep their
+            // rounding. Plain children: they emerge with the card.
+            PanelCorner { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            PanelCorner { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            // Outward-curved shoulders on top of the fusion (Caelestia joint).
+            PanelFillet { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            PanelFillet { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            // Seam strip: erases the collar outline along the fused edge so
+            // the joint reads as one mass. Same background, below content.
+            Rectangle {
+                antialiasing: Theme.shapesAa
+                x: 0
+                y: root.barPos === "bottom" ? root.cardHeight - 2 : 0
+                width: root.boxWidth
+                height: 2
+                color: Theme.bg
+            }
+
+            Flickable {
+                // Content moves independently of the frame: always laid out
+                // at the full panel size (so nothing reflows mid-stretch) and
+                // travelled by the popout's own content driver.
+                x: root.contentMargins + popout.contentX
+                y: root.contentMargins + popout.contentY
+                width: root.boxWidth - root.contentMargins * 2
+                height: popout.fullHeight - root.contentMargins * 2
+                contentHeight: contentCol.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: contentHeight > height
+                // Popout transition (Caelestia Content/Popout loader fades):
+                // slow effects in, default effects out. No scale/rise — the
+                // reference only folds the content.
+                opacity: popout.innerFade
+                Column {
+                    id: contentCol
+                    width: root.boxWidth - root.contentMargins * 2
+                    spacing: root.contentSpacing
+                }
+            }
         }
     }
 }

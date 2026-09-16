@@ -20,6 +20,8 @@ Scope {
     signal toggleBluetooth()
     signal toggleVitals()
     signal toggleSystemTray()
+    signal toggleControlCenter()
+    signal toggleNetanjahu()
     signal openUpdates()
     signal closePanel(string moduleId)
 
@@ -32,6 +34,8 @@ Scope {
     property bool vitalsOpen: false
     property bool trayOpen: false
     property bool updatesOpen: false
+    property bool controlCenterOpen: false
+    property bool netanjahuOpen: false
     // Modul -> Sichtbarkeitsflag (Tabelle statt if-Kette; neue Panels nur hier).
     function moduleActive(id: string): bool {
         const flag = {
@@ -43,7 +47,9 @@ Scope {
             bluetooth: "bluetoothOpen",
             vitals: "vitalsOpen",
             systemtray: "trayOpen",
-            updates: "updatesOpen"
+            updates: "updatesOpen",
+            controlcenter: "controlCenterOpen",
+            netanjahu: "netanjahuOpen"
         }[id]
         return flag !== undefined ? !!topBarScope[flag] : false
     }
@@ -447,6 +453,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -504,6 +512,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -559,6 +569,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -616,6 +628,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -671,6 +685,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -738,6 +754,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -795,6 +813,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -852,6 +872,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -909,6 +931,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)
@@ -966,6 +990,8 @@ Scope {
                                     onRequestBluetooth: topBarScope.toggleBluetooth()
                                     onRequestVitals: topBarScope.toggleVitals()
                                     onRequestSystemTray: topBarScope.toggleSystemTray()
+                                    onRequestControlCenter: topBarScope.toggleControlCenter()
+                                    onRequestNetanjahu: topBarScope.toggleNetanjahu()
                                     onHideRequest: topBarScope.closePanel(modelData)
                                     onPressBegun: topBarWindow.clearDrag()
                                     onThresholdPassed: (slot, x, y) => topBarWindow.startSlotDrag(slot, x, y)

@@ -256,7 +256,18 @@ Item {
             let n = iconSrc.split("?")[0]
             return n.slice(-9) === "-symbolic"
         }
-        function openMenu(): void { slotMenuAnchor.open() }
+        function openMenu(): void {
+            // CRASH FIX: anchor.item/window must not be *bound* here. When the
+            // bar Repeater rebuilds this delegate (module drag/drop rewrites
+            // the layout arrays) the live QML binding re-fires while the slot
+            // item is being torn down, and Quickshell segfaults in
+            // PopupAnchor::onItemWindowChanged on the dangling item
+            // (QQuickItem::window()). Set them imperatively at open time;
+            // PopupAnchor clears item itself on destruction.
+            slotMenuAnchor.anchor.window = traySlot.QsWindow.window
+            slotMenuAnchor.anchor.item = traySlot
+            slotMenuAnchor.open()
+        }
         Item {
             anchors.centerIn: parent
             width: root.iconPx
@@ -302,8 +313,6 @@ Item {
         }
         QsMenuAnchor {
             id: slotMenuAnchor
-            anchor.window: traySlot.QsWindow.window
-            anchor.item: traySlot
             anchor.rect.x: traySlot.width / 2
             anchor.rect.y: traySlot.height
             anchor.rect.width: 1

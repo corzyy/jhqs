@@ -13,7 +13,7 @@ Scope {
     property bool showBluetooth: false
     signal dismissed()
     property bool _winVisible: showBluetooth
-    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showBluetooth) scope._winVisible = false }
+    Timer { id: hideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!scope.showBluetooth) scope._winVisible = false }
     onShowBluetoothChanged: {
         if (showBluetooth) {
             _winVisible = true
@@ -31,8 +31,9 @@ Scope {
         }
     }
     readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
 
     // Native backend is live (2s projection sync in service) — no polling
     // timer needed while open.
@@ -59,13 +60,13 @@ Scope {
         Rectangle {
             anchors.centerIn: parent
             width: 42; height: 22
-            radius: 0
+            radius: height / 2
             color: swRoot.checked ? Theme.withAlpha(Theme.textPrimary, 0.18) : Theme.withAlpha(Theme.textPrimary, 0.04)
             border.color: swRoot.checked ? "transparent" : Theme.withAlpha(Theme.textPrimary, 0.4)
             border.width: swRoot.checked ? 0 : 1
             Rectangle {
                 width: 16; height: 16
-                radius: 0
+                radius: width / 2
                 x: swRoot.checked ? parent.width - width - 3 : 3
                 anchors.verticalCenter: parent.verticalCenter
                 color: swRoot.checked ? Theme.textPrimary : Theme.textSecondary

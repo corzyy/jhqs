@@ -14,6 +14,8 @@ Item {
     signal requestBluetooth()
     signal requestVitals()
     signal requestSystemTray()
+    signal requestControlCenter()
+    signal requestNetanjahu()
     required property string moduleId
     property bool vertical: false
     // Kept for interface compat (DraggableModule assigns monitor:). Unused
@@ -127,6 +129,12 @@ Item {
         case "systemtray":
             clickSystemTray(button, x, y)
             break
+        case "controlcenter":
+            if (left) requestControlCenter()
+            break
+        case "netanjahu":
+            if (left) requestNetanjahu()
+            break
         case "workspaces":
             if (left) clickWorkspaces(x, y)
             break
@@ -210,6 +218,8 @@ Item {
             case "vitals": return vitalsComp
             case "systemtray": return trayComp
             case "activewindow": return activeComp
+            case "controlcenter": return controlCenterComp
+            case "netanjahu": return netanjahuComp
             }
             return null
         }
@@ -263,4 +273,6 @@ Item {
         SystemTray { vertical: root.vertical; hoverExpand: root.slotHovered; onRequestManage: root.requestSystemTray() }
     }
     Component { id: activeComp; ActiveWindow { vertical: root.vertical } }
+    Component { id: controlCenterComp; ControlCenterWidget { vertical: root.vertical; onClicked: root.requestControlCenter() } }
+    Component { id: netanjahuComp; NetanjahuWidget { vertical: root.vertical; onClicked: root.requestNetanjahu() } }
 }

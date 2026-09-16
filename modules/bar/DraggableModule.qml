@@ -24,6 +24,8 @@ Item {
     signal requestBluetooth()
     signal requestVitals()
     signal requestSystemTray()
+    signal requestControlCenter()
+    signal requestNetanjahu()
     signal hideRequest()
     signal pressBegun()
     signal thresholdPassed(var slot, real x, real y)
@@ -110,6 +112,8 @@ Item {
         onRequestBluetooth: root.requestBluetooth()
         onRequestVitals: root.requestVitals()
         onRequestSystemTray: root.requestSystemTray()
+        onRequestControlCenter: root.requestControlCenter()
+        onRequestNetanjahu: root.requestNetanjahu()
     }
 
     Rectangle {

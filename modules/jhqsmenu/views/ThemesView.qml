@@ -14,7 +14,10 @@ Item {
     opacity: bodyRoot.scope.showThemes ? 1 : 0
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showThemes
-    Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+    scale: bodyRoot.scope.showThemes ? 1 : 0.97
+    transformOrigin: Item.Center
+    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     property bool showMonetSettings: false
 
@@ -194,14 +197,6 @@ Item {
                             height: 50; radius: Theme.cornerRadius
                             color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : filteredMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                             border.color: "transparent"; border.width: 0
-                            Rectangle {
-                                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-                                width: 3
-                                radius: Theme.cornerRadius
-                                antialiasing: Theme.shapesAa
-                                color: Theme.accent
-                                visible: isSelected
-                            }
                             MouseArea { id: filteredMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("preset-" + modelData.id); bodyRoot.scope.setThemeEngine(modelData.id) } }
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
@@ -261,14 +256,6 @@ Item {
                             radius: Theme.cornerRadius
                             color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : presetMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                             border.color: "transparent"; border.width: 0
-                            Rectangle {
-                                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-                                width: 3
-                                radius: Theme.cornerRadius
-                                antialiasing: Theme.shapesAa
-                                color: Theme.accent
-                                visible: isSelected
-                            }
                             MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("preset-" + modelData.id); bodyRoot.scope.setThemeEngine(modelData.id) } }
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
@@ -322,14 +309,6 @@ Item {
                 color: root.isSelected("mode") ? Theme.withAlpha(Theme.textPrimary, 0.08) : modeMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                 border.color: "transparent"
                 border.width: 0
-                Rectangle {
-                    anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-                    width: 3
-                    radius: Theme.cornerRadius
-                    antialiasing: Theme.shapesAa
-                    color: Theme.accent
-                    visible: root.isSelected("mode")
-                }
                 MouseArea { id: modeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.selectedIndex = root.navIndex("mode"); root.activateSelected() } }
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
@@ -367,14 +346,6 @@ Item {
                         radius: Theme.cornerRadius
                         color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : variantMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                         border.color: "transparent"; border.width: 0
-                        Rectangle {
-                            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-                            width: 3
-                            radius: Theme.cornerRadius
-                            antialiasing: Theme.shapesAa
-                            color: Theme.accent
-                            visible: isSelected
-                        }
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                             Text { text: "󰸉"; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isSelected ? Theme.accent : Theme.textPrimary; Layout.preferredWidth: 36; horizontalAlignment: Text.AlignHCenter

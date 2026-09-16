@@ -1,7 +1,19 @@
 {
     "brightness": 100,
-    "fishPrompt": "pure",
+    "fishPrompt": "minimal",
     "kittyFontSize": 12,
     "kittyOpacity": 1,
-    "kittyPadding": 14
+    "kittyPadding": 13,
+    "searchApps": true,
+    "searchEmoji": true,
+    "searchGen": true,
+    "searchInstall": true,
+    "searchLearn": true,
+    "searchMath": true,
+    "searchMenu": true,
+    "searchRemove": true,
+    "searchSetup": true,
+    "searchStyle": true,
+    "searchSystem": true,
+    "searchUnits": true
 }

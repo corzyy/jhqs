@@ -14,7 +14,10 @@ Item {
     opacity: bodyRoot.scope.showKeybinds ? 1 : 0
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showKeybinds
-    Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Theme.easingStandard } }
+    scale: bodyRoot.scope.showKeybinds ? 1 : 0.97
+    transformOrigin: Item.Center
+    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     readonly property bool isLoading: bodyRoot.scope.keybindLoading
     readonly property int navCount: bodyRoot.scope.filteredKeybinds.length
@@ -142,16 +145,6 @@ Item {
             color: isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
             border.color: "transparent"
             border.width: 0
-            Rectangle {
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 3
-                radius: Theme.cornerRadius
-                antialiasing: Theme.shapesAa
-                color: Theme.accent
-                visible: isSelected
-            }
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 12

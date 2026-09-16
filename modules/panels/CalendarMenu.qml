@@ -16,7 +16,7 @@ Scope {
     signal dismissed()
     property var notifServer: null
     property bool _winVisible: showCalendar
-    Timer { id: calHideTimer; interval: 0; repeat: false; onTriggered: if (!root.showCalendar) root._winVisible = false }
+    Timer { id: calHideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!root.showCalendar) root._winVisible = false }
     // PERF: shared debounce for wheel + arrow-key month navigation.
     Timer { id: _monthNavDebounce; interval: 100; repeat: false }
     onShowCalendarChanged: {
@@ -291,9 +291,11 @@ Scope {
         signal expandRequested()
         implicitHeight: notifInner.implicitHeight + 20
         height: leaving ? 0 : implicitHeight
-        Behavior on height { enabled: cardRoot.leaving; NumberAnimation { duration: 180; easing.type: Easing.InOutQuad } }
+        // Caelestia dismiss morph: height collapses on the spatial curve,
+        // fade on the effects curve (were hardcoded 180/160 InOutQuad).
+        Behavior on height { enabled: cardRoot.leaving && Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
         opacity: leaving ? 0 : 1.0 - Math.min(0.5, Math.abs(swipeProxy.x) / Math.max(1, width) * 0.7)
-        Behavior on opacity { enabled: cardRoot.leaving; NumberAnimation { duration: 160 } }
+        Behavior on opacity { enabled: cardRoot.leaving && Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
         transform: Translate { x: swipeProxy.x }
         clip: true
         radius: 0
@@ -301,13 +303,14 @@ Scope {
         border.color: (entry.urgency === 2) ? Theme.errorColor : Theme.divider
         border.width: 1
         Item { id: swipeProxy; x: 0 }
-        NumberAnimation { id: snapBack; target: swipeProxy; property: "x"; to: 0; duration: 160; easing.type: Easing.OutCubic }
+        // Swipe snap-back / fly-out on the expressive curves.
+        NumberAnimation { id: snapBack; target: swipeProxy; property: "x"; to: 0; duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveEmphasizedDecelerate }
         NumberAnimation {
             id: flyOut
-            target: swipeProxy; property: "x"; duration: 160; easing.type: Easing.InQuad
+            target: swipeProxy; property: "x"; duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandardAccel
             onFinished: { cardRoot.leaving = true; byeTimer.restart() }
         }
-        Timer { id: byeTimer; interval: 220; repeat: false; onTriggered: cardRoot.scope.dismissHistoryEntry(cardRoot.entry) }
+        Timer { id: byeTimer; interval: Theme.durDefaultSpatial + Theme.durFastEffects; repeat: false; onTriggered: cardRoot.scope.dismissHistoryEntry(cardRoot.entry) }
         MouseArea {
             id: swipeMouse
             anchors.fill: parent
@@ -472,12 +475,12 @@ Scope {
                     antialiasing: Theme.shapesAa
                     anchors.centerIn: parent
                     width: 42; height: 22
-                    radius: 0
+                    radius: height / 2
                     color: Theme.dndEnabled ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.12)
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         width: 16; height: 16
-                        radius: 0
+                        radius: width / 2
                         x: Theme.dndEnabled ? parent.width - width - 3 : 3
                         anchors.verticalCenter: parent.verticalCenter
                         color: Theme.dndEnabled ? Theme.onAccent : Theme.textSecondary
@@ -652,8 +655,9 @@ Scope {
 
     readonly property int barT: Theme.barThickness
     readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
 
     FileView {
         id: calendarSettingsFile
@@ -906,136 +910,180 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             MouseArea { anchors.fill: parent; onClicked: root.dismissed() }
 
-            Loader {
-                id: calLoader
-                // PERF: hidden calendar kept an 840px popup + all Repeaters +
-                // NotifCenter alive (always-active Loader). Gate on window.
-                active: root._winVisible || root.showCalendar
-                BarAnchor {
-                    id: calAnchor
-                    moduleId: "clock"
-                    barPos: root.barPos
-                    panelWidth: calLoader.width
-                    panelHeight: calLoader.height
-                    screenWidth: calLoader.parent.width
-                    screenHeight: calLoader.parent.height
-                    gap: root.panelGap
-                    fallbackX: (calLoader.parent.width - calLoader.width) / 2
-                    fallbackY: calLoader.parent.height - calLoader.height - root.panelGap
-                }
-                x: calAnchor.panelX
-                y: calAnchor.panelY
-                PanelSpring {
-                    id: calSpring
-                    slideFade: true
-                    shown: root.showCalendar
-                    hiddenX: root.barPos === "left" ? -(calLoader.width + 5) : root.barPos === "right" ? (calLoader.width + 5) : 0
-                    hiddenY: root.barPos === "top" ? -(calLoader.height + 5) : root.barPos === "bottom" ? (calLoader.height + 5) : 0
-                }
-                visible: calSpring.boxVisible
-                opacity: calSpring.fade
-                scale: calSpring.zoom
-                transformOrigin: calAnchor.origin
-                transform: Translate { x: calSpring.slideX; y: calSpring.slideY }
-                sourceComponent: Item {
-                    id: popupRoot
-                    width: 840
-                    implicitHeight: outerRect.implicitHeight
-                    height: outerRect.implicitHeight
-                    focus: true
+            // Caelestia popout (Ui/CaelestiaPopout): curtain reveal from
+            // behind the bar edge + slide + nested fades off one offsetScale
+            // driver (1:1 with caelestia-dots/shell).
+            CaelestiaPopout {
+                id: calPopout
+                shown: root.showCalendar
+                barPos: root.barPos
+                // Open geometry: the loaded calendar card is 840 wide and
+                // reports its natural height through the loader's implicit
+                // size (reading the loader's own size would loop, since the
+                // loader is now sized by the popout).
+                fullWidth: 840
+                fullHeight: calLoader.implicitHeight
+                anchorCenter: calAnchor.isVertical ? calAnchor.cy : calAnchor.cx
+                edge: root.barPos === "bottom" ? calAnchor.panelY + calPopout.fullHeight : root.barPos === "right" ? calAnchor.panelX + calPopout.fullWidth : root.barPos === "left" ? calAnchor.panelX : calAnchor.panelY
+                screenSize: calAnchor.isVertical ? calAnchor.screenHeight : calAnchor.screenWidth
+                margin: calAnchor.margin
 
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Escape) { root.dismissed(); event.accepted = true }
-                        else if (!event.isAutoRepeat && (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
-                            if (root._monthNavDebounce.running) { event.accepted = true; return }
-                            root._monthNavDebounce.start()
-                            if (event.key === Qt.Key_Left) root.moveMonth(-1)
-                            else if (event.key === Qt.Key_Right) root.moveMonth(1)
-                            else if (event.key === Qt.Key_Up) root.moveYear(-1)
-                            else root.moveYear(1)
-                            event.accepted = true
-                        }
-                        else if (event.key === Qt.Key_Home || event.text === "t" || event.text === "T") { root.goToToday(); event.accepted = true }
-                        else if (event.text === "w" || event.text === "W") { root.toggleWeekStart(); event.accepted = true }
-                    }
-                    Component.onCompleted: forceActiveFocus()
-                    Connections {
-                        target: root
-                        function onShowCalendarChanged() {
-                            if (root.showCalendar) {
-                                root.today = new Date(); root.goToToday()
-                                Qt.callLater(function() { popupRoot.forceActiveFocus() })
-                            }
-                        }
-                    }
-
+                // Frame: stretched by the popout (near edge pinned at the
+                // bar) exactly like every other panel, with the clamped
+                // radius while short.
+                Rectangle {
+                    id: calCard
+                    width: parent.width
+                    height: parent.height
+                    antialiasing: Theme.shapesAa
+                    color: Theme.bg
+                    border.color: Theme.panelBorderColor
+                    border.width: 2
+                    radius: calPopout.frameRadius
+                    clip: false
+                    // Square fused corners (tray-menu joint); plain children,
+                    // so they emerge with the frame exactly like the box.
+                    PanelCorner { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    PanelCorner { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    // Outward-curved shoulders on top of the fusion (Caelestia joint).
+                    PanelFillet { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    PanelFillet { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    // Seam strip: erases the collar outline along the fused edge.
                     Rectangle {
                         antialiasing: Theme.shapesAa
-                        id: outerRect
-                        anchors.fill: parent
-                        implicitHeight: contentRow.implicitHeight + 36
+                        x: 0
+                        y: root.barPos === "bottom" ? calCard.height - 2 : 0
+                        width: calCard.width
+                        height: 2
                         color: Theme.bg
-                        border.color: Theme.panelBorderColor
-                        border.width: 2
-                        radius: Theme.cornerRadius
-                        clip: true
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.AllButtons
-                        onClicked: mouse => mouse.accepted = true
-                        onPressed: mouse => mouse.accepted = true
-                        onWheel: wheel => wheel.accepted = true
                     }
 
-                    RowLayout {
-                        id: contentRow
-                        anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-                        anchors.topMargin: 18; anchors.leftMargin: 20; anchors.rightMargin: 20; anchors.bottomMargin: 18
-                        spacing: 0
-                        // Pane swap: RTL mirrors child order. Both panes pin
-                        // LTR back so only the order flips, never the text.
-                        layoutDirection: Theme.calendarNotifLeft ? Qt.LeftToRight : Qt.RightToLeft
-
-                        NotifCenter { scope: root; layoutDirection: Qt.LeftToRight; Layout.preferredWidth: root.notifPaneWidth; Layout.fillHeight: true }
-
-                        Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            Layout.preferredWidth: 1
-                            Layout.fillHeight: true
-                            Layout.topMargin: 4
-                            Layout.bottomMargin: 4
-                            color: Theme.divider
-                            opacity: 0.8
+                    Loader {
+                        id: calLoader
+                        // Content travels on the popout's own driver (frame
+                        // stretches first, content settles after) and keeps
+                        // the full panel size so nothing reflows mid-stretch.
+                        x: calPopout.contentX
+                        y: calPopout.contentY
+                        width: calPopout.fullWidth
+                        height: calPopout.fullHeight
+                        BarAnchor {
+                            id: calAnchor
+                            moduleId: "clock"
+                            barPos: root.barPos
+                            panelWidth: calPopout.fullWidth
+                            panelHeight: calPopout.fullHeight
+                            // Screen dims come from the popout's parent (the
+                            // full-screen layer item).
+                            screenWidth: calPopout.parent.width
+                            screenHeight: calPopout.parent.height
+                            gap: root.panelGap
+                            fallbackX: (calPopout.parent.width - calPopout.fullWidth) / 2
+                            fallbackY: calPopout.parent.height - calPopout.fullHeight - root.panelGap
                         }
-                        Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
+                    sourceComponent: Item {
+                        id: popupRoot
+                        width: 840
+                        implicitHeight: outerRect.implicitHeight
+                        height: outerRect.implicitHeight
+                        focus: true
+                        // Island morph progress, forwarded from the loader scope
+                        // (separate component: outer ids are not visible here).
+                        // 1 = fully open; defaults open for standalone contexts.
+                        property real islandGrow: 1
+                        property real islandT: Math.max(0, Math.min(1, islandGrow))
 
-                        ColumnLayout {
-                            id: calCol
-                            layoutDirection: Qt.LeftToRight
-                            Layout.preferredWidth: root.calPaneWidth
-                            Layout.fillHeight: true
-                            spacing: 8
-                            CalHeader { scope: root; showNav: true }
-                            CalHero { scope: root }
-                            CalGrid { scope: root }
-                            CalFooter { scope: root }
-                            WheelHandler {
-                                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                                // PERF: fast scroll/key-repeat rebuilt the 42-cell
-                                // grid per tick. Debounce to one nav per 100ms.
-                                onWheel: event => {
-                                    if (event.angleDelta.y === 0) return
-                                    if (root._monthNavDebounce.running) { event.accepted = true; return }
-                                    root._monthNavDebounce.start()
-                                    root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
-                                    event.accepted = true
+                        Keys.onPressed: event => {
+                            if (event.key === Qt.Key_Escape) { root.dismissed(); event.accepted = true }
+                            else if (!event.isAutoRepeat && (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+                                if (root._monthNavDebounce.running) { event.accepted = true; return }
+                                root._monthNavDebounce.start()
+                                if (event.key === Qt.Key_Left) root.moveMonth(-1)
+                                else if (event.key === Qt.Key_Right) root.moveMonth(1)
+                                else if (event.key === Qt.Key_Up) root.moveYear(-1)
+                                else root.moveYear(1)
+                                event.accepted = true
+                            }
+                            else if (event.key === Qt.Key_Home || event.text === "t" || event.text === "T") { root.goToToday(); event.accepted = true }
+                            else if (event.text === "w" || event.text === "W") { root.toggleWeekStart(); event.accepted = true }
+                        }
+                        Component.onCompleted: forceActiveFocus()
+                        Connections {
+                            target: root
+                            function onShowCalendarChanged() {
+                                if (root.showCalendar) {
+                                    root.today = new Date(); root.goToToday()
+                                    Qt.callLater(function() { popupRoot.forceActiveFocus() })
+                                }
+                            }
+                        }
+
+                        // Frame visuals live in calCard (the popout frame);
+                        // this item only carries the layout height.
+                        Item {
+                            antialiasing: Theme.shapesAa
+                            id: outerRect
+                            anchors.fill: parent
+                            implicitHeight: contentRow.implicitHeight + 36
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.AllButtons
+                            onClicked: mouse => mouse.accepted = true
+                            onPressed: mouse => mouse.accepted = true
+                            onWheel: wheel => wheel.accepted = true
+                        }
+
+                        RowLayout {
+                            id: contentRow
+                            anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+                            anchors.topMargin: 18; anchors.leftMargin: 20; anchors.rightMargin: 20; anchors.bottomMargin: 18
+                            spacing: 0
+                            // Pane swap: RTL mirrors child order. Both panes pin
+                            // LTR back so only the order flips, never the text.
+                            layoutDirection: Theme.calendarNotifLeft ? Qt.LeftToRight : Qt.RightToLeft
+
+                            NotifCenter { scope: root; layoutDirection: Qt.LeftToRight; Layout.preferredWidth: root.notifPaneWidth; Layout.fillHeight: true }
+
+                            Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
+                            Rectangle {
+                                antialiasing: Theme.shapesAa
+                                Layout.preferredWidth: 1
+                                Layout.fillHeight: true
+                                Layout.topMargin: 4
+                                Layout.bottomMargin: 4
+                                color: Theme.divider
+                                opacity: 0.8
+                            }
+                            Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
+
+                            ColumnLayout {
+                                id: calCol
+                                layoutDirection: Qt.LeftToRight
+                                Layout.preferredWidth: root.calPaneWidth
+                                Layout.fillHeight: true
+                                spacing: 8
+                                CalHeader { scope: root; showNav: true }
+                                CalHero { scope: root }
+                                CalGrid { scope: root }
+                                CalFooter { scope: root }
+                                WheelHandler {
+                                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                    // PERF: fast scroll/key-repeat rebuilt the 42-cell
+                                    // grid per tick. Debounce to one nav per 100ms.
+                                    onWheel: event => {
+                                        if (event.angleDelta.y === 0) return
+                                        if (root._monthNavDebounce.running) { event.accepted = true; return }
+                                        root._monthNavDebounce.start()
+                                        root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
+                                        event.accepted = true
+                                    }
                                 }
                             }
                         }
                     }
+                }
                 }
             }
         }

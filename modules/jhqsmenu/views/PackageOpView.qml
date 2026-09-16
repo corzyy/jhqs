@@ -15,6 +15,8 @@ Item {
     enabled: bodyRoot.scope.showPackages && bodyRoot.scope.packageOpActive
     scale: (bodyRoot.scope.showPackages && bodyRoot.scope.packageOpActive) ? 1 : 0.97
     transformOrigin: Item.Center
+    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
     function handleKey(event): bool { return false }
 
     readonly property bool isRemove: bodyRoot.scope.packageOpMode === "remove" || bodyRoot.scope.packageOpMode === "flatpakremove"

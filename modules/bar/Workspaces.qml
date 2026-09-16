@@ -224,6 +224,14 @@ Item {
         opacity: root.isM3 ? 1.0 : (occupied || focused ? 1.0 : 0.5)
         scale: root.hoverScaleFor(delegateIndex)
 
+        // Caelestia workspace motion: focus/hover fades ride the effects
+        // curve, hover scale the fast-spatial curve, and siblings glide when
+        // the row reflows (ActiveIndicator trailing-pill equivalent).
+        Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+        Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+        Behavior on x { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+        Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+
         // M3-Indikator (Pille)
         Rectangle {
             antialiasing: Theme.shapesAa
@@ -233,6 +241,10 @@ Item {
             height: delegate.isVertical ? delegate.pillLength - 2 * root.uiScale : delegate.pillThickness
             radius: (delegate.isVertical ? width : height) / 2
             color: delegate.focused ? Theme.accent : delegate.occupied ? Theme.textSecondary : Theme.divider
+            // Pille morphs length + tint when focus/occupancy changes.
+            Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+            Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         }
 
         // Klassischer Fokus-Punkt (alle Stile außer m3 / default2)
@@ -246,6 +258,8 @@ Item {
             visible: !root.isM3 && !root.isDefault2
             opacity: delegate.focused ? 1 : 0
             scale: delegate.focused ? 1.1 : 0.6
+            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+            Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
         }
 
         // default2-Hover/Selektionsfläche (Ränder je nach Orientierung)
@@ -275,6 +289,9 @@ Item {
             visible: !root.isM3
             opacity: root.isDefault2 ? 1 : (delegate.focused ? 0 : 1)
             scale: root.isDefault2 ? 1.0 : (delegate.focused ? 0.7 : 1.0)
+            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+            Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         }
 
         // default2-Unterstrich (horizontal) bzw. Seitenstrich (vertikal)

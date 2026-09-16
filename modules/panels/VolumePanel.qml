@@ -15,7 +15,7 @@ Scope {
     property bool showVolume: false
     signal dismissed()
     property bool _winVisible: showVolume
-    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showVolume) scope._winVisible = false }
+    Timer { id: hideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!scope.showVolume) scope._winVisible = false }
     onShowVolumeChanged: {
         if (showVolume) {
             _winVisible = true
@@ -24,8 +24,9 @@ Scope {
         } else hideTimer.restart()
     }
     readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
 
     readonly property real outVol: (VolumeService.pct || 0) / 100
     readonly property bool outMuted: VolumeService.isMuted
@@ -175,10 +176,11 @@ Scope {
         refreshDebounce.restart()
     }
     // PERF: one refresh pass per action burst (was Qt.callLater per click +
-    // 5s timer, spawning 3x pactl+awk per click).
+    // 5s timer, spawning 3x pactl+awk per click). 250ms so device/stream
+    // rows follow the hero volume without a visible lag step.
     Timer {
         id: refreshDebounce
-        interval: 500; repeat: false
+        interval: 250; repeat: false
         onTriggered: refreshAudio()
     }
     function refreshAudio() {
@@ -408,7 +410,10 @@ Scope {
                 if (mouse.button !== Qt.LeftButton) return
                 slRoot.dragging = false
                 slRoot.released(slRoot.liveValue)
-                slRoot.liveValue = slRoot.value
+                // No liveValue=value snap-back here: the PipeWire ack lands a
+                // moment later, and snapping back first makes the thumb jump
+                // to the stale value and then forward again (felt as lag).
+                // The value binding re-syncs liveValue once dragging stops.
             }
             onWheel: wheel => {
                 let d = wheel.angleDelta.y > 0 ? slRoot.step : -slRoot.step

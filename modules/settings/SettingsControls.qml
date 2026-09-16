@@ -230,7 +230,8 @@ QtObject {
             {id: "vitals", title: "Vitals", icon: "󰻠"},
             {id: "workspaces", title: "Workspaces", icon: ""},
             {id: "calendar", title: "Calendar", icon: "󰃭"},
-            {id: "notif", title: "Notifications", icon: "󰂚"}
+            {id: "notif", title: "Notifications", icon: "󰂚"},
+            {id: "search", title: "Search", icon: "󰍉"}
         ]
         readonly property bool searching: (query || "").trim().length > 0
         property var filtered: {
@@ -288,30 +289,9 @@ QtObject {
                         readonly property bool isCurrent: modelData.id === root.current
                         width: navCol.width; height: 50
                         radius: Theme.cornerRadius
-                        color: isCurrent ? Theme.accent
+                        color: isCurrent ? Theme.withAlpha(Theme.textPrimary, 0.08)
                             : navMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent"
                         border.color: "transparent"; border.width: 0
-                        // Accent rim hugging the highlight: the row itself
-                        // goes accent when current and this opaque inner
-                        // fill leaves a 3px accent edge on the left with
-                        // concentric radius. At 0px this renders exactly
-                        // like the old flat cursor bar.
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.leftMargin: 3
-                            radius: Math.max(0, Theme.cornerRadius - 3)
-                            antialiasing: Theme.shapesAa
-                            color: Theme.bg
-                            visible: isCurrent
-                        }
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.leftMargin: 3
-                            radius: Math.max(0, Theme.cornerRadius - 3)
-                            antialiasing: Theme.shapesAa
-                            color: Theme.withAlpha(Theme.textPrimary, 0.08)
-                            visible: isCurrent
-                        }
                         Row {
                             anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                             Text { text: modelData.icon; font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18); color: isCurrent ? Theme.accent : Theme.textPrimary; anchors.verticalCenter: parent.verticalCenter; width: 36; horizontalAlignment: Text.AlignHCenter
@@ -409,6 +389,9 @@ QtObject {
                 radius: Math.min(Theme.cornerRadiusSmall, height / 2)
                 width: omTrack.width * parent.progress
                 color: Theme.accent
+                // Drags track the finger instantly; clicks/keys glide.
+                Behavior on width { enabled: Theme.animationsEnabled && !omMouse.dragging; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+                Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
@@ -421,11 +404,13 @@ QtObject {
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
-                width: 4; height: 18
+                width: 4; height: omMouse.dragging ? 24 : 18
                 radius: 2
                 color: Theme.accent
                 anchors.verticalCenter: omTrack.verticalCenter
                 x: Math.max(0, Math.min(omTrack.width - width, omTrack.width * parent.progress - width / 2))
+                Behavior on x { enabled: Theme.animationsEnabled && !omMouse.dragging; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+                Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
             }
             MouseArea {
                 id: omMouse
@@ -534,19 +519,22 @@ QtObject {
                 antialiasing: Theme.shapesAa
                 anchors.centerIn: parent
                 width: 42; height: 22
-                radius: 0
+                radius: height / 2
                 color: !root.enabled ? Theme.withAlpha(Theme.textPrimary, 0.04)
                     : root.on ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.12)
                 border.color: root.enabled && !root.on && toggleMouse.containsMouse ? Theme.accent : "transparent"
                 border.width: root.enabled && !root.on && toggleMouse.containsMouse ? 1 : 0
+                Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     width: 16; height: 16
-                    radius: 0
+                    radius: width / 2
                     x: root.on ? parent.width - width - 3 : 3
                     anchors.verticalCenter: parent.verticalCenter
                     color: !root.enabled ? Theme.textMuted
                         : root.on ? Theme.onAccent : Theme.textSecondary
+                    Behavior on x { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
+                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
                 }
             }
             MouseArea {

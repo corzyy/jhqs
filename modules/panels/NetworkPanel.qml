@@ -13,7 +13,7 @@ Scope {
     property bool showNetwork: false
     signal dismissed()
     property bool _winVisible: showNetwork
-    Timer { id: hideTimer; interval: 0; repeat: false; onTriggered: if (!scope.showNetwork) scope._winVisible = false }
+    Timer { id: hideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!scope.showNetwork) scope._winVisible = false }
     onShowNetworkChanged: {
         if (showNetwork) {
             _winVisible = true
@@ -39,8 +39,9 @@ Scope {
         else if (step === 4) { NetworkService.rescan() }
     }
     readonly property string barPos: Theme.barPosition
-    readonly property int screenGap: 6
-    property int panelGap: screenGap - Theme.barThickness
+    // Attached-bar morph: tuck under the bar edge (see Theme.panelAttachOverlap)
+    // instead of floating detached below it.
+    property int panelGap: -(Theme.barThickness + Theme.panelAttachOverlap)
 
     Timer { id: statsTimer; interval: 5000; running: scope.showNetwork; repeat: true; triggeredOnStart: false; onTriggered: NetworkService.refreshStats() }
     Timer { id: listTimer; interval: 10000; running: scope.showNetwork; repeat: true; triggeredOnStart: false; onTriggered: { NetworkService.refreshLink(); NetworkService.refreshLists(); NetworkService.refreshDns() } }

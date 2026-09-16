@@ -1,7 +1,9 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Widgets
 import "../../../themes"
+import "../../../Ui"
 
 // Merged from ListRow.qml + ModuleRow.qml (were 90% identical:
 // icon + title + trailing glyph row). One component, two spellings:
@@ -21,6 +23,9 @@ Rectangle {
     readonly property bool active: selected || isSelected
 
     property string icon: ""
+    // Optional image source for the leading slot (e.g. app launcher rows).
+    // Empty falls back to the glyph `icon` Text as before.
+    property string iconSource: ""
     property string title: ""
     property string sub: ""
     property string glyph: "›"
@@ -42,18 +47,32 @@ Rectangle {
     height: hasDetail ? 58 : 50
     Layout.fillWidth: true
     Layout.preferredHeight: height
-    radius: Theme.cornerRadius
-    color: active ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : rowMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
+    // Caelestia ButtonBase radius morph: pressed corners tighten while held.
+    radius: rowLayer.pressed ? Theme.cornerRadiusSmall : Theme.cornerRadius
+    color: active ? (Theme.withAlpha(Theme.textPrimary, 0.08)) : rowLayer.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.04)) : "transparent"
     border.color: "transparent"; border.width: 0
-
-    // Sharp cursor bar (0px design language): marks the selected row.
-    Rectangle {
-        anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-        width: 3
-        radius: Theme.cornerRadius
-        antialiasing: Theme.shapesAa
-        color: Theme.accent
-        visible: root.active
+    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
+    Behavior on radius { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    // Press squash: rows settle slightly while held (ButtonBase feel).
+    scale: rowLayer.pressed ? 0.985 : 1
+    transformOrigin: Item.Center
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+    // Entrance cascade: rows rise + fade in with a per-index stagger when
+    // the list (re)builds — the "content appears" motion. Driven once at
+    // creation so later selection/hover changes never replay it.
+    // `enterOnCreate: false` lets a parent drive its own entrance (recycled
+    // ListView delegates don't re-run Component.onCompleted).
+    property bool enterOnCreate: true
+    opacity: enterOnCreate ? 0 : 1
+    transform: Translate { id: enterShift; y: 6 }
+    Component.onCompleted: if (enterOnCreate) enterAnim.start()
+    SequentialAnimation {
+        id: enterAnim
+        PauseAnimation { duration: Math.min(Math.max(0, root.index), 14) * Theme.animStagger }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects }
+            NumberAnimation { target: enterShift; property: "y"; to: 0; duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
+        }
     }
 
     RowLayout {
@@ -62,15 +81,33 @@ Rectangle {
         anchors.leftMargin: 8
         anchors.rightMargin: 8
         spacing: 6
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-            text: root.effectiveIcon
-            font.family: Theme.iconFontFamily
-            font.pixelSize: Theme.fs(18)
-            color: root.active ? Theme.accent : (Theme.textPrimary)
+        Item {
             Layout.preferredWidth: 36
-            horizontalAlignment: Text.AlignHCenter
+            Layout.preferredHeight: Math.max(18, iconText.implicitHeight)
+            Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
+            Text {
+                id: iconText
+                anchors.centerIn: parent
+                width: 36
+                visible: root.iconSource === ""
+                text: root.effectiveIcon
+                font.family: Theme.iconFontFamily
+                font.pixelSize: Theme.fs(18)
+                color: root.active ? Theme.accent : (Theme.textPrimary)
+                horizontalAlignment: Text.AlignHCenter
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+            }
+            IconImage {
+                visible: root.iconSource !== ""
+                anchors.centerIn: parent
+                width: 18
+                height: 18
+                source: root.iconSource
+                asynchronous: true
+                implicitSize: Qt.size(36, 36)
+                mipmap: Theme.imageMipmap
+            }
         }
         ColumnLayout {
             Layout.fillWidth: true
@@ -112,11 +149,10 @@ Rectangle {
             Layout.preferredWidth: visible ? 14 : 0
         }
     }
-    MouseArea {
-        id: rowMouse
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+    StateLayer {
+        id: rowLayer
+        radius: root.radius
+        color: root.active ? Theme.accent : Theme.textPrimary
         onClicked: { root.clicked(); root.activated(root.index) }
     }
 }

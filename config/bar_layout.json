@@ -1,15 +1,14 @@
 {
     "center": [
-        "activewindow",
-        "updates",
         "clock",
-        "weather"
+        "activewindow",
+        "netanjahu"
     ],
     "fourfifths": [
     ],
     "hidden": [
-        "activewindow",
-        "vitals"
+        "vitals",
+        "activewindow"
     ],
     "left": [
         "launcher",
@@ -19,8 +18,11 @@
         "systemtray",
         "network",
         "bluetooth",
+        "weather",
+        "vitals",
+        "updates",
         "volume",
-        "vitals"
+        "controlcenter"
     ],
     "twofifths": [
     ],

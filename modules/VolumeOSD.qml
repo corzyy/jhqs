@@ -33,13 +33,18 @@ Scope {
 
     property PwNode sink: Pipewire.defaultAudioSink
     property bool sinkReady: sink && sink.ready && sink.audio
+    // Same as VolumeService: without tracking the node stays unbound and
+    // volPct/isMuted never update (OSD stuck on slow shell polling).
+    PwObjectTracker { objects: [Pipewire.defaultAudioSink] }
     property int volPct: sinkReady ? Math.round(sink.audio.volume * 100) : 0
     property bool isMuted: sinkReady ? sink.audio.muted : false
     property string sinkIdentity: sink ? (sink.name + ":" + sink.id) : ""
 
     property bool osdVisible: false
     property bool _winVisible: osdVisible
-    Timer { id: osdHideTimer; interval: 0; repeat: false; onTriggered: if (!osdScope.osdVisible) osdScope._winVisible = false }
+    // The window lingers for the fade-out duration so the exit run stays
+    // visible (0 with animations off — instant, as before).
+    Timer { id: osdHideTimer; interval: Theme.durDefaultEffects; repeat: false; onTriggered: if (!osdScope.osdVisible) osdScope._winVisible = false }
     onOsdVisibleChanged: {
         if (osdVisible) { _winVisible = true; osdHideTimer.stop() }
         else osdHideTimer.restart()
@@ -87,7 +92,9 @@ Scope {
     }
 
     function showVolume() {
-        if (!inited) return
+        // Explicit triggers (keys, wheel, sliders, IPC) must show immediately
+        // even during the startup grace period — `inited` only gates the
+        // *automatic* change handlers so boot doesn't flash the OSD.
         osdVisible = true
         hideTimer.interval = 1200
         hideTimer.restart()
@@ -233,10 +240,11 @@ Scope {
         let m = !displayMuted
         if (sinkReady) {
             try { sink.audio.muted = m } catch(e) { }
+        } else {
+            let v = m ? "1" : "0"
+            osdVolSetProc.command = ["bash","-c","wpctl set-mute @DEFAULT_AUDIO_SINK@ " + v + " 2>/dev/null; pactl set-sink-mute @DEFAULT_SINK@ " + v + " 2>/dev/null || true"]
+            if (!osdVolSetProc.running) osdVolSetProc.running = true
         }
-        let v = m ? "1" : "0"
-        osdVolSetProc.command = ["bash","-c","wpctl set-mute @DEFAULT_AUDIO_SINK@ " + v + " 2>/dev/null; pactl set-sink-mute @DEFAULT_AUDIO_SINK@ " + v + " 2>/dev/null || true"]
-        if (!osdVolSetProc.running) osdVolSetProc.running = true
         fallbackMuted = m
         showVolume()
     }
@@ -247,10 +255,11 @@ Scope {
                 if (sink.audio.muted) sink.audio.muted = false
                 sink.audio.volume = clamped/100
             } catch(e) { }
+        } else {
+            let frac = (clamped/100).toFixed(2)
+            osdVolSetProc.command = ["bash","-c","wpctl set-volume @DEFAULT_AUDIO_SINK@ "+frac+" 2>/dev/null; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null; pactl set-sink-mute @DEFAULT_SINK@ 0 2>/dev/null || true"]
+            if (!osdVolSetProc.running) osdVolSetProc.running = true
         }
-        let frac = (clamped/100).toFixed(2)
-        osdVolSetProc.command = ["bash","-c","wpctl set-volume @DEFAULT_AUDIO_SINK@ "+frac+" 2>/dev/null; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null; pactl set-sink-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null || true"]
-        if (!osdVolSetProc.running) osdVolSetProc.running = true
         fallbackPct = clamped; fallbackMuted = false
         showVolume()
     }
@@ -277,6 +286,15 @@ Scope {
                 width: quattroCard.width
                 height: quattroCard.height
                 opacity: osdScope.osdVisible ? 1 : 0
+                // Caelestia OSD motion (osd Wrapper offsetScale idiom): a
+                // single fade driver with a slight rise + settle scale, so
+                // show/hide reads as one gesture. Opacity rides the effects
+                // curve; rise/scale ride the spatial curve via the animated
+                // opacity value, so they can never desync.
+                scale: 0.96 + 0.04 * opacity
+                transformOrigin: Item.Bottom
+                transform: Translate { y: (1 - quattroWrapper.opacity) * 12 }
+                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
 
                 Rectangle {
                     id: quattroCard
@@ -327,6 +345,9 @@ Scope {
                                 radius: 3
                                 color: osdScope.displayMuted ? Theme.errorColor : Theme.accent
                                 antialiasing: Theme.shapesAa
+                                // Fill glides between steps instead of jumping.
+                                Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects } }
+                                Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                             }
                         }
                         Text {

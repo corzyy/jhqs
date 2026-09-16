@@ -19,6 +19,8 @@ Item {
     enabled: bodyRoot.scope.showWebApp
     scale: bodyRoot.scope.showWebApp ? 1 : 0.97
     transformOrigin: Item.Center
+    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     readonly property bool isInstall: bodyRoot.scope.webAppMode !== "remove"
     readonly property bool busy: bodyRoot.scope.webAppBusy
@@ -311,12 +313,6 @@ Item {
                 readonly property bool isSelected: root.selIdx === index
                 color: (isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
                 border.color: "transparent"; border.width: 0
-                Rectangle {
-                    anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
-                    width: 3
-                    color: Theme.accent
-                    visible: isSelected
-                }
                 MouseArea {
                     id: rowMouse
                     anchors.fill: parent

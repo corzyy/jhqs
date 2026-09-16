@@ -9,6 +9,7 @@ import Quickshell.Io
 import Quickshell.Services.Notifications
 import "./modules" as Modules
 import "./modules/panels" as Panels
+import "./modules/controlcenter" as Cc
 
 ShellRoot {
     id: root
@@ -110,6 +111,8 @@ ShellRoot {
         readonly property int bluetooth: 8
         readonly property int updates: 9
         readonly property int vitals: 10
+        readonly property int controlCenter: 11
+        readonly property int netanjahu: 12
     }
 
     property int activePanel: panel.none
@@ -126,6 +129,8 @@ ShellRoot {
     readonly property bool bluetoothVisible: activePanel === panel.bluetooth
     readonly property bool updatesVisible: activePanel === panel.updates
     readonly property bool vitalsVisible: activePanel === panel.vitals
+    readonly property bool controlCenterVisible: activePanel === panel.controlCenter
+    readonly property bool netanjahuVisible: activePanel === panel.netanjahu
 
     property int systemTrigger: 0
     property int consumedSystemTrigger: 0
@@ -143,12 +148,33 @@ ShellRoot {
 
     function closeAll() { activePanel = panel.none }
 
-    // Geteilte Loader-Hülle für Panels (8x identisches active/async-Muster).
-    // Menü/Settings bleiben eigene Loader (Sonder-Props: systemTrigger, section).
+    // Geteilte Loader-Hülle für Panels (10x identisches active/async-Muster).
+    // Der Loader lebt während der Exit-Animation weiter (hold): sonst würde
+    // active:false das Panel sofort zerstören und die Close-Animation wäre
+    // nie sichtbar. Ohne Animationen ist panelHideDelay 0, also exakt wie
+    // vorher. hold wird bewusst imperativ gesetzt — ein Binding wie
+    // (shown || item._winVisible) feuert über Loader.item-Erzeugung zurück
+    // und meldet "Binding loop detected for property active".
     component PanelLoader: Loader {
         required property bool shown
-        active: shown
+        property bool hold: false
+        active: shown || hold
         asynchronous: true
+        Timer {
+            id: holdTimer
+            interval: Theme.panelHideDelay
+            repeat: false
+            onTriggered: parent.hold = false
+        }
+        onShownChanged: {
+            if (shown) {
+                hold = false
+                holdTimer.stop()
+            } else if (item && Theme.animationsEnabled) {
+                hold = true
+                holdTimer.restart()
+            }
+        }
     }
 
     // Name -> Panel-Enum (eine Tabelle für IPC-Namen und Modul-IDs statt
@@ -157,14 +183,16 @@ ShellRoot {
         menu: panel.menu, calendar: panel.calendar, weather: panel.weather,
         network: panel.network, volume: panel.volume, bluetooth: panel.bluetooth,
         updates: panel.updates, vitals: panel.vitals, systemtray: panel.systemTray,
-        settings: panel.settings
+        settings: panel.settings, controlcenter: panel.controlCenter,
+        netanjahu: panel.netanjahu
     })
     // Bar-Modul-IDs weichen teils ab (launcher->menu, clock->calendar).
     readonly property var panelForModule: ({
         launcher: panel.menu, clock: panel.calendar, weather: panel.weather,
         network: panel.network, volume: panel.volume, bluetooth: panel.bluetooth,
         vitals: panel.vitals, systemtray: panel.systemTray, updates: panel.updates,
-        settings: panel.settings
+        settings: panel.settings, controlcenter: panel.controlCenter,
+        netanjahu: panel.netanjahu
     })
 
     function toggleNamedPanel(name: string): void {
@@ -225,6 +253,8 @@ ShellRoot {
         vitalsOpen: root.vitalsVisible
         trayOpen: root.systemTrayVisible
         updatesOpen: root.updatesVisible
+        controlCenterOpen: root.controlCenterVisible
+        netanjahuOpen: root.netanjahuVisible
 
         onToggleMenu: root.toggleMenuCentered()
         onToggleCalendar: root.toggleExclusive(panel.calendar)
@@ -234,6 +264,8 @@ ShellRoot {
         onToggleBluetooth: root.toggleExclusive(panel.bluetooth)
         onToggleVitals: root.toggleExclusive(panel.vitals)
         onToggleSystemTray: root.toggleExclusive(panel.systemTray)
+        onToggleControlCenter: root.toggleExclusive(panel.controlCenter)
+        onToggleNetanjahu: root.toggleExclusive(panel.netanjahu)
         onOpenUpdates: root.toggleUpdates()
 
         // CPU: table-driven close — replaces if/else chain so
@@ -248,7 +280,7 @@ ShellRoot {
     function openSettings(section: string): void {
         let s = (section || "global").trim() || "global"
         if (s === "modules") s = "vitals"
-        let valid = ["global", "mango", "bar", "vitals", "workspaces", "calendar", "notif"]
+        let valid = ["global", "mango", "audio", "apps", "bar", "vitals", "workspaces", "calendar", "notif", "search", "weather"]
         if (valid.indexOf(s) === -1) s = "global"
         settingsSection = s
         if (settingsLoader.item) settingsLoader.item.section = s
@@ -307,6 +339,8 @@ ShellRoot {
             + " updates=" + root.updatesVisible
             + " settings=" + root.settingsVisible
             + " systemtray=" + root.systemTrayVisible
+            + " controlcenter=" + root.controlCenterVisible
+            + " netanjahu=" + root.netanjahuVisible
         }
         function toggleCalendar(): void { root.toggleNamedPanel("calendar") }
         function showCalendar(): void { root.showNamedPanel("calendar") }
@@ -326,6 +360,12 @@ ShellRoot {
         function toggleVitals(): void { root.toggleNamedPanel("vitals") }
         function showVitals(): void { root.showNamedPanel("vitals") }
         function hideVitals(): void { root.closeAll() }
+        function toggleControlCenter(): void { root.toggleNamedPanel("controlcenter") }
+        function showControlCenter(): void { root.showNamedPanel("controlcenter") }
+        function hideControlCenter(): void { root.closeAll() }
+        function toggleNetanjahu(): void { root.toggleNamedPanel("netanjahu") }
+        function showNetanjahu(): void { root.showNamedPanel("netanjahu") }
+        function hideNetanjahu(): void { root.closeAll() }
         function toggleSystemTray(): void { root.toggleNamedPanel("systemtray") }
         function showSystemTray(): void { root.showNamedPanel("systemtray") }
         function hideSystemTray(): void { root.closeAll() }
@@ -346,10 +386,9 @@ ShellRoot {
         notifServer: root.notifServer
     }
 
-    Loader {
+    PanelLoader {
         id: menuLoader
-        active: root.menuVisible
-        asynchronous: true
+        shown: root.menuVisible
         sourceComponent: menuComp
     }
     Component {
@@ -441,10 +480,29 @@ ShellRoot {
         }
     }
 
-    Loader {
+    PanelLoader { id: ccLoader; shown: root.controlCenterVisible; sourceComponent: ccComp }
+    Component {
+        id: ccComp
+        Cc.ControlCenterPanel {
+            showControlCenter: root.controlCenterVisible
+            onDismissed: root.closeAll()
+            onSettingsRequested: root.openSettings("global")
+            onPowerRequested: root.openSystem()
+        }
+    }
+
+    PanelLoader { id: bibiLoader; shown: root.netanjahuVisible; sourceComponent: bibiComp }
+    Component {
+        id: bibiComp
+        Panels.NetanjahuPanel {
+            showNetanjahu: root.netanjahuVisible
+            onDismissed: root.closeAll()
+        }
+    }
+
+    PanelLoader {
         id: settingsLoader
-        active: root.settingsVisible
-        asynchronous: true
+        shown: root.settingsVisible
         sourceComponent: settingsComp
         onLoaded: if (item) item.section = root.settingsSection
     }

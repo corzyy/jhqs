@@ -16,6 +16,8 @@ Item {
     enabled: bodyRoot.scope.showPackages && !bodyRoot.scope.packageOpActive
     scale: (bodyRoot.scope.showPackages && !bodyRoot.scope.packageOpActive) ? 1 : 0.97
     transformOrigin: Item.Center
+    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     readonly property bool isRemove: bodyRoot.scope.packageMode === "remove"
     readonly property bool isInstall: bodyRoot.scope.packageMode === "install"
@@ -92,15 +94,17 @@ Item {
             readonly property var entry: modelData
             readonly property bool isSelected: bodyRoot.selectedIndex === index
             readonly property bool isChecked: entry && entry.name ? bodyRoot.scope.isPackageSelected(entry.name) : false
-            color: (isChecked ? Theme.withAlpha(Theme.accent, 0.16) : isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
+            color: (isSelected ? Theme.withAlpha(Theme.textPrimary, 0.08) : isChecked ? Theme.withAlpha(Theme.accent, 0.16) : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.04) : "transparent")
             border.color: "transparent"; border.width: 0
+            // Kept sharp marker for checked (marked-for-op) rows that are
+            // not currently selected.
             Rectangle {
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                 width: 3
                 radius: Theme.cornerRadius
                 antialiasing: Theme.shapesAa
-                color: isChecked ? "white" : Theme.accent
-                visible: isChecked || isSelected || rowMouse.containsMouse
+                color: "white"
+                visible: isChecked && !isSelected
             }
             RowLayout {
                 anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
