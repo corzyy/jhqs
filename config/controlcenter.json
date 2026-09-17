@@ -1,0 +1,27 @@
+{
+    "blocks": [
+        "sliders",
+        "tiles",
+        "media"
+    ],
+    "hiddenTiles": [
+        "gamemode",
+        "flashlight"
+    ],
+    "tileCols": {
+        "bluetooth": 2,
+        "dnd": 2,
+        "flashlight": 2,
+        "flight": 2,
+        "gamemode": 2,
+        "wifi": 2
+    },
+    "tiles": [
+        "wifi",
+        "bluetooth",
+        "flashlight",
+        "dnd",
+        "gamemode",
+        "flight"
+    ]
+}

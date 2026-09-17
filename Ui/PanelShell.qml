@@ -18,6 +18,9 @@ Item {
     required property string moduleId
     property string barPos: "top"
     property real panelGap: 0
+    // Theme.isPrimaryScreen(modelData): only that window runs the
+    // cross-panel morph (see CaelestiaPopout).
+    property bool screenActive: true
     required property bool shown
     property real boxWidth: 340
     property real minHeight: 120
@@ -48,6 +51,8 @@ Item {
         id: popout
 
         shown: root.shown
+        morphId: root.moduleId
+        morphActive: root.screenActive
         barPos: root.barPos
         fullWidth: root.boxWidth
         fullHeight: root.cardHeight
@@ -75,10 +80,13 @@ Item {
             // the frame's far edge.
             clip: false
 
-            // Swallow clicks/wheel so they don't dismiss the panel.
+            // Swallow clicks/wheel so they don't dismiss the panel. Off
+            // while closing: the window outlives the card (morph/close
+            // hold) and must not steal input from the panel on top.
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
+                enabled: root.shown
                 onClicked: mouse => mouse.accepted = true
                 onPressed: mouse => mouse.accepted = true
                 onWheel: wheel => wheel.accepted = true
@@ -117,8 +125,10 @@ Item {
                 interactive: contentHeight > height
                 // Popout transition (Caelestia Content/Popout loader fades):
                 // slow effects in, default effects out. No scale/rise — the
-                // reference only folds the content.
-                opacity: popout.innerFade
+                // reference only folds the content. contentFade additionally
+                // hides the full-size layout while the card morphs between
+                // panel poses (see CaelestiaPopout).
+                opacity: popout.innerFade * popout.contentFade
                 Column {
                     id: contentCol
                     width: root.boxWidth - root.contentMargins * 2

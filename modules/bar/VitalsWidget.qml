@@ -48,9 +48,15 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
             }
             Text {
-                visible: VitalsService.showLabels
+                readonly property bool labelVisible: VitalsService.showLabels
+                opacity: labelVisible ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity {
+                    enabled: Theme.animationsEnabled
+                    NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+                }
                 text: root._cpuText
-                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.barTextWeight
                 color: root._cpuColor
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -65,9 +71,15 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
             }
             Text {
-                visible: VitalsService.showLabels
+                readonly property bool labelVisible: VitalsService.showLabels
+                opacity: labelVisible ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity {
+                    enabled: Theme.animationsEnabled
+                    NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+                }
                 text: root._ramText
-                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.barTextWeight
                 color: root._ramColor
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -82,9 +94,15 @@ Item {
                 Layout.alignment: Qt.AlignVCenter
             }
             Text {
-                visible: VitalsService.showLabels
+                readonly property bool labelVisible: VitalsService.showLabels
+                opacity: labelVisible ? 1 : 0
+                visible: opacity > 0.01
+                Behavior on opacity {
+                    enabled: Theme.animationsEnabled
+                    NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+                }
                 text: root._gpuText
-                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+                font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.barTextWeight
                 color: root._gpuColor
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -99,21 +117,21 @@ Item {
         Text {
             visible: VitalsService.showCpu
             text: "󰻠" + (VitalsService.showLabels ? " " + root._cpuText : "")
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             color: root._cpuColor
             Layout.alignment: Qt.AlignHCenter
         }
         Text {
             visible: VitalsService.showRam
             text: "󰍛" + (VitalsService.showLabels ? " " + root._ramText : "")
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             color: root._ramColor
             Layout.alignment: Qt.AlignHCenter
         }
         Text {
             visible: VitalsService.showGpu && VitalsService.gpuAvailable
             text: "󰢮" + (VitalsService.showLabels ? " " + root._gpuText : "")
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             color: root._gpuColor
             Layout.alignment: Qt.AlignHCenter
         }

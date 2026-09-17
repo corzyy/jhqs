@@ -71,11 +71,17 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: Theme.barLabelVisible("activewindow")
+            readonly property bool labelVisible: Theme.barLabelVisible("activewindow")
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root.winTitle
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fs(12)
-            font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.weight: Theme.barTextWeight
             color: mouse.containsMouse ? Theme.primary : Theme.textSecondary
             elide: Text.ElideRight
             Layout.maximumWidth: 180

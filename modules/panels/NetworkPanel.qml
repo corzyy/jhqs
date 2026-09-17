@@ -393,9 +393,17 @@ Scope {
         }
         // PERF: password editor instantiated per network row (N TextInputs in
         // focus chain + N onCompleted focus checks). Loader-gate to open row.
+        // Inline drill-in: M3 fade enter/exit, loader stays alive until the
+        // fade-out finished.
         Loader {
-            active: scope.pwSsid === wifiCol.net.ssid
-            visible: scope.pwSsid === wifiCol.net.ssid
+            readonly property bool pwOpen: scope.pwSsid === wifiCol.net.ssid
+            active: visible
+            visible: opacity > 0.01
+            opacity: pwOpen ? 1 : 0
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             width: wifiCol.width
             height: visible ? 40 : 0
             asynchronous: true
@@ -488,13 +496,18 @@ Scope {
                 }
                 Component.onCompleted: forceActiveFocus()
             }
+            // Disabled while the panel is closing: during a morph handoff
+            // the outgoing window stays mapped for panelHideDelay and must
+            // not eat the click that belongs to the panel now on top.
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
+                enabled: scope.showNetwork
                 onClicked: scope.dismissed()
             }
             PanelShell {
                 moduleId: "network"
+                screenActive: Theme.isPrimaryScreen(modelData)
                 barPos: scope.barPos
                 panelGap: scope.panelGap
                 shown: scope.showNetwork

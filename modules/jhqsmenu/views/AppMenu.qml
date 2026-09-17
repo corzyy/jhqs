@@ -27,13 +27,18 @@ Item {
     anchors.fill: parent
     anchors.margins: 0
     clip: true
-    opacity: bodyRoot.scope.showNewAppMenu ? 1 : 0
+    // Category in/out: M3 fade through (m3 transition patterns) — the old
+    // view fades out over the first 35% of the run, the new one fades in
+    // afterwards while settling from 92%.
+    Motion {
+        id: motion
+        active: bodyRoot.scope.showNewAppMenu
+        pattern: Motion.FadeThrough
+    }
+    opacity: motion.opacity
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showNewAppMenu
-    scale: bodyRoot.scope.showNewAppMenu ? 1 : 0.97
-    transformOrigin: Item.Center
-    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
-    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+    scale: motion.scale
 
     readonly property int appCount: bodyRoot.scope.filteredNewApps.length
     readonly property string countLabel: {

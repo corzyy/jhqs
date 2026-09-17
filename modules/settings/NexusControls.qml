@@ -42,7 +42,7 @@ QtObject {
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
         bottomRightRadius: last ? 28 : 4
-        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         MouseArea { id: hoverMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
     }
 
@@ -279,7 +279,7 @@ QtObject {
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
         bottomRightRadius: last ? 28 : 4
-        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         // Declared before the Row: the switch keeps its own press feedback and
         // clicks on the text/empty area fall through to here.
         MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.toggled(!root.checked) }
@@ -824,7 +824,7 @@ QtObject {
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
         bottomRightRadius: last ? 28 : 4
-        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         Row {
             anchors.fill: parent
             anchors.leftMargin: 20; anchors.rightMargin: 12

@@ -27,16 +27,22 @@ Item {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
             text: WeatherService.label
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(14); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
             color: root._fg
             Layout.alignment: Qt.AlignVCenter
         }
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: WeatherService.hasData && WeatherService.showLabel
+            readonly property bool labelVisible: WeatherService.hasData && WeatherService.showLabel
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root._tempStr
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.barTextWeight
             color: root._fg
             Layout.alignment: Qt.AlignVCenter
         }
@@ -50,16 +56,22 @@ Item {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
             text: WeatherService.label
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(14); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
             color: root._fg
             Layout.alignment: Qt.AlignHCenter
         }
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: WeatherService.hasData && WeatherService.showLabel
+            readonly property bool labelVisible: WeatherService.hasData && WeatherService.showLabel
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root._tempStr
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Theme.barTextWeight
             color: root._fg
             Layout.alignment: Qt.AlignHCenter
         }

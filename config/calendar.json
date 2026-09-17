@@ -1,4 +1,4 @@
 {
-    "notifSide": "right",
-    "weekStartDay": "sunday"
+    "notifSide": "left",
+    "weekStartDay": "monday"
 }

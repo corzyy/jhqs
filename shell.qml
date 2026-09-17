@@ -10,6 +10,7 @@ import Quickshell.Services.Notifications
 import "./modules" as Modules
 import "./modules/panels" as Panels
 import "./modules/controlcenter" as Cc
+import "./Ui" as Ui
 
 ShellRoot {
     id: root
@@ -146,7 +147,10 @@ ShellRoot {
         })
     }
 
-    function closeAll() { activePanel = panel.none }
+    function closeAll() {
+        Ui.PanelMorph.finish()
+        activePanel = panel.none
+    }
 
     // Geteilte Loader-Hülle für Panels (10x identisches active/async-Muster).
     // Der Loader lebt während der Exit-Animation weiter (hold): sonst würde
@@ -204,13 +208,43 @@ ShellRoot {
         if (p !== undefined) openPanel(p)
     }
 
+    // Bar panels that take part in the cross-panel morph (Ui/PanelMorph).
+    // The ids match each panel popout's `morphId` (= BarAnchor moduleId).
+    // Menu/Settings/Netanjahu are not bar-anchored and keep their own runs.
+    readonly property var panelMorphId: ({
+        [panel.calendar]: "clock",
+        [panel.weather]: "weather",
+        [panel.systemTray]: "systemtray",
+        [panel.network]: "network",
+        [panel.volume]: "volume",
+        [panel.bluetooth]: "bluetooth",
+        [panel.updates]: "updates",
+        [panel.vitals]: "vitals",
+        [panel.controlCenter]: "controlcenter"
+    })
+
+    // Start the handoff before activePanel flips: the outgoing popout must
+    // already know it is the source when its `shown` turns false. Switches
+    // without a bar-to-bar pair just cancel any stale handoff.
+    function beginPanelMorph(to: int): void {
+        const from = panelMorphId[root.activePanel]
+        const toId = panelMorphId[to]
+        if (from === undefined || toId === undefined || from === toId) {
+            Ui.PanelMorph.finish()
+            return
+        }
+        Ui.PanelMorph.begin(from, toId)
+    }
+
     function openPanel(p: int) {
         refreshBarAnchors()
+        beginPanelMorph(p)
         activePanel = p
     }
 
     function toggleExclusive(p: int) {
         refreshBarAnchors()
+        if (activePanel !== p) beginPanelMorph(p)
         activePanel = (activePanel === p) ? panel.none : p
     }
 
@@ -266,6 +300,7 @@ ShellRoot {
         onToggleSystemTray: root.toggleExclusive(panel.systemTray)
         onToggleControlCenter: root.toggleExclusive(panel.controlCenter)
         onToggleNetanjahu: root.toggleExclusive(panel.netanjahu)
+        onOpenSession: root.openSystem()
         onOpenUpdates: root.toggleUpdates()
 
         // CPU: table-driven close — replaces if/else chain so

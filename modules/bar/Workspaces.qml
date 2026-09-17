@@ -45,6 +45,15 @@ Item {
     // Kompatibilitäts-Alias (intern/extern bislang als sortedWorkspaces gelesen).
     readonly property var sortedWorkspaces: visibleWorkspaces
 
+    // Repeater werden über die konstante Länge modelliert und binden ihre
+    // Inhalte über diesen Zugriff: Inhaltsänderungen (Fokus/Belegung) ändern
+    // dann nur Bindings, der Repeater zerstört keine Delegates mehr — nur so
+    // können die Behavior-Animationen überhaupt abspielen.
+    function workspaceAt(index: int): var {
+        const items = visibleWorkspaces
+        return (index >= 0 && index < items.length) ? items[index] : null
+    }
+
     function collectWorkspaces(): var {
         if (!useMango)
             return []
@@ -75,7 +84,7 @@ Item {
         const out = []
         for (let i = 1; i <= count; i++) {
             const focused = i === guessed
-            out.push({ id: i, name: "" + i, focused: focused, active: focused, occupied: false, clients: 0 })
+            out.push({ id: i, name: "" + i, focused: focused, active: focused, occupied: false, clients: 0, shown: true })
         }
         return out
     }
@@ -99,15 +108,16 @@ Item {
         const visible = []
         for (let i = 0; i < tags.length; i++) {
             const tag = tags[i]
-            if (dynamicMode && !isTagVisible(tag))
-                continue
+            // PERF/UX: im Dynamic-Mode bleiben verborgene Tags im Modell, aber
+            // kollabieren animiert (reveal) statt sofort zerstört zu werden.
             visible.push({
                 id: tag.index,
                 name: "" + tag.index,
                 focused: !!tag.active,
                 active: !!tag.active,
                 occupied: (tag.clients || 0) > 0,
-                clients: tag.clients || 0
+                clients: tag.clients || 0,
+                shown: !dynamicMode || isTagVisible(tag)
             })
         }
         visible.sort((a, b) => a.id - b.id)
@@ -137,7 +147,10 @@ Item {
     function hoverScaleFor(index: int): real {
         if (!hoverAnimations || hoveredIndex < 0)
             return 1.0
-        return index === hoveredIndex ? 1.08 : 1.0
+        const dist = Math.abs(index - hoveredIndex)
+        if (dist === 0)
+            return 1.08
+        return dist === 1 ? 1.03 : 1.0
     }
 
     function enterWorkspace(index: int): void {
@@ -164,6 +177,8 @@ Item {
         for (let i = 0; i < container.children.length; i++) {
             const ch = container.children[i]
             if (!ch || ch.workspace === undefined || ch.delegateIndex === undefined || !ch.visible)
+                continue
+            if (ch.reveal !== undefined && ch.reveal < 0.5)
                 continue
             const lp = ch.mapFromItem(root, px, py)
             if (lp.x >= 0 && lp.x <= ch.width && lp.y >= 0 && lp.y <= ch.height)
@@ -214,15 +229,34 @@ Item {
         }
         readonly property bool focused: workspace ? !!workspace.focused : false
 
-        implicitWidth: isVertical ? 24 * root.uiScale : pillLength + (root.isDefault2 ? 0 : Theme.workspaceSpacing) * root.uiScale
-        implicitHeight: isVertical ? pillLength + (root.isDefault2 ? 0 : Theme.workspaceSpacing) * root.uiScale : 24 * root.uiScale
+        // Dynamic-Mode: verborgene Tags kollabieren animiert (reveal 0) statt
+        // sofort zu verschwinden; sichtbare expandieren mit Overshoot.
+        readonly property bool shown: workspace ? workspace.shown !== false : true
+        // ready erzwingt beim Erzeugen einen Lauf von 0 -> 1 (Entry-Cascade).
+        property bool ready: false
+        property real reveal: ready && shown ? 1 : 0
+        property bool pressed: false
+
+        Component.onCompleted: ready = true
+        onShownChanged: if (!shown) root.leaveWorkspace(delegateIndex)
 
         // M3-Pille: Länge hängt vom Zustand ab, Orientierung dreht nur die Achse.
-        readonly property real pillLength: ((root.isM3 ? (focused ? 28 : occupied ? 14 : 8) + 2 : 20)) * root.uiScale
+        // Leer (8 -> 10) = Kreis: Breite entspricht der Dicke.
+        readonly property real pillLength: ((root.isM3 ? (focused ? 28 : occupied ? 14 : 10) + 2 : 20)) * root.uiScale
         readonly property real pillThickness: 10 * root.uiScale
 
-        opacity: root.isM3 ? 1.0 : (occupied || focused ? 1.0 : 0.5)
-        scale: root.hoverScaleFor(delegateIndex)
+        // Abstand steckt in der Delegate-Breite (Layout-spacing = 0), damit
+        // kollabierte Tags auch ihren Zwischenraum animiert freigeben.
+        readonly property real baseWidth: isVertical ? 24 * root.uiScale : pillLength + (root.isDefault2 ? 0 : 2 * Theme.workspaceSpacing) * root.uiScale
+        readonly property real baseHeight: isVertical ? pillLength + (root.isDefault2 ? 0 : 2 * Theme.workspaceSpacing) * root.uiScale : 24 * root.uiScale
+
+        implicitWidth: baseWidth * reveal
+        implicitHeight: baseHeight * reveal
+
+        readonly property real revealScale: 0.35 + 0.65 * reveal
+
+        opacity: (root.isM3 ? 1.0 : (occupied || focused ? 1.0 : 0.5)) * reveal
+        scale: root.hoverScaleFor(delegateIndex) * revealScale * (pressed ? Theme.pressScale : 1)
 
         // Caelestia workspace motion: focus/hover fades ride the effects
         // curve, hover scale the fast-spatial curve, and siblings glide when
@@ -231,6 +265,8 @@ Item {
         Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
         Behavior on x { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
         Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+        Behavior on implicitWidth { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+        Behavior on implicitHeight { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
 
         // M3-Indikator (Pille)
         Rectangle {
@@ -273,8 +309,10 @@ Item {
             color: delegate.focused ? Theme.bgSelected : Theme.bgHover
             border.color: Theme.divider
             border.width: 1
-            visible: root.isDefault2 && (delegate.focused || root.hoveredIndex === delegate.delegateIndex)
-            opacity: (delegate.focused || root.hoveredIndex === delegate.delegateIndex) ? 1 : 0
+            visible: root.isDefault2
+            opacity: ((delegate.focused || root.hoveredIndex === delegate.delegateIndex) ? 1 : 0) * delegate.reveal
+            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects } }
+            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         }
 
         Text {
@@ -284,7 +322,7 @@ Item {
             text: delegate.workspace ? delegate.workspace.name : ""
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fs(14) * root.uiScale
-            font.weight: (root.isDefault2 ? (delegate.focused || root.hoveredIndex === delegate.delegateIndex) : Theme.textBold) ? Font.Medium : Font.Normal
+            font.weight: root.isDefault2 ? ((delegate.focused || root.hoveredIndex === delegate.delegateIndex) ? Theme.barTextWeightEmphasis : Theme.barTextWeight) : Theme.barTextWeight
             color: root.hoveredIndex === delegate.delegateIndex ? Theme.primary : (root.isDefault2 ? (delegate.focused ? Theme.accent : Theme.textPrimary) : Theme.textPrimary)
             visible: !root.isM3
             opacity: root.isDefault2 ? 1 : (delegate.focused ? 0 : 1)
@@ -296,6 +334,7 @@ Item {
 
         // default2-Unterstrich (horizontal) bzw. Seitenstrich (vertikal)
         Rectangle {
+            id: hLine
             antialiasing: Theme.shapesAa
             visible: root.isDefault2 && !delegate.isVertical
             anchors.left: parent.left
@@ -304,8 +343,16 @@ Item {
             y: parent.height - height - 2 + (Theme.barThickness - 24 * root.uiScale) / 2
             color: Theme.accent
             opacity: delegate.focused ? 1 : 0
+            transform: Scale {
+                origin.x: hLine.width / 2
+                origin.y: hLine.height / 2
+                xScale: delegate.focused ? 1 : 0.3
+                Behavior on xScale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+            }
+            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects } }
         }
         Rectangle {
+            id: vLine
             antialiasing: Theme.shapesAa
             visible: root.isDefault2 && delegate.isVertical
             anchors.top: parent.top
@@ -314,6 +361,13 @@ Item {
             x: Theme.barPosition === "right" ? parent.width - width - 2 + (Theme.barThickness - 24 * root.uiScale) / 2 : 2 - (Theme.barThickness - 24 * root.uiScale) / 2
             color: Theme.accent
             opacity: delegate.focused ? 1 : 0
+            transform: Scale {
+                origin.x: vLine.width / 2
+                origin.y: vLine.height / 2
+                yScale: delegate.focused ? 1 : 0.3
+                Behavior on yScale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+            }
+            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects } }
         }
 
         MouseArea {
@@ -324,6 +378,9 @@ Item {
             z: 10
             onEntered: root.enterWorkspace(delegate.delegateIndex)
             onExited: root.leaveWorkspace(delegate.delegateIndex)
+            onPressed: delegate.pressed = true
+            onReleased: delegate.pressed = false
+            onCanceled: delegate.pressed = false
             onClicked: mouse => {
                 mouse.accepted = true
                 root.activateWorkspace(delegate.workspace)
@@ -349,14 +406,14 @@ Item {
         id: hRow
         anchors.centerIn: parent
         visible: !root.vertical
-        spacing: root.isDefault2 ? 0 : Theme.workspaceSpacing
+        spacing: 0
         Repeater {
             // PERF: inaktive Orientierung ohne Delegates (keine doppelte Bindung).
-            model: root.vertical ? [] : root.visibleWorkspaces
+            // Länge statt Array: Inhaltsänderungen erzeugen keine neuen Delegates.
+            model: root.vertical ? 0 : root.visibleWorkspaces.length
             delegate: WorkspaceDelegate {
-                required property var modelData
                 required property int index
-                workspace: modelData
+                workspace: root.workspaceAt(index)
                 delegateIndex: index
                 isVertical: false
             }
@@ -368,13 +425,12 @@ Item {
         id: vCol
         anchors.centerIn: parent
         visible: root.vertical
-        spacing: root.isDefault2 ? 0 : Theme.workspaceSpacing
+        spacing: 0
         Repeater {
-            model: root.vertical ? root.visibleWorkspaces : []
+            model: root.vertical ? root.visibleWorkspaces.length : 0
             delegate: WorkspaceDelegate {
-                required property var modelData
                 required property int index
-                workspace: modelData
+                workspace: root.workspaceAt(index)
                 delegateIndex: index
                 isVertical: true
             }

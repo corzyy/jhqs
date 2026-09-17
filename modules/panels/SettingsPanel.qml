@@ -6,6 +6,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import "../../themes"
 import "../../services"
+import "../../Ui"
 import "../settings" as S
 import "../settings/pages" as Pages
 
@@ -62,10 +63,9 @@ Scope {
         section = sectionIds.indexOf(nid) >= 0 ? nid : "global"
     }
 
-    // Shown page; swapped mid-animation (see switchAnim inside the window,
-    // which owns the page items) so the slide/fade reads like Nexus
-    // Pages.qml. Direct child components so Bound scope resolves under
-    // ComponentBehavior: Bound.
+    // Shown page; the window's two page slots cross-slide on section change
+    // (see pageWrap.switchTo). Direct child components so Bound scope resolves
+    // under ComponentBehavior: Bound.
     function pageFor(s: string): Component {
         switch (s) {
         case "mango": return mangoComp
@@ -116,22 +116,31 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "settings"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            // Page swap state lives here (not on the Scope): the animation
-            // targets pageContainer/pageFlick, which only exist in this
-            // window's scope.
+            // Page swap state lives here (not on the Scope): the shared-axis
+            // run targets the page slots, which only exist in this window.
             property string shownSection: ""
             property int lastIdx: 0
             property int animDir: 1
+            // Populate the front page slot. Cold opens cannot rely on
+            // onShowSettingsChanged: the PanelLoader instantiates the panel
+            // while it is already visible, so the signal never fires. The
+            // Repeater's slots also do not exist until the next event loop
+            // turn, so retry once they do.
+            function showPage(section: string): void {
+                if (!pageWrap.slot(pageWrap.frontSlot)) {
+                    Qt.callLater(() => win.showPage(section))
+                    return
+                }
+                win.shownSection = section
+                win.lastIdx = settingsScope.sectionIndex(section)
+                pageWrap.reset(section)
+            }
+            Component.onCompleted: if (settingsScope.showSettings) win.showPage(settingsScope.section)
             Connections {
                 target: settingsScope
                 function onShowSettingsChanged() {
                     if (settingsScope.showSettings) {
-                        switchAnim.complete()
-                        win.shownSection = settingsScope.section
-                        win.lastIdx = settingsScope.sectionIndex(settingsScope.section)
-                        pageContainer.opacity = 1
-                        pageContainer.y = 0
-                        pageFlick.contentY = 0
+                        win.showPage(settingsScope.section)
                     }
                 }
                 function onSectionChanged() {
@@ -140,26 +149,7 @@ Scope {
                         win.lastIdx = settingsScope.sectionIndex(settingsScope.section)
                         return
                     }
-                    if (win.shownSection === settingsScope.section) return
-                    switchAnim.complete()
-                    win.animDir = settingsScope.sectionIndex(settingsScope.section) > win.lastIdx ? 1 : -1
-                    win.lastIdx = settingsScope.sectionIndex(settingsScope.section)
-                    switchAnim.start()
-                }
-            }
-            SequentialAnimation {
-                id: switchAnim
-                NumberAnimation { target: pageContainer; property: "opacity"; to: 0; duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects }
-                ScriptAction {
-                    script: {
-                        win.shownSection = settingsScope.section
-                        pageFlick.contentY = 0
-                        pageContainer.y = 48 * win.animDir
-                    }
-                }
-                ParallelAnimation {
-                    NumberAnimation { target: pageContainer; property: "opacity"; from: 0; to: 1; duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
-                    NumberAnimation { target: pageContainer; property: "y"; to: 0; duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                    pageWrap.switchTo(settingsScope.section)
                 }
             }
             Item {
@@ -205,11 +195,16 @@ Scope {
                 radius: 28
                 clip: true
                 visible: settingsScope._winVisible
-                opacity: settingsScope.showSettings ? 1 : 0
-                scale: settingsScope.showSettings ? 1 : 0.97
+                // M3 fade through: the surface fades in while settling from
+                // 92%, and fades back out on close.
+                Motion {
+                    id: boxMotion
+                    active: settingsScope.showSettings
+                    pattern: Motion.FadeThrough
+                }
+                opacity: boxMotion.opacity
+                scale: boxMotion.scale
                 transformOrigin: Item.Center
-                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: settingsScope.showSettings ? Theme.panelAnimFade : Theme.panelAnimExit; easing.type: Easing.BezierSpline; easing.bezierCurve: settingsScope.showSettings ? Theme.curveDefaultEffects : Theme.curveFastEffects } }
-                Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: settingsScope.showSettings ? Theme.panelAnimScale : Theme.panelAnimExit; easing.type: Easing.BezierSpline; easing.bezierCurve: settingsScope.showSettings ? Theme.curveDefaultSpatial : Theme.curveFastEffects } }
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.AllButtons
@@ -227,7 +222,7 @@ Scope {
                     z: 10
                     color: closeMouse.containsMouse ? Theme.withAlpha(Theme.error, 0.20) : Theme.surface_container_high
                     antialiasing: Theme.shapesAa
-                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                     Text {
                         anchors.centerIn: parent
                         text: "✕"
@@ -291,7 +286,7 @@ Scope {
                                             color: isCurrent ? Theme.secondary_container
                                                 : navMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container_high
                                             antialiasing: Theme.shapesAa
-                                            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+                                            Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                                             Row {
                                                 anchors.fill: parent
                                                 anchors.margins: 12
@@ -356,35 +351,89 @@ Scope {
                         id: pageWrap
                         width: parent.width - 300 - 1 - 32
                         height: parent.height
-                        Item {
-                            id: pageContainer
-                            anchors.fill: parent
-                            Flickable {
-                                id: pageFlick
+                        // Two page slots. The front one holds the current
+                        // section; the back one receives the incoming
+                        // section and becomes front when the run ends. Both
+                        // carry a Motion SharedAxisX driver, so old and new
+                        // slide and fade together (30dp, emphasized) — the
+                        // M3 lateral-navigation pattern (transition-patterns).
+                        property int frontSlot: 0
+                        function slot(idx: int): var { return pageSlots.itemAt(idx) }
+                        function snap(): void {
+                            for (let i = 0; i < pageSlots.count; i++) {
+                                const s = pageSlots.itemAt(i)
+                                if (s) s.snap()
+                            }
+                        }
+                        function reset(section: string): void {
+                            const front = pageWrap.slot(pageWrap.frontSlot)
+                            const back = pageWrap.slot(1 - pageWrap.frontSlot)
+                            if (back) back.clear()
+                            if (front) front.showSection(section)
+                            pageWrap.snap()
+                        }
+                        function switchTo(section: string): void {
+                            if (win.shownSection === section) return
+                            const backIdx = 1 - pageWrap.frontSlot
+                            const back = pageWrap.slot(backIdx)
+                            if (!back) {
+                                Qt.callLater(() => pageWrap.switchTo(section))
+                                return
+                            }
+                            const idx = settingsScope.sectionIndex(section)
+                            win.animDir = idx >= win.lastIdx ? 1 : -1
+                            win.lastIdx = idx
+                            back.showSection(section)
+                            win.shownSection = section
+                            pageWrap.frontSlot = backIdx
+                        }
+                        Repeater {
+                            id: pageSlots
+                            model: 2
+                            delegate: Item {
+                                id: slot
+                                required property int index
                                 anchors.fill: parent
-                                anchors.rightMargin: 52
-                                clip: true
-                                contentHeight: pageCol.implicitHeight
-                                contentWidth: width
-                                boundsBehavior: Flickable.StopAtBounds
-                                flickableDirection: Flickable.VerticalFlick
-                                Connections {
-                                    target: win
-                                    function onShownSectionChanged() { pageFlick.contentY = 0 }
+                                property Component sectionComp: null
+                                function showSection(sec: string): void {
+                                    slot.sectionComp = settingsScope.pageFor(sec)
+                                    Qt.callLater(() => pageFlick.contentY = 0)
                                 }
-                                Column {
-                                    id: pageCol
-                                    width: pageFlick.width
-                                    spacing: 12
-                                    // Exactly one page exists at a time, loaded
-                                    // synchronously so a click swaps content in
-                                    // the same frame (no blank races).
-                                    Loader {
-                                        id: pageLoader
-                                        width: parent.width
-                                        active: settingsScope._winVisible
-                                        asynchronous: false
-                                        sourceComponent: settingsScope.pageFor(win.shownSection)
+                                function clear(): void {
+                                    slot.sectionComp = null
+                                }
+                                function snap(): void { slotMotion.complete() }
+                                Motion {
+                                    id: slotMotion
+                                    active: pageWrap.frontSlot === slot.index
+                                    pattern: Motion.SharedAxisX
+                                    direction: win.animDir
+                                }
+                                opacity: slotMotion.opacity
+                                x: slotMotion.x
+                                visible: opacity > 0.01
+                                Flickable {
+                                    id: pageFlick
+                                    anchors.fill: parent
+                                    anchors.rightMargin: 52
+                                    clip: true
+                                    contentHeight: pageCol.implicitHeight
+                                    contentWidth: width
+                                    boundsBehavior: Flickable.StopAtBounds
+                                    flickableDirection: Flickable.VerticalFlick
+                                    Column {
+                                        id: pageCol
+                                        width: pageFlick.width
+                                        spacing: 12
+                                        // Loaded synchronously so a click swaps
+                                        // content in the same frame (no blank
+                                        // races).
+                                        Loader {
+                                            width: parent.width
+                                            active: settingsScope._winVisible
+                                            asynchronous: false
+                                            sourceComponent: slot.sectionComp
+                                        }
                                     }
                                 }
                             }

@@ -37,9 +37,15 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: VolumeService.showPct
+            readonly property bool labelVisible: VolumeService.showPct
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root._pctText
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12); font.weight: Theme.barTextWeight
             color: root._iconColor
             Layout.alignment: Qt.AlignVCenter
         }
@@ -60,9 +66,15 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: VolumeService.showPct
+            readonly property bool labelVisible: VolumeService.showPct
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root._pctText
-            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Theme.textBold ? Font.Bold : Font.Normal
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             color: root._iconColor
             Layout.alignment: Qt.AlignHCenter
         }

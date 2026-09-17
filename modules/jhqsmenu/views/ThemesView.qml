@@ -11,13 +11,17 @@ Item {
     anchors.fill: parent
     anchors.margins: 0
     clip: true
-    opacity: bodyRoot.scope.showThemes ? 1 : 0
+    // Category in/out: M3 fade through (m3 transition patterns).
+    Motion {
+        id: motion
+        active: bodyRoot.scope.showThemes
+        pattern: Motion.FadeThrough
+    }
+    opacity: motion.opacity
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showThemes
-    scale: bodyRoot.scope.showThemes ? 1 : 0.97
+    scale: motion.scale
     transformOrigin: Item.Center
-    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
-    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     property bool showMonetSettings: false
 

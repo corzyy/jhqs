@@ -335,6 +335,11 @@ Singleton {
     function setWorkspaceScale(v: real): void { setAdapterReal(shellFile, "workspaceScale", v, 0.5, 2.0) }
     readonly property bool textBold: !!shellFile.adapter.textBold
     function setTextBold(v: bool): void { setAdapterBool(shellFile, "textBold", v) }
+    // Bar labels sit one step above Normal (Google Sans Flex reads better
+    // slightly heavier at bar sizes); the Bold Text toggle lifts them to Bold.
+    readonly property int barTextWeight: textBold ? Font.Bold : Font.Medium
+    // Focused/hovered bar items one step above the bar baseline.
+    readonly property int barTextWeightEmphasis: textBold ? Font.Bold : Font.DemiBold
     readonly property real fontScale: Math.max(0.85, Math.min(1.25, shellFile.adapter.fontScale ?? 1.0))
     function setFontScale(v: real): void { setAdapterReal(shellFile, "fontScale", v, 0.85, 1.25) }
     function fs(px: real): int { return Math.max(1, Math.round(px * fontScale)) }
@@ -1152,6 +1157,26 @@ Singleton {
         }
     }
 
+    // ---- M3 transition patterns (m3.material.io/styles/motion/transitions) --
+    // Fade through: 300ms emphasized, outgoing fades over the first 35% of
+    // the run, incoming over the last 65% and scales 92% -> 100%.
+    // Shared axis: 400ms emphasized, 30dp slide on X/Y or 80%/110% scale on
+    // Z (forward: in 0.8->1, out 1->1.1; backward mirrored).
+    // The curve is the M3 emphasized token: cubic-bezier(0.2, 0, 0, 1).
+    readonly property int durMotionFadeThrough: animationsEnabled ? 300 : 0
+    readonly property int durMotionSharedAxis: animationsEnabled ? 400 : 0
+    readonly property var curveMotion: curveEmphasized
+    readonly property real motionSlideDistance: 30
+    readonly property real motionFadeThroughScale: 0.92
+    readonly property real motionAxisZScaleIn: 0.8
+    readonly property real motionAxisZScaleOut: 1.1
+    // Fade-through thresholds (Material FadeThroughProvider: 0.35).
+    readonly property real motionFadeThroughExit: 0.35
+    readonly property real motionFadeThroughEnter: 0.65
+    // Indeterminate progress (ambient motion; period never collapses — the
+    // animator itself is gated on animationsEnabled instead).
+    readonly property int durSpinner: 1200
+
     readonly property int panelAnimFade: durDefaultEffects
     // Panel slide rides DefaultSpatial (500ms): panels travel their full
     // height out from behind the bar edge (Caelestia drawer offsetScale
@@ -1168,6 +1193,20 @@ Singleton {
     // opens (500ms, no fast exit), so the old FastEffects-based delay would
     // tear the surface down mid-flight.
     readonly property int panelHideDelay: animationsEnabled ? durDefaultSpatial + 20 : 0
+    // Cross-panel morph (Ui/PanelMorph + Ui/CaelestiaPopout): opening a bar
+    // panel while another is open hands the outgoing card's pose to the
+    // incoming popout, which glides from there to its own settled pose.
+    // Hold = how long the outgoing card waits for the incoming surface to
+    // render before it falls back to its normal close run; it must stay
+    // well below panelHideDelay, because the outgoing window unmaps then.
+    readonly property int durPanelMorph: animationsEnabled ? durDefaultSpatial : 0
+    readonly property var curvePanelMorph: curveDefaultSpatial
+    readonly property int durPanelMorphHold: animationsEnabled ? 300 : 0
+    // Eased glide progress at which the incoming content starts fading in.
+    // curveDefaultSpatial is front-loaded (0.99 of the way at 0.4), so this
+    // is ~200ms into a 500ms morph; the card is already at its pose, which
+    // keeps the full-size content from spilling past the morphing frame.
+    readonly property real panelMorphReveal: 0.4
     // Attached-bar morph: dropdown boxes sit flush with the bar edge
     // instead of floating detached below it. Must stay 0: the panel
     // windows are placed on the compositor's remaining area (bar bottom =

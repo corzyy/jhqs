@@ -10,6 +10,8 @@ Item {
     property bool active: false
     property bool editing: false
     property bool selected: true
+    // 1x1 layout: circle tile, icon only, no label column.
+    property bool compact: false
     property int cornerRadius: 26
     property color activeColor: Theme.primary
     property color activeContentColor: Theme.on_primary
@@ -49,35 +51,35 @@ Item {
 
         Behavior on color {
             enabled: Theme.animationsEnabled
-            ColorAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+            ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
         }
         Behavior on opacity {
             enabled: Theme.animationsEnabled
-            NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects }
         }
         Behavior on scale {
             enabled: Theme.animationsEnabled
-            NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
         }
         Behavior on border.color {
             enabled: Theme.animationsEnabled
-            ColorAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+            ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
         }
 
         Rectangle {
             id: iconCircle
-            width: 40
-            height: 40
+            width: root.compact ? parent.width : 40
+            height: root.compact ? parent.height : 40
             radius: width / 2
             antialiasing: Theme.shapesAa
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: root.compact ? 0 : 14
             anchors.verticalCenter: parent.verticalCenter
-            color: root.active ? Theme.withAlpha(root.activeContentColor, 0.16) : Theme.withAlpha(root.inactiveContentColor, 0.08)
+            color: root.compact ? "transparent" : (root.active ? Theme.withAlpha(root.activeContentColor, 0.16) : Theme.withAlpha(root.inactiveContentColor, 0.08))
 
             Behavior on color {
                 enabled: Theme.animationsEnabled
-                ColorAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
             }
 
             Text {
@@ -91,13 +93,14 @@ Item {
 
                 Behavior on color {
                     enabled: Theme.animationsEnabled
-                    ColorAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                    ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
                 }
             }
         }
 
         Column {
             id: labelColumn
+            visible: !root.compact
             anchors.left: iconCircle.right
             anchors.leftMargin: 12
             anchors.right: parent.right
@@ -119,7 +122,7 @@ Item {
 
                 Behavior on color {
                     enabled: Theme.animationsEnabled
-                    ColorAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                    ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
                 }
             }
 
@@ -137,14 +140,16 @@ Item {
 
                 Behavior on color {
                     enabled: Theme.animationsEnabled
-                    ColorAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                    ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
                 }
             }
         }
 
         Rectangle {
             id: editBadge
-            visible: root.editing
+            // Edit chrome: M3 fade in/out (enter decelerate, exit accelerate).
+            opacity: root.editing ? 1 : 0
+            visible: opacity > 0.01
             width: 22
             height: 22
             radius: width / 2
@@ -158,7 +163,15 @@ Item {
 
             Behavior on color {
                 enabled: Theme.animationsEnabled
-                ColorAnimation { duration: Theme.durFastEffects; easing.type: Easing.OutCubic }
+                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+            }
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation {
+                    duration: root.editing ? Theme.durSlowEffects : Theme.durFastEffects
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: root.editing ? Theme.curveEmphasizedDecelerate : Theme.curveEmphasizedAccelerate
+                }
             }
 
             Text {

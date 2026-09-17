@@ -21,7 +21,7 @@ Singleton {
     property int displayCount: debugForce ? debugCount : updates.length
     // NOTE: isVisible removed — dead (callers use displayCount > 0).
 
-    readonly property string checkSchedule: settingsFile.adapter.checkSchedule !== undefined ? settingsFile.adapter.checkSchedule : "Every 6 hours"
+    readonly property string checkSchedule: settingsFile.adapter.checkSchedule !== undefined ? settingsFile.adapter.checkSchedule : "At startup only"
     readonly property bool offerShutdownAction: {
         let v = settingsFile.adapter.offerShutdownAction
         return v === true || String(v) === "true"
@@ -44,7 +44,7 @@ Singleton {
         watchChanges: true; blockLoading: true; printErrors: false
         onFileChanged: settingsReloadDebounce.restart()
         adapter: JsonAdapter {
-            property string checkSchedule: "Every 6 hours"
+            property string checkSchedule: "At startup only"
             property bool offerShutdownAction: true
         }
     }

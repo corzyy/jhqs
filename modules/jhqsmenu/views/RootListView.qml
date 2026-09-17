@@ -16,19 +16,23 @@ Item {
     anchors.fill: parent
     anchors.margins: 0
     clip: true
-    opacity: root.isListView ? 1 : 0
+    // Category in/out: M3 fade through (m3 transition patterns) — the old
+    // category fades out over the first 35% of the run, the new one fades in
+    // afterwards while settling from 92%.
+    Motion {
+        id: motion
+        active: root.isListView
+        pattern: Motion.FadeThrough
+    }
+    opacity: motion.opacity
     visible: opacity > 0.01
     enabled: root.isListView
-    scale: root.isListView ? 1 : 0.98
+    scale: motion.scale
     transformOrigin: Item.Center
     readonly property bool searching: bodyRoot.filterText.trim().length > 0
     // Shared empty model: keeps repeater model identity stable while hidden
     // (a fresh [] literal would still reset the delegates every keystroke).
     readonly property var noRows: []
-    // Category in/out: crossfade both ways on the expressive curves
-    // (Caelestia ContentList: opacity DefaultEffects, scale FastSpatial).
-    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
-    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
     ScrollIndicator { flick: listFlick; show: listFlick.visible }
     Flickable {

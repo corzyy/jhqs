@@ -144,9 +144,13 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "weather"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            // Disabled while the panel is closing: during a morph handoff
+            // the outgoing window stays mapped for panelHideDelay and must
+            // not eat the click that belongs to the panel now on top.
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
+                enabled: root.showWeather
                 onClicked: root.dismissed()
             }
             // Caelestia popout (Ui/CaelestiaPopout): curtain reveal from
@@ -155,6 +159,8 @@ Scope {
             CaelestiaPopout {
                 id: wxPopout
                 shown: root.showWeather
+                morphId: "weather"
+                morphActive: Theme.isPrimaryScreen(modelData)
                 barPos: root.barPos
                 fullWidth: 560
                 fullHeight: wxBox.implicitHeight
@@ -221,6 +227,9 @@ Scope {
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.AllButtons
+                        // Off while closing: the window outlives the card
+                        // (morph/close hold) and must not steal input.
+                        enabled: root.showWeather
                         onClicked: mouse => mouse.accepted = true
                         onPressed: mouse => mouse.accepted = true
                         onWheel: wheel => wheel.accepted = true
@@ -252,6 +261,9 @@ Scope {
                         // Content travels on the popout's own driver (frame
                         // stretches first, content settles after) and keeps
                         // the full panel size so nothing reflows mid-stretch.
+                        // contentFade hides it while the card morphs over to
+                        // another panel's pose.
+                        opacity: wxPopout.contentFade
                         x: 10 + wxPopout.contentX
                         y: 10 + wxPopout.contentY
                         width: wxPopout.fullWidth - 20
@@ -315,9 +327,17 @@ Scope {
                                     onPressed: WeatherService.refresh()
                                 }
                             }
-                            // Location search editor — only visible while editing.
+                            // Location search editor — M3 fade enter/exit
+                            // (stays in layout until the fade-out finished,
+                            // then the panel height glides).
                             Card {
-                                visible: WeatherService.editingLocation
+                                readonly property bool locEditing: WeatherService.editingLocation
+                                opacity: locEditing ? 1 : 0
+                                visible: opacity > 0.01
+                                Behavior on opacity {
+                                    enabled: Theme.animationsEnabled
+                                    NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+                                }
                                 width: parent.width
                                 implicitHeight: locCol.implicitHeight + 20
                                 ColumnLayout {

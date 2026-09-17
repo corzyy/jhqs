@@ -285,16 +285,17 @@ Scope {
                 anchors.bottomMargin: osdScope.quattroBottomMargin
                 width: quattroCard.width
                 height: quattroCard.height
-                opacity: osdScope.osdVisible ? 1 : 0
-                // Caelestia OSD motion (osd Wrapper offsetScale idiom): a
-                // single fade driver with a slight rise + settle scale, so
-                // show/hide reads as one gesture. Opacity rides the effects
-                // curve; rise/scale ride the spatial curve via the animated
-                // opacity value, so they can never desync.
-                scale: 0.96 + 0.04 * opacity
+                // OSD show/hide: M3 fade through (fade + settle from 92%),
+                // rise coupled to the driver so it can never desync.
+                Ui.Motion {
+                    id: osdMotion
+                    active: osdScope.osdVisible
+                    pattern: Ui.Motion.FadeThrough
+                }
+                opacity: osdMotion.opacity
+                scale: osdMotion.scale
                 transformOrigin: Item.Bottom
-                transform: Translate { y: (1 - quattroWrapper.opacity) * 12 }
-                Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+                transform: Translate { y: (1 - osdMotion.opacity) * 12 }
 
                 Rectangle {
                     id: quattroCard

@@ -208,13 +208,27 @@ Scope {
         property real baseSlideX: delegateRoot.baseSlideX
         property real baseSlideY: delegateRoot.baseSlideY
         transform: Translate { x: card.slideX; y: card.baseSlideY }
-        // Caelestia enter/exit motion: fade on the effects curve, scale on
-        // the spatial curve, directional slide out on emphasized-decelerate
-        // (Caelestia Notification.x). Drag stays direct (dragProxy.x has no
-        // Behavior); only the enter/exit offsets glide.
-        Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
+        // Caelestia enter/exit motion, split by direction per M3 (enter:
+        // emphasized decelerate + effects fade in; exit: emphasized
+        // accelerate + fast effects fade out). Drag stays direct
+        // (dragProxy.x has no Behavior); only the enter/exit offsets glide.
+        Behavior on opacity {
+            enabled: Theme.animationsEnabled
+            NumberAnimation {
+                duration: delegateRoot.leaving ? Theme.durFastEffects : Theme.durDefaultEffects
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: delegateRoot.leaving ? Theme.curveFastEffects : Theme.curveDefaultEffects
+            }
+        }
         Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
-        Behavior on baseSlideX { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveEmphasizedDecelerate } }
+        Behavior on baseSlideX {
+            enabled: Theme.animationsEnabled
+            NumberAnimation {
+                duration: delegateRoot.leaving ? Theme.durFastEffects : Theme.durDefaultSpatial
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: delegateRoot.leaving ? Theme.curveEmphasizedAccelerate : Theme.curveEmphasizedDecelerate
+            }
+        }
         Behavior on baseSlideY { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
 
         HoverHandler { id: hover }

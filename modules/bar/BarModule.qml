@@ -15,6 +15,7 @@ Item {
     signal requestVitals()
     signal requestSystemTray()
     signal requestControlCenter()
+    signal requestSession()
     signal requestNetanjahu()
     required property string moduleId
     property bool vertical: false
@@ -84,8 +85,8 @@ Item {
     }
 
     // Klick-Tabelle: (Modul, Taste) -> Aktion. Neue Module nur hier
-    // eintragen statt die if/else-Kette zu verlängern. systemtray und
-    // workspaces brauchen Koordinaten und bleiben eigene Funktionen.
+    // eintragen statt die if/else-Kette zu verlängern. workspaces braucht
+    // Koordinaten und bleibt eine eigene Funktion.
     function click(button: int, x: real, y: real): void {
         // Right-click toggles the module label when the widget supports it.
         // Icon-only modules (no toggleLabel) fall through to legacy actions.
@@ -127,9 +128,13 @@ Item {
             else if (left) requestUpdates()
             break
         case "systemtray":
-            clickSystemTray(button, x, y)
+            // Pinned icons handle their own clicks; the grid button
+            // (anything past them) opens the panel.
+            if (clickSystemTray(button, x, y)) break
+            if (left || right) requestSystemTray()
             break
         case "controlcenter":
+            if (left && clickControlCenter(x, y)) break
             if (left) requestControlCenter()
             break
         case "netanjahu":
@@ -141,13 +146,24 @@ Item {
         }
     }
 
-    function clickSystemTray(button: int, x: real, y: real): void {
+    function clickControlCenter(x: real, y: real): bool {
+        try {
+            let w = widgetLoader.item
+            if (!w || !w.click) return false
+            let p = w.mapFromItem(root, x, y)
+            return w.click(Qt.LeftButton, p.x, p.y)
+        } catch (e) { }
+        return false
+    }
+
+    function clickSystemTray(button: int, x: real, y: real): bool {
         try {
             let t = widgetLoader.item
-            if (!t || !t.click) return
+            if (!t || !t.click) return false
             let p = t.mapFromItem(root, x, y)
-            t.click(button, p.x, p.y)
+            return t.click(button, p.x, p.y) === true
         } catch (e) { }
+        return false
     }
 
     function clickWorkspaces(x: real, y: real): void {
@@ -270,9 +286,9 @@ Item {
     Component { id: vitalsComp; VitalsWidget { vertical: root.vertical; onClicked: root.requestVitals() } }
     Component {
         id: trayComp
-        SystemTray { vertical: root.vertical; hoverExpand: root.slotHovered; onRequestManage: root.requestSystemTray() }
+        SystemTray { vertical: root.vertical; onClicked: root.requestSystemTray() }
     }
     Component { id: activeComp; ActiveWindow { vertical: root.vertical } }
-    Component { id: controlCenterComp; ControlCenterWidget { vertical: root.vertical; onClicked: root.requestControlCenter() } }
+    Component { id: controlCenterComp; ControlCenterWidget { vertical: root.vertical; onClicked: root.requestControlCenter(); onSessionClicked: root.requestSession() } }
     Component { id: netanjahuComp; NetanjahuWidget { vertical: root.vertical; onClicked: root.requestNetanjahu() } }
 }

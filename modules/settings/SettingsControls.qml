@@ -524,7 +524,7 @@ QtObject {
                     : root.on ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.12)
                 border.color: root.enabled && !root.on && toggleMouse.containsMouse ? Theme.accent : "transparent"
                 border.width: root.enabled && !root.on && toggleMouse.containsMouse ? 1 : 0
-                Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+                Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                 Rectangle {
                     antialiasing: Theme.shapesAa
                     width: 16; height: 16
@@ -533,8 +533,8 @@ QtObject {
                     anchors.verticalCenter: parent.verticalCenter
                     color: !root.enabled ? Theme.textMuted
                         : root.on ? Theme.onAccent : Theme.textSecondary
-                    Behavior on x { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
-                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
+                    Behavior on x { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                 }
             }
             MouseArea {

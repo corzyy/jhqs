@@ -532,13 +532,18 @@ Scope {
                 }
                 Component.onCompleted: forceActiveFocus()
             }
+            // Disabled while the panel is closing: during a morph handoff
+            // the outgoing window stays mapped for panelHideDelay and must
+            // not eat the click that belongs to the panel now on top.
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
+                enabled: scope.showVolume
                 onClicked: scope.dismissed()
             }
             PanelShell {
                 moduleId: "volume"
+                screenActive: Theme.isPrimaryScreen(modelData)
                 barPos: scope.barPos
                 panelGap: scope.panelGap
                 shown: scope.showVolume

@@ -76,9 +76,13 @@ Scope {
                 }
                 Component.onCompleted: forceActiveFocus()
             }
+            // Disabled while the panel is closing: during a morph handoff
+            // the outgoing window stays mapped for panelHideDelay and must
+            // not eat the click that belongs to the panel now on top.
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.AllButtons
+                enabled: trayScope.showTray
                 onClicked: trayScope.dismissed()
             }
             // Caelestia popout (Ui/CaelestiaPopout): curtain reveal from
@@ -87,6 +91,8 @@ Scope {
             CaelestiaPopout {
                 id: trayPopout
                 shown: trayScope.showTray
+                morphId: "systemtray"
+                morphActive: Theme.isPrimaryScreen(modelData)
                 barPos: trayScope.barPos
                 fullWidth: 340
                 fullHeight: trayBox.implicitHeight
@@ -144,6 +150,9 @@ Scope {
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.AllButtons
+                        // Off while closing: the window outlives the card
+                        // (morph/close hold) and must not steal input.
+                        enabled: trayScope.showTray
                         onClicked: mouse => mouse.accepted = true
                         onPressed: mouse => mouse.accepted = true
                         onWheel: wheel => wheel.accepted = true
@@ -153,6 +162,9 @@ Scope {
                         // Content travels on the popout's own driver (frame
                         // stretches first, content settles after) and keeps
                         // the full panel size so nothing reflows mid-stretch.
+                        // contentFade hides it while the card morphs over to
+                        // another panel's pose.
+                        opacity: trayPopout.contentFade
                         x: 12 + trayPopout.contentX
                         y: 12 + trayPopout.contentY
                         width: trayPopout.fullWidth - 24
@@ -184,7 +196,7 @@ Scope {
                                     antialiasing: Theme.textAa
                                     renderType: Theme.textRenderType
                                     Layout.fillWidth: true
-                                    text: "Pinned stays visible · never hidden"
+                                    text: "Left-click activate · right-click menu"
                                     font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
                                     color: Theme.textSecondary
                                     elide: Text.ElideRight
@@ -242,10 +254,49 @@ Scope {
                                         border.color: rowMouse.containsMouse ? Theme.divider : "transparent"
                                         border.width: 1
                                         opacity: isHidden ? 0.55 : 1.0
+                                        function openMenu(): void {
+                                            // CRASH FIX (same as the former bar
+                                            // drawer): anchor.item/window must
+                                            // be set imperatively — a binding
+                                            // re-fires while the delegate is
+                                            // torn down and segfaults.
+                                            rowMenuAnchor.anchor.window = trayRow.QsWindow.window
+                                            rowMenuAnchor.anchor.item = trayRow
+                                            rowMenuAnchor.open()
+                                        }
                                         MouseArea {
                                             id: rowMouse
                                             anchors.fill: parent
                                             hoverEnabled: true
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: mouse => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    if (trayRow.item.hasMenu) trayRow.openMenu()
+                                                    return
+                                                }
+                                                if (mouse.button === Qt.MiddleButton) {
+                                                    try { trayRow.item.secondaryActivate() } catch (e) { }
+                                                    return
+                                                }
+                                                if (trayRow.item.onlyMenu) {
+                                                    if (trayRow.item.hasMenu) trayRow.openMenu()
+                                                } else {
+                                                    try { trayRow.item.activate() } catch (e) { }
+                                                }
+                                            }
+                                        }
+                                        QsMenuAnchor {
+                                            id: rowMenuAnchor
+                                            anchor.rect.x: trayRow.width / 2
+                                            anchor.rect.y: trayRow.height
+                                            anchor.rect.width: 1
+                                            anchor.rect.height: 1
+                                            anchor.edges: Edges.Bottom
+                                            anchor.gravity: Edges.Top
+                                            anchor.margins.top: 4
+                                            anchor.adjustment: PopupAdjustment.SlideX | PopupAdjustment.FlipX | PopupAdjustment.FlipY
+                                            menu: trayRow.item ? trayRow.item.menu : null
                                         }
                                         RowLayout {
                                             anchors.fill: parent

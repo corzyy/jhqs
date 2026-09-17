@@ -1390,7 +1390,6 @@ Scope {
         else if (m.title === "Learn") { showLearn = true; clearSearch() }
         else if (m.title === "Install") { showInstall = true; clearSearch() }
         else if (m.title === "Remove") { showRemove = true; clearSearch() }
-        else if (m.title === "System") { showSession = true; directSystemOpen = false; clearSearch() }
     }
     function resetAllSubmenus() { showStyle = false; showWallpaper = false; showWallpaperSettings = false; showThemes = false; showFont = false; showInstall = false; showRemove = false; showSession = false; showSetup = false; showLearn = false; showKeybinds = false; showModules = false; modulesSubview = "root"; showNewAppMenu = false; showPackages = false; showWebApp = false; directSystemOpen = false }
     function handleEsc(): bool {
@@ -1530,8 +1529,7 @@ Scope {
         {title:"Setup",icon:"󰒓",arrow:"›", submenu: setupMenu},
         {title:"Install",icon:"󰇚",arrow:"›", submenu: installMenu},
         {title:"Remove",icon:"󰆴",arrow:"›", submenu: removeMenu},
-        {title:"About",icon:"󰋼",arrow:"", submenu: null},
-        {title:"System",icon:"󰐥",arrow:"›", submenu: sessionMenu}
+        {title:"About",icon:"󰋼",arrow:"", submenu: null}
     ]
     property var queryInputRef: null
     property var bodyRootRef: null
@@ -2141,12 +2139,7 @@ Scope {
         // Settings > Search: browsing (empty query) is unaffected, only
         // top-level search results are gated.
         if (q !== "" && !SettingsService.searchMenu) return []
-        let base = q === "" ? menuModel : menuModel.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
-        if (q !== "" && base.length > 1) {
-            let sysRows = base.filter(m => m.title === "System")
-            if (sysRows.length > 0 && sysRows.length < base.length) return base.filter(m => m.title !== "System").concat(sysRows)
-        }
-        return base
+        return q === "" ? menuModel : menuModel.filter(m => matchesAll(m.title.toLowerCase(), queryWords()))
     }
     property var filteredCategorySections: {
         if (isInSubmenu) return []
@@ -2157,7 +2150,7 @@ Scope {
             let m = menuModel[i]
             if (!m.submenu || m.submenu.length === 0) continue
             // Settings > Search: per-category toggle (Learn/Style/Setup/
-            // Install/Remove/System). Unknown categories stay visible.
+            // Install/Remove). Unknown categories stay visible.
             try { if (!SettingsService.searchEnabledForCategory(m.title)) continue } catch (e) { }
             let matched = m.submenu.filter(e => matchesAll(e.title.toLowerCase(), words))
             if (matched.length === 0 && matchesAll(m.title.toLowerCase(), words)) matched = m.submenu.slice()
@@ -2168,10 +2161,6 @@ Scope {
                 }
             }
             if (matched.length > 0) sections.push({ category: m.title, options: matched })
-        }
-        if (sections.length > 1) {
-            let sysSecs = sections.filter(s => s.category === "System")
-            if (sysSecs.length > 0 && sysSecs.length < sections.length) return sections.filter(s => s.category !== "System").concat(sysSecs)
         }
         return sections
     }
@@ -2387,7 +2376,6 @@ Scope {
         if (!m || !m.title) return
         if (m.title === "Apps") { showNewAppMenu = true; clearSearch() }
         else if (m.title === "About") { openAbout(); dismissed() }
-        else if (m.title === "System") { showSession = true; directSystemOpen = false; clearSearch() }
         else if (m.title === "Install") { showInstall = true; clearSearch() }
         else if (m.title === "Remove") { showRemove = true; clearSearch() }
         else if (m.title === "Style") { showStyle = true; clearSearch(); refreshWallpapers() }

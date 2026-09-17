@@ -1,36 +1,94 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../themes"
+import "../../services"
 
-BarWidgetBase {
+Item {
     id: root
+    signal clicked()
+    signal sessionClicked()
+    property bool vertical: false
+    property bool slotHovered: false
 
-    readonly property color _fg: hovered ? Theme.accent : Theme.textPrimary
+    // Icons are hidden while their state is inactive (see visible bindings
+    // below), so the tint only distinguishes hover and the muted state.
+    readonly property color _netFg: slotHovered ? Theme.accent : Theme.textPrimary
+    readonly property color _btFg: slotHovered ? Theme.accent : Theme.textPrimary
+    readonly property color _volFg: slotHovered ? Theme.accent : Theme.textPrimary
+    readonly property color _dndFg: Theme.textPrimary
+    readonly property color _sessionFg: slotHovered ? Theme.accent : Theme.textPrimary
 
-    rowContent: Component {
+    implicitWidth: vertical ? colRow.implicitWidth + 12 : rowRow.implicitWidth + 16
+    implicitHeight: vertical ? colRow.implicitHeight + 10 : rowRow.implicitHeight + 10
+
+    Item {
+        id: contentScale
+        anchors.centerIn: parent
+        width: Math.max(rowRow.implicitWidth, colRow.implicitWidth)
+        height: Math.max(rowRow.implicitHeight, colRow.implicitHeight)
+        scale: root.slotHovered ? Theme.hoverScale : 1
+        transformOrigin: Item.Center
+        Behavior on scale {
+            enabled: Theme.animationsEnabled
+            NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
+        }
+
         RowLayout {
-            spacing: 6
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: "󰘮"
-                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
-                color: root._fg
-                Layout.alignment: Qt.AlignVCenter
-            }
+            id: rowRow
+            visible: !root.vertical
+            anchors.centerIn: parent
+            spacing: 7
+            StatusIcon { glyph: NetworkService.icon; tint: root._netFg; visible: NetworkService.netActive }
+            StatusIcon { glyph: BluetoothService.icon; tint: root._btFg; visible: BluetoothService.btActive }
+            StatusIcon { glyph: VolumeService.icon; tint: root._volFg; visible: VolumeService.isMuted }
+            StatusIcon { glyph: "󰂛"; tint: root._dndFg; visible: Theme.dndEnabled }
+            StatusIcon { id: rowSession; glyph: "󰐥"; tint: root._sessionFg }
+        }
+        ColumnLayout {
+            id: colRow
+            visible: root.vertical
+            anchors.centerIn: parent
+            spacing: 3
+            StatusIcon { glyph: NetworkService.icon; tint: root._netFg; visible: NetworkService.netActive }
+            StatusIcon { glyph: BluetoothService.icon; tint: root._btFg; visible: BluetoothService.btActive }
+            StatusIcon { glyph: VolumeService.icon; tint: root._volFg; visible: VolumeService.isMuted }
+            StatusIcon { glyph: "󰂛"; tint: root._dndFg; visible: Theme.dndEnabled }
+            StatusIcon { id: colSession; glyph: "󰐥"; tint: root._sessionFg }
         }
     }
-    colContent: Component {
-        ColumnLayout {
-            spacing: 2
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: "󰘮"
-                font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
-                color: root._fg
-                Layout.alignment: Qt.AlignHCenter
-            }
+
+    component StatusIcon: Text {
+        required property string glyph
+        required property color tint
+        text: glyph
+        color: tint
+        antialiasing: Theme.textAa
+        renderType: Theme.textRenderType
+        font.family: Theme.iconFontFamily
+        font.pixelSize: Theme.fs(14)
+        Layout.alignment: Qt.AlignVCenter
+        Behavior on color {
+            enabled: Theme.animationsEnabled
+            ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
         }
+    }
+
+    function sessionHitAt(x: real, y: real): bool {
+        const target = root.vertical ? colSession : rowSession
+        try {
+            const p = target.mapToItem(root, 0, 0)
+            return x >= p.x - 3 && x <= p.x + target.width + 3 && y >= p.y - 3 && y <= p.y + target.height + 3
+        } catch (e) {
+            return false
+        }
+    }
+
+    function click(button: int, x: real, y: real): bool {
+        if (button !== Qt.LeftButton) return false
+        if (sessionHitAt(x, y)) {
+            root.sessionClicked()
+            return true
+        }
+        return false
     }
 }

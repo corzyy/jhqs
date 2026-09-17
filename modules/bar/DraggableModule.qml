@@ -25,6 +25,7 @@ Item {
     signal requestVitals()
     signal requestSystemTray()
     signal requestControlCenter()
+    signal requestSession()
     signal requestNetanjahu()
     signal hideRequest()
     signal pressBegun()
@@ -113,6 +114,7 @@ Item {
         onRequestVitals: root.requestVitals()
         onRequestSystemTray: root.requestSystemTray()
         onRequestControlCenter: root.requestControlCenter()
+        onRequestSession: root.requestSession()
         onRequestNetanjahu: root.requestNetanjahu()
     }
 

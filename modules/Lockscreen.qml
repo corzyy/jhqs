@@ -5,6 +5,7 @@ import Quickshell.Io
 import QtQuick
 import QtQuick.Layouts
 import "../themes"
+import "../Ui"
 import QtQuick.Effects
 
 Scope {
@@ -101,22 +102,26 @@ Scope {
                 id: contentRoot
                 anchors.fill: parent
                 clip: false
-                opacity: lockScope.locked ? 1 : 0
+                // Lock-in: M3 fade through (fade + settle from 92%) driven by
+                // one shared progress so background, clock and PIN all move
+                // together. Unlock exit is instant (the window unmaps).
+                Motion {
+                    id: lockMotion
+                    active: lockScope.locked
+                    pattern: Motion.FadeThrough
+                }
+                opacity: lockMotion.opacity
 
                 Image {
                     smooth: Theme.imageSmooth
                     mipmap: Theme.imageMipmap
                     id: bgImage
                     anchors.fill: parent
-                    anchors.margins: -64
                     source: lockScope.wallpaperSource
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: false
-                    sourceSize.width: 960
-                    sourceSize.height: 540
-                    scale: lockScope.locked ? 1.0 : 1.06
-                    opacity: lockScope.locked ? 1 : 0.85
+                    opacity: lockMotion.opacity
                 }
                 Rectangle {
                     antialiasing: Theme.shapesAa
@@ -129,7 +134,7 @@ Scope {
                     antialiasing: Theme.shapesAa
                     anchors.fill: parent
                     color: Theme.scrim
-                    opacity: lockScope.locked ? 0.20 : 0
+                    opacity: 0.20 * lockMotion.opacity
                 }
 
                 Item {
@@ -137,50 +142,64 @@ Scope {
                     visible: Theme.isPrimaryScreen(modelData)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
-                    anchors.topMargin: 110
+                    anchors.topMargin: Math.round(parent.height * 0.24)
                     width: clockCol.implicitWidth
                     height: clockCol.implicitHeight
-                    opacity: lockScope.locked ? 1 : 0
-                    scale: lockScope.locked ? 1 : 0.96
-                    transform: Translate { y: lockScope.locked ? 0 : -18 }
+                    opacity: lockMotion.opacity
+                    scale: 0.96 + 0.04 * lockMotion.opacity
+                    transform: Translate { y: (1 - lockMotion.opacity) * -18 }
                     SystemClock { id: lockClock; enabled: lockScope.locked && Theme.isPrimaryScreen(modelData); precision: SystemClock.Minutes }
+                    // iOS-style stacked clock: rounded variable-font digits
+                    // (Google Sans Flex, ROND axis), hours over minutes with
+                    // tight leading, then the date underneath.
+                    readonly property int clockFontSize: Math.max(64, Math.round(parent.height * 0.18))
                     Column {
                         id: clockCol
                         anchors.centerIn: parent
-                        spacing: 10
+                        spacing: Theme.fs(16)
+                        Column {
+                            id: clockDigits
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: -Math.round(topClock.clockFontSize * 0.26)
+                            Text {
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: Qt.formatDateTime(lockClock.date, "HH")
+                                color: Theme.textPrimary
+                                font.family: "Google Sans Flex"
+                                font.pixelSize: topClock.clockFontSize
+                                font.weight: Font.Light
+                                font.variableAxes: ({ "ROND": 100, "wght": 300 })
+                                font.letterSpacing: -topClock.clockFontSize * 0.02
+                                horizontalAlignment: Text.AlignHCenter
+                                opacity: 0.97
+                            }
+                            Text {
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: Qt.formatDateTime(lockClock.date, "mm")
+                                color: Theme.textPrimary
+                                font.family: "Google Sans Flex"
+                                font.pixelSize: topClock.clockFontSize
+                                font.weight: Font.Light
+                                font.variableAxes: ({ "ROND": 100, "wght": 300 })
+                                font.letterSpacing: -topClock.clockFontSize * 0.02
+                                horizontalAlignment: Text.AlignHCenter
+                                opacity: 0.97
+                            }
+                        }
                         Text {
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.formatDateTime(lockClock.date, "HH:mm")
+                            text: Qt.formatDateTime(lockClock.date, "ddd, MMM d")
                             color: Theme.textPrimary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fs(92)
-                            font.weight: Font.Light
-                            font.letterSpacing: -3.2
-                            lineHeight: 0.95
-                            horizontalAlignment: Text.AlignHCenter
-                            opacity: 0.97
-                        }
-                        Rectangle {
-                            antialiasing: Theme.shapesAa
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            width: 32; height: 2
-                            radius: Theme.cornerRadiusSmall
-                            color: Theme.primary
-                            opacity: 0.65
-                        }
-                        Text {
-                            antialiasing: Theme.textAa
-                            renderType: Theme.textRenderType
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.formatDateTime(lockClock.date, "dddd  •  dd MMMM")
-                            color: Theme.textPrimary
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fs(15)
-                            font.weight: Font.Medium
-                            font.letterSpacing: 1.2
-                            opacity: 0.72
+                            font.family: "Google Sans Flex"
+                            font.pixelSize: Theme.fs(18)
+                            font.weight: Font.DemiBold
+                            opacity: 0.9
                             horizontalAlignment: Text.AlignHCenter
                         }
                     }
@@ -233,10 +252,25 @@ Scope {
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 185
                     width: 360; height: 150
-                    opacity: lockScope.locked ? 1 : 0
-                    scale: lockScope.locked ? 1 : 0.96
+                    opacity: lockMotion.opacity
+                    scale: 0.96 + 0.04 * lockMotion.opacity
                     property real shakeOffset: 0
-                    transform: Translate { y: lockScope.locked ? 0 : 24; x: pinContainer.shakeOffset }
+                    // Denied PIN: short standard-easing shake (collapses when
+                    // animations are off).
+                    readonly property int shakeStep: Theme.animationsEnabled ? 60 : 0
+                    transform: Translate { y: (1 - lockMotion.opacity) * 24; x: pinContainer.shakeOffset }
+                    Connections {
+                        target: lockScope
+                        function onFailedChanged() { if (lockScope.failed) shakeAnim.restart() }
+                    }
+                    SequentialAnimation {
+                        id: shakeAnim
+                        NumberAnimation { target: pinContainer; property: "shakeOffset"; to: -12; duration: pinContainer.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandardAccel }
+                        NumberAnimation { target: pinContainer; property: "shakeOffset"; to: 10; duration: pinContainer.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandard }
+                        NumberAnimation { target: pinContainer; property: "shakeOffset"; to: -6; duration: pinContainer.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandard }
+                        NumberAnimation { target: pinContainer; property: "shakeOffset"; to: 4; duration: pinContainer.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandard }
+                        NumberAnimation { target: pinContainer; property: "shakeOffset"; to: 0; duration: pinContainer.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandardDecel }
+                    }
                     ColumnLayout {
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.top: parent.top

@@ -11,15 +11,19 @@ Item {
 anchors.fill: parent
 anchors.margins: 4
 clip: true
-opacity: bodyRoot.scope.showWallpaper ? 1 : 0
+// Category in/out: M3 fade through (m3 transition patterns) — the old view
+// fades out over the first 35% of the run, the new one fades in afterwards
+// while settling from 92%.
+Motion {
+    id: motion
+    active: bodyRoot.scope.showWallpaper
+    pattern: Motion.FadeThrough
+}
+opacity: motion.opacity
 visible: opacity > 0.01
 enabled: bodyRoot.scope.showWallpaper
-scale: bodyRoot.scope.showWallpaper ? 1 : 0.97
+scale: motion.scale
 transformOrigin: Item.Center
-// PERF: no animation when hidden or animations off (was animating opacity +
-// scale on every view switch, even to invisible).
-Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
-Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 readonly property var modeLabels: ({ "stretch": "Stretch", "fit": "Fit", "fill": "Fill", "center": "Center", "tile": "Tile" })
 function modeLabel(id) { return modeLabels[id] !== undefined ? modeLabels[id] : id }
 function cycleMode(dir) {

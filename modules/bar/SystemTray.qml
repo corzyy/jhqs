@@ -1,38 +1,34 @@
-pragma ComponentBehavior: Bound
+// Tray: pinned items render as their real app icons in the bar; the grid
+// button next to them opens SystemTrayPanel (activate / menu / pin / hide
+// for every item). Hidden items never appear here, and pin/hide in the
+// panel updates the bar live (Theme filewatcher -> isTrayPinned).
+//
+// DraggableModule owns the module MouseArea (drag-to-reorder keeps
+// working), so clicks arrive as coordinates via BarModule: click()
+// hit-tests the pinned slots and only falls through to the button when
+// the click is not on an icon.
 import QtQuick
+import QtQuick.Layouts
 import QtQuick.Effects
 import Quickshell
 import Quickshell.DBusMenu
 import Quickshell.Services.SystemTray as TrayService
 import "../../themes"
 
-Item {
+BarWidgetBase {
     id: root
-    signal requestManage()
-    property bool vertical: false
-    // NOTE: monitor removed — never read by any delegate.
+    // Tighter than the default: the slots already carry their own padding.
+    hPad: 10
+    vPad: 8
+    rowPadV: 6
 
-    readonly property int extent: 26
+    readonly property int slotExtent: 24
     readonly property int iconPx: 16
-    readonly property int chevronPx: 26
-    // PERF: 600ms layout animation drove implicitWidth/Height + x/y every
-    // frame. 150ms is visually identical for a 26px reveal, 4x fewer frames.
-    readonly property int drawerDur: Theme.animationsEnabled ? 150 : 1
+    readonly property int buttonGap: 6
 
-    property bool hoverExpand: false
-    property bool touchExpand: false
-    readonly property bool expanded: hoverExpand || touchExpand
-    property real revealProgress: expanded ? 1 : 0
-    Behavior on revealProgress {
-        enabled: Theme.animationsEnabled
-        NumberAnimation {
-            duration: root.drawerDur
-            easing.type: Easing.OutCubic
-        }
-    }
+    readonly property color _fg: hovered ? Theme.accent : Theme.textPrimary
 
-    property var hoveredItem: null
-
+    // PERF: the panel filters the same way; only non-passive items exist.
     readonly property var rawItems: {
         let out = []
         try {
@@ -45,228 +41,92 @@ Item {
         } catch (e) { }
         return out
     }
-    function bucketOf(item): string {
-        let iid = String((item && item.id) || "")
-        if (Theme.isTrayHidden(iid)) return "hidden"
-        if (Theme.isTrayPinned(iid)) return "pinned"
-        return "drawer"
-    }
-    readonly property var trayBuckets: {
-        let p = [], d = []
-        let items = rawItems
+    // Pinned and not hidden -> icon in the bar (hidden wins, like the old
+    // drawer buckets). Everything else lives in the panel only.
+    readonly property var pinnedItems: {
+        let out = []
+        let items = root.rawItems
         for (let i = 0; i < items.length; i++) {
-            let b = ""
-            try { b = bucketOf(items[i]) } catch (e) { }
-            if (b === "pinned") p.push(items[i])
-            else if (b === "drawer") d.push(items[i])
+            let id = String((items[i] && items[i].id) || "")
+            if (Theme.isTrayHidden(id)) continue
+            if (Theme.isTrayPinned(id)) out.push(items[i])
         }
-        return { pinned: p, drawer: d }
+        return out
     }
-    readonly property var pinnedItems: trayBuckets.pinned
-    readonly property var drawerItems: trayBuckets.drawer
-    readonly property int drawerCount: drawerItems.length
-    readonly property int drawerExtent: drawerCount * root.extent
-    readonly property real revealExtent: drawerExtent * revealProgress
-    readonly property int drawerBlockW: rawItems.length > 0 ? root.chevronPx + Math.round(revealExtent) : 0
-    readonly property int drawerBlockH: rawItems.length > 0 ? root.chevronPx + Math.round(revealExtent) : 0
+    readonly property real pinnedExtent: root.pinnedItems.length * root.slotExtent
+    readonly property real rowExtent: root.pinnedExtent + (root.pinnedItems.length > 0 ? root.buttonGap : 0) + root.slotExtent
 
-    implicitWidth: root.vertical ? root.extent : drawerBlockW + pinnedItems.length * root.extent
-    implicitHeight: root.vertical ? drawerBlockH + pinnedItems.length * root.extent : root.extent
+    property var hoveredItem: null
+    // Along-axis position (bar coords) of the slot the menu was opened for.
+    property real _menuAlong: 0
 
-    function iconClick(item, anchorItem, button: int): void {
-        if (!item) return
+    // The row is centered inside the widget (BarWidgetBase contentScale);
+    // click coords are widget-relative, so the hit-test needs the origin.
+    function rowOrigin(): real {
+        return (root.vertical ? root.height - root.rowExtent : root.width - root.rowExtent) / 2
+    }
+
+    function iconClick(item, button: int): bool {
+        if (!item) return false
         if (button === Qt.RightButton) {
-            if (item.hasMenu && anchorItem) anchorItem.openMenu()
-            return
+            if (item.hasMenu) root.openMenuFor(item)
+            return true
         }
         if (button === Qt.MiddleButton) {
             try { item.secondaryActivate() } catch (e) { }
-            return
-        }
-        if (item.onlyMenu) {
-            if (item.hasMenu && anchorItem) anchorItem.openMenu()
-        } else {
-            try { item.activate() } catch (e) { }
-        }
-    }
-    function click(button: int, x: real, y: real): void {
-        // Beide Orientierungen teilen die 3-Zonen-Logik (Drawer / Pinned /
-        // Chevron) — nur Achse und Repeater unterscheiden sich.
-        if (root.vertical)
-            clickAt(y, vDrawerRepeater, vPinnedRepeater, button)
-        else
-            clickAt(x, hDrawerRepeater, hPinnedRepeater, button)
-    }
-
-    // Eindimensionaler Hit-Test entlang der Bar-Achse.
-    function clickAt(pos: real, drawerRepeater: var, pinnedRepeater: var, button: int): void {
-        const revealLen = Math.round(root.revealExtent)
-        const pinnedLen = root.pinnedItems.length * root.extent
-        if (root.rawItems.length > 0 && pos < revealLen) {
-            if (root.revealProgress > 0.5) {
-                const i = Math.floor(pos / root.extent)
-                if (i >= 0 && i < root.drawerCount)
-                    iconClick(root.drawerItems[i], drawerRepeater.itemAt(i), button)
-            }
-            return
-        }
-        if (pos >= revealLen && pos < revealLen + pinnedLen) {
-            const j = Math.floor((pos - revealLen) / root.extent)
-            if (j >= 0 && j < root.pinnedItems.length)
-                iconClick(root.pinnedItems[j], pinnedRepeater.itemAt(j), button)
-            return
-        }
-        if (root.rawItems.length > 0 && pos >= revealLen + pinnedLen && pos < revealLen + pinnedLen + root.chevronPx) {
-            if (button === Qt.RightButton) root.requestManage()
-            else if (button === Qt.LeftButton) root.touchExpand = !root.expanded
-        }
-    }
-    function wheel(dy: real): bool {
-        if (root.hoveredItem) {
-            try { root.hoveredItem.scroll(dy, false) } catch (e) { }
             return true
         }
-        return false
+        if (item.onlyMenu) {
+            if (item.hasMenu) root.openMenuFor(item)
+            return true
+        }
+        try { item.activate() } catch (e) { }
+        return true
     }
 
-    function iconIsSymbolic(icon): bool {
-        let name = String(icon || "").split("?")[0]
-        return name.slice(-9) === "-symbolic"
+    function click(button: int, x: real, y: real): bool {
+        if (root.pinnedItems.length === 0) return false
+        const rel = (root.vertical ? y : x) - root.rowOrigin()
+        if (rel < 0 || rel >= root.pinnedExtent) return false
+        const i = Math.floor(rel / root.slotExtent)
+        if (i < 0 || i >= root.pinnedItems.length) return false
+        root._menuAlong = root.rowOrigin() + i * root.slotExtent + root.slotExtent / 2
+        return root.iconClick(root.pinnedItems[i], button)
     }
 
-    Item {
-        id: hWrap
-        visible: !root.vertical
-        anchors.fill: parent
-        // Order left->right: [drawer programs][pinned tray][chevron arrow].
-        // Chevron sits at the trailing (right) edge so its screen position
-        // stays fixed while the drawer grows leftwards; pinned stays fixed
-        // in the middle for the same reason (bar is right-anchored).
-        Item {
-            x: 0
-            y: Math.round((hWrap.height - root.extent) / 2)
-            width: Math.round(root.revealExtent)
-            height: root.extent
-            clip: true
-            visible: root.rawItems.length > 0
-            Row {
-                x: 0
-                y: 0
-                spacing: 0
-                Repeater {
-                    id: hDrawerRepeater
-                    model: root.drawerItems
-                    delegate: TraySlot { vertical: false; slotIndex: index }
-                }
-            }
-        }
-        Row {
-            x: Math.round(root.revealExtent)
-            y: Math.round((hWrap.height - root.extent) / 2)
-            spacing: 0
-            Repeater {
-                id: hPinnedRepeater
-                model: root.pinnedItems
-                delegate: TraySlot { vertical: false; slotIndex: index }
-            }
-        }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-            x: Math.round(root.revealExtent) + root.pinnedItems.length * root.extent
-            y: Math.round((hWrap.height - root.extent) / 2)
-            width: root.chevronPx
-            height: root.extent
-            visible: root.rawItems.length > 0
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            text: root.expanded ? "›" : "‹"
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fs(12)
-            color: Theme.textSecondary
-        }
+    function wheel(dy: real): bool {
+        if (!root.hoveredItem) return false
+        try { root.hoveredItem.scroll(dy, false) } catch (e) { }
+        return true
     }
 
-    Item {
-        id: vWrap
-        visible: root.vertical
-        anchors.fill: parent
-        // Order top->bottom: [drawer programs][pinned tray][chevron arrow].
-        // Chevron sits at the trailing (bottom) edge so its screen position
-        // stays fixed while the drawer grows upwards; pinned stays fixed
-        // in the middle (bar bottom section is bottom-anchored).
-        Item {
-            x: Math.round((vWrap.width - root.extent) / 2)
-            y: 0
-            width: root.extent
-            height: Math.round(root.revealExtent)
-            clip: true
-            visible: root.rawItems.length > 0
-            Column {
-                x: 0
-                y: 0
-                spacing: 0
-                Repeater {
-                    id: vDrawerRepeater
-                    model: root.drawerItems
-                    delegate: TraySlot { vertical: true; slotIndex: index }
-                }
-            }
-        }
-        Column {
-            x: Math.round((vWrap.width - root.extent) / 2)
-            y: Math.round(root.revealExtent)
-            spacing: 0
-            Repeater {
-                id: vPinnedRepeater
-                model: root.pinnedItems
-                delegate: TraySlot { vertical: true; slotIndex: index }
-            }
-        }
-        Text {
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-            x: Math.round((vWrap.width - root.extent) / 2)
-            y: Math.round(root.revealExtent) + root.pinnedItems.length * root.extent
-            width: root.extent
-            height: root.chevronPx
-            visible: root.rawItems.length > 0
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            text: root.expanded ? "›" : "‹"
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fs(12)
-            rotation: 90
-            color: Theme.textSecondary
-        }
+    function openMenuFor(item): void {
+        // CRASH FIX (same as the former drawer): anchor.item/window must be
+        // set imperatively — a binding would re-fire while the delegate is
+        // torn down and segfault in PopupAnchor::onItemWindowChanged.
+        qsMenuAnchor.anchor.window = root.QsWindow.window
+        qsMenuAnchor.anchor.item = menuAnchorHost
+        menuAnchorHost.x = Math.round(root.vertical ? (root.width - 1) / 2 : root._menuAlong)
+        menuAnchorHost.y = Math.round(root.vertical ? root._menuAlong : (root.height - 1) / 2)
+        qsMenuAnchor.menu = item ? item.menu : null
+        qsMenuAnchor.open()
     }
 
     component TraySlot: Item {
         id: traySlot
         required property var modelData
-        property bool vertical: false
-        property int slotIndex: 0
-        width: root.extent
-        height: root.extent
-        opacity: 1
-        // PERF: cache per-delegate so iconIsSymbolic() string split isn't
-        // re-run on every revealProgress frame for every icon.
-        readonly property string iconSrc: String(traySlot.modelData.icon || "")
+        // PERF: per-delegate caches (string split + Image.Error resets).
+        readonly property string iconSrc: String((traySlot.modelData && traySlot.modelData.icon) || "")
         readonly property bool symbolic: {
             let n = iconSrc.split("?")[0]
             return n.slice(-9) === "-symbolic"
         }
-        function openMenu(): void {
-            // CRASH FIX: anchor.item/window must not be *bound* here. When the
-            // bar Repeater rebuilds this delegate (module drag/drop rewrites
-            // the layout arrays) the live QML binding re-fires while the slot
-            // item is being torn down, and Quickshell segfaults in
-            // PopupAnchor::onItemWindowChanged on the dangling item
-            // (QQuickItem::window()). Set them imperatively at open time;
-            // PopupAnchor clears item itself on destruction.
-            slotMenuAnchor.anchor.window = traySlot.QsWindow.window
-            slotMenuAnchor.anchor.item = traySlot
-            slotMenuAnchor.open()
+        Layout.preferredWidth: root.slotExtent
+        Layout.preferredHeight: root.slotExtent
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.cornerRadiusSmall
+            color: slotHover.hovered ? Theme.bgHover : "transparent"
         }
         Item {
             anchors.centerIn: parent
@@ -279,7 +139,7 @@ Item {
                 anchors.fill: parent
                 fillMode: Image.PreserveAspectFit
                 // PERF: fixed 32px decode (was DPR-scaled, refetching all
-                // icons on DPR change for 16px display).
+                // icons on DPR change for a 16px display).
                 sourceSize.width: 32
                 sourceSize.height: 32
                 source: traySlot.symbolic ? "" : traySlot.iconSrc
@@ -288,8 +148,8 @@ Item {
                 visible: !traySlot.symbolic
                 onStatusChanged: if (status === Image.Error && source !== "") source = ""
             }
-            // PERF: MultiEffect is an offscreen pass per icon. Loader-gate so
-            // only symbolic icons pay for it.
+            // PERF: MultiEffect is an offscreen pass per icon — Loader-gate
+            // so only symbolic icons pay for it.
             Loader {
                 anchors.fill: parent
                 active: traySlot.symbolic
@@ -306,22 +166,73 @@ Item {
             }
         }
         HoverHandler {
+            id: slotHover
             onHoveredChanged: {
                 if (hovered) root.hoveredItem = traySlot.modelData
                 else if (root.hoveredItem === traySlot.modelData) root.hoveredItem = null
             }
         }
-        QsMenuAnchor {
-            id: slotMenuAnchor
-            anchor.rect.x: traySlot.width / 2
-            anchor.rect.y: traySlot.height
-            anchor.rect.width: 1
-            anchor.rect.height: 1
-            anchor.edges: Edges.Bottom
-            anchor.gravity: Edges.Top
-            anchor.margins.top: 4
-            anchor.adjustment: PopupAdjustment.SlideX | PopupAdjustment.FlipX | PopupAdjustment.FlipY
-            menu: traySlot.modelData ? traySlot.modelData.menu : null
+    }
+
+    // Panel button: a view-grid reads as "all app icons" at a glance; the
+    // old inbox glyph looked like a terminal prompt at bar size.
+    component TrayButton: Text {
+        text: "󰀻"
+        antialiasing: Theme.textAa
+        renderType: Theme.textRenderType
+        font.family: Theme.iconFontFamily
+        font.pixelSize: Theme.fs(14)
+        color: root._fg
+        Layout.preferredWidth: root.slotExtent
+        Layout.preferredHeight: root.slotExtent
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+    }
+
+    component TrayGap: Item {
+        Layout.preferredWidth: root.vertical ? 1 : (root.pinnedItems.length > 0 ? root.buttonGap : 0)
+        Layout.preferredHeight: root.vertical ? (root.pinnedItems.length > 0 ? root.buttonGap : 0) : 1
+    }
+
+    rowContent: Component {
+        RowLayout {
+            spacing: 0
+            Repeater {
+                model: root.pinnedItems
+                delegate: TraySlot { }
+            }
+            TrayGap { }
+            TrayButton { }
         }
+    }
+    colContent: Component {
+        ColumnLayout {
+            spacing: 0
+            Repeater {
+                model: root.pinnedItems
+                delegate: TraySlot { }
+            }
+            TrayGap { }
+            TrayButton { }
+        }
+    }
+
+    // Shared menu anchor for pinned icon right-clicks; moved to the clicked
+    // slot right before opening (see openMenuFor).
+    Item {
+        id: menuAnchorHost
+        width: 1
+        height: 1
+    }
+    QsMenuAnchor {
+        id: qsMenuAnchor
+        anchor.rect.x: 0
+        anchor.rect.y: 0
+        anchor.rect.width: 1
+        anchor.rect.height: 1
+        anchor.edges: Edges.Bottom
+        anchor.gravity: Edges.Top
+        anchor.margins.top: 4
+        anchor.adjustment: PopupAdjustment.SlideX | PopupAdjustment.FlipX | PopupAdjustment.FlipY
     }
 }

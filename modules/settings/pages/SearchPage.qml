@@ -19,7 +19,7 @@ NexusControls.PageBase {
     NexusControls.ToggleRow {
         last: true
         text: "Menu entries"
-        subtext: "Top-level rows like Apps, Style, System"
+        subtext: "Top-level rows like Apps, Style, Setup"
         checked: SettingsService.searchMenu
         onToggled: n => SettingsService.setSearchEnabled("searchMenu", n)
     }
@@ -29,8 +29,7 @@ NexusControls.PageBase {
     NexusControls.ToggleRow { text: "Style"; checked: SettingsService.searchStyle; onToggled: n => SettingsService.setSearchEnabled("searchStyle", n) }
     NexusControls.ToggleRow { text: "Setup"; checked: SettingsService.searchSetup; onToggled: n => SettingsService.setSearchEnabled("searchSetup", n) }
     NexusControls.ToggleRow { text: "Install"; checked: SettingsService.searchInstall; onToggled: n => SettingsService.setSearchEnabled("searchInstall", n) }
-    NexusControls.ToggleRow { text: "Remove"; checked: SettingsService.searchRemove; onToggled: n => SettingsService.setSearchEnabled("searchRemove", n) }
-    NexusControls.ToggleRow { last: true; text: "System"; checked: SettingsService.searchSystem; onToggled: n => SettingsService.setSearchEnabled("searchSystem", n) }
+    NexusControls.ToggleRow { last: true; text: "Remove"; checked: SettingsService.searchRemove; onToggled: n => SettingsService.setSearchEnabled("searchRemove", n) }
 
     NexusControls.SectionHeader { text: "Features" }
     NexusControls.ToggleRow {

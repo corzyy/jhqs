@@ -164,7 +164,21 @@ Scope {
 
         Layout.fillWidth: true
         spacing: 2
-        opacity: calGridRoot.scope.showCalendar ? 1 : 0
+        // Month changes are lateral navigation: the new grid slides 30dp in
+        // from the direction of travel and fades in (M3 shared axis X).
+        Motion {
+            id: monthMotion
+            active: true
+            pattern: Motion.SharedAxisX
+            direction: calGridRoot.scope._monthDir
+        }
+        opacity: calGridRoot.scope.showCalendar ? monthMotion.opacity : 0
+        // Translate (not x) so the layout keeps owning the position.
+        transform: Translate { x: monthMotion.x }
+        Connections {
+            target: calGridRoot.scope
+            function onMonthRevChanged() { monthMotion.replay() }
+        }
 
         Row {
             id: headerRow
@@ -827,6 +841,11 @@ Scope {
         } catch (e) { }
     }
     property int _monthDir: 0
+    // Bumped whenever the displayed month/year changes so the grid can replay
+    // its shared-axis enter (once per change, not once per changed property).
+    property int _monthRev: 0
+    onViewMonthChanged: _monthRev++
+    onViewYearChanged: _monthRev++
     function moveMonth(delta) {
         _monthDir = delta
         var nxt = Cal.stepMonth(viewYear, viewMonth, delta)
@@ -908,7 +927,10 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "calendar"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            MouseArea { anchors.fill: parent; onClicked: root.dismissed() }
+            // Disabled while the panel is closing: during a morph handoff
+            // the outgoing window stays mapped for panelHideDelay and must
+            // not eat the click that belongs to the panel now on top.
+            MouseArea { anchors.fill: parent; enabled: root.showCalendar; onClicked: root.dismissed() }
 
             // Caelestia popout (Ui/CaelestiaPopout): curtain reveal from
             // behind the bar edge + slide + nested fades off one offsetScale
@@ -916,6 +938,8 @@ Scope {
             CaelestiaPopout {
                 id: calPopout
                 shown: root.showCalendar
+                morphId: "clock"
+                morphActive: Theme.isPrimaryScreen(modelData)
                 barPos: root.barPos
                 // Open geometry: the loaded calendar card is 840 wide and
                 // reports its natural height through the loader's implicit
@@ -963,6 +987,9 @@ Scope {
                         // Content travels on the popout's own driver (frame
                         // stretches first, content settles after) and keeps
                         // the full panel size so nothing reflows mid-stretch.
+                        // contentFade hides it while the card morphs over to
+                        // another panel's pose.
+                        opacity: calPopout.contentFade
                         x: calPopout.contentX
                         y: calPopout.contentY
                         width: calPopout.fullWidth
@@ -1030,6 +1057,9 @@ Scope {
                             anchors.fill: parent
                             hoverEnabled: true
                             acceptedButtons: Qt.AllButtons
+                            // Off while closing: the window outlives the card
+                            // (morph/close hold) and must not steal input.
+                            enabled: root.showCalendar
                             onClicked: mouse => mouse.accepted = true
                             onPressed: mouse => mouse.accepted = true
                             onWheel: wheel => wheel.accepted = true

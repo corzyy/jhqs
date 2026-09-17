@@ -1,10 +1,10 @@
 {
     "critThreshold": 90,
     "refreshSeconds": 2,
-    "showCpu": false,
-    "showGpu": false,
+    "showCpu": true,
+    "showGpu": true,
     "showLabels": true,
     "showRam": true,
-    "showTopProcs": false,
+    "showTopProcs": true,
     "warnThreshold": 75
 }

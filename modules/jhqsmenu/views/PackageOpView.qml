@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import "../../../themes"
+import "../../../Ui"
 
 Item {
     id: root
@@ -10,13 +11,17 @@ Item {
     anchors.fill: parent
     anchors.margins: 0
     clip: true
-    opacity: bodyRoot.scope.showPackages && bodyRoot.scope.packageOpActive ? 1 : 0
+    // Package list <-> operation log: M3 fade through (m3 transition patterns).
+    Motion {
+        id: motion
+        active: bodyRoot.scope.showPackages && bodyRoot.scope.packageOpActive
+        pattern: Motion.FadeThrough
+    }
+    opacity: motion.opacity
     visible: opacity > 0.01
     enabled: bodyRoot.scope.showPackages && bodyRoot.scope.packageOpActive
-    scale: (bodyRoot.scope.showPackages && bodyRoot.scope.packageOpActive) ? 1 : 0.97
+    scale: motion.scale
     transformOrigin: Item.Center
-    Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
-    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
     function handleKey(event): bool { return false }
 
     readonly property bool isRemove: bodyRoot.scope.packageOpMode === "remove" || bodyRoot.scope.packageOpMode === "flatpakremove"

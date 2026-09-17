@@ -11,11 +11,24 @@ jhqs/
 │                             Util (pure helpers) + Border/BorderGeometry.js (ported)
 │
 ├── Ui/                    — shared visuals: BarAnchor + PanelSpring (from modules/),
-│                             MSlider.qml (from components/common/, removed)
+│                             MSlider.qml (from components/common/, removed),
+│                             Motion.qml (M3 transition patterns: fade through +
+│                             shared axis X/Y/Z; fade/scale/slide outputs, one
+│                             instance per content slot; Anim/CAnim/AnchorAnim
+│                             primitives bind to Theme.anim*For(type)),
+│                             PanelShell/CaelestiaPopout (bar popout open/close)
+│                             + PanelMorph.qml singleton: opening a bar panel
+│                             while another is open hands the outgoing card's
+│                             published cardRect to the incoming popout, which
+│                             maps at that pose and glides to its own (content
+│                             fades back in as the glide nears the pose);
+│                             shell.qml drives it via panelMorphId +
+│                             beginPanelMorph()
 │
 ├── config/                — canonical settings & state (FileView watchers point here)
 │   ├── topbar_settings.json (thickness/opacity/position/radius/animations/…)
-│   ├── calendar.json, dnd.json, gamemode.json, powermode.json
+│   ├── calendar.json, dnd.json, gamemode.json, powermode.json,
+│   │   controlcenter.json (ControlCenter edit-mode block order, tile order, sizes, hidden tiles)
 │   ├── font_settings.json, shared_menu.json
 │   ├── current_wallpaper.txt, pin
 │
@@ -44,7 +57,7 @@ jhqs/
 ├── modules/
 │   ├── TopBar.qml         — bar shell (delegates to services + modules/bar/*)
 │   ├── bar/               — bar atoms: Workspaces, Clock, Launcher, UpdatesIndicator, WeatherWidget,
-│   │                         ActiveWindow, SystemTray (Quattro drawer)
+│   │                         ActiveWindow, SystemTray (single button → SystemTrayPanel)
 │   ├── panels/            — top-bar panels (shell.qml: `import "./modules/panels" as Panels`):
 │   │                         Bluetooth/Network/Volume/Vitals/Weather/SystemTray/Settings/
 │   │                         UpdateCenter panels + CalendarMenu.qml + CalendarModel.js

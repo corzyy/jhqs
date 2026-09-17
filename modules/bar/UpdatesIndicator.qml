@@ -41,7 +41,13 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: Theme.barLabelVisible("updates") && UpdateService.displayCount > 0
+            readonly property bool labelVisible: Theme.barLabelVisible("updates") && UpdateService.displayCount > 0
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root._displayStr
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold
             color: root._fg
@@ -66,7 +72,13 @@ Item {
         Text {
             antialiasing: Theme.textAa
             renderType: Theme.textRenderType
-            visible: Theme.barLabelVisible("updates") && UpdateService.displayCount > 0
+            readonly property bool labelVisible: Theme.barLabelVisible("updates") && UpdateService.displayCount > 0
+            opacity: labelVisible ? 1 : 0
+            visible: opacity > 0.01
+            Behavior on opacity {
+                enabled: Theme.animationsEnabled
+                NumberAnimation { duration: Theme.durSmall; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveMotion }
+            }
             text: root._displayStr
             font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Bold
             color: root._fg

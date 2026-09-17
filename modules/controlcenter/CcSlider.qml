@@ -1,88 +1,46 @@
 import QtQuick
-import QtQuick.Controls
 import "../../themes"
+import "../../Ui"
 
-Slider {
+// Volume slider in the settings app's M3 expressive style (Ui.MSlider, same
+// component family as NexusControls.SliderRow), dialed to a thick rounded
+// variant: 32dp track with a 12dp radius (same rounding proportion as the
+// 72dp / 26dp control-center tiles), 6dp gap around the handle, stop dot at
+// the inactive end and a floating value bubble on hover/drag.
+//
+// `value` is a caller-owned binding target: the internal control owns the
+// live value while dragging (extValue pattern from the settings SliderRow),
+// so a `value: VolumeService.pct / 100` binding is never destroyed by
+// interaction — volume keys keep moving the slider.
+Item {
     id: control
 
-    required property string glyph
+    property real value: 0
     property bool muted: false
-    property int trackHeight: 52
-    property color trackColor: Theme.surface_container_highest
-    property color fillColor: Theme.primary
-    property color iconColor: Theme.on_surface
-    property color iconActiveColor: Theme.on_primary
 
     signal userMoved(real value)
 
-    from: 0
-    to: 1
-    implicitHeight: trackHeight
-    topPadding: 0
-    bottomPadding: 0
-    leftPadding: 0
-    rightPadding: 0
-    handle: null
+    implicitWidth: slider.implicitWidth
+    implicitHeight: slider.implicitHeight
 
-    onMoved: userMoved(value)
+    onValueChanged: if (!slider.dragging) slider.value = control.value
+    Component.onCompleted: slider.value = control.value
 
-    background: Rectangle {
-        id: track
-        y: (control.availableHeight - height) / 2
-        width: control.availableWidth
-        height: control.trackHeight
-        radius: height / 2
-        antialiasing: Theme.shapesAa
-        color: control.trackColor
-        border.width: control.activeFocus ? 2 : 0
-        border.color: Theme.on_surface
-
-        Rectangle {
-            id: fill
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.bottom: parent.bottom
-            width: Math.max(0, Math.round(control.visualPosition * parent.width))
-            radius: Math.min(parent.radius, width / 2)
-            antialiasing: Theme.shapesAa
-            color: control.fillColor
-
-            Behavior on width {
-                enabled: Theme.animationsEnabled && !control.pressed
-                NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
-            }
-        }
-
-        Text {
-            id: glyphLabel
-            readonly property bool covered: fill.width >= x + width
-            anchors.left: parent.left
-            anchors.leftMargin: 16
-            anchors.verticalCenter: parent.verticalCenter
-            text: control.glyph
-            font.family: Theme.iconFontFamily
-            font.pixelSize: Theme.fs(21)
-            color: control.muted ? Theme.errorColor : (covered ? control.iconActiveColor : control.iconColor)
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-
-            Behavior on color {
-                enabled: Theme.animationsEnabled
-                ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
-            }
-        }
-    }
-
-    WheelHandler {
-        onWheel: event => {
-            const step = 0.05
-            control.value = Math.max(control.from, Math.min(control.to, control.value + (event.angleDelta.y > 0 ? step : -step)))
-            control.userMoved(control.value)
-            event.accepted = true
-        }
-    }
-
-    HoverHandler {
-        cursorShape: Qt.PointingHandCursor
+    MSlider {
+        id: slider
+        from: 0
+        to: 1
+        trackHeight: 32
+        trackRadius: 12
+        trackInnerRadius: 12
+        handleWidth: 8
+        handleHeight: 44
+        handleRadius: 3
+        indicatorRadius: 8
+        valueText: Math.round(slider.value * 100) + "%"
+        activeTrackColor: control.muted ? Theme.textMuted : Theme.primary
+        handleColor: control.muted ? Theme.textMuted : Theme.primary
+        stateLayerColor: control.muted ? Theme.textMuted : Theme.primary
+        onMoved: v => control.userMoved(v)
     }
 }

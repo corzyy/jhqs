@@ -41,8 +41,14 @@ Item {
     property bool compact: false
     property int trackHeight: compact ? 10 : 16
     property int trackRadius: trackHeight / 2
+    // Corner radius of the track ends facing the handle gap (2 = M3 stock,
+    // 0 = squared/slot look).
+    property int trackInnerRadius: 2
     property int handleWidth: 4
     property int handleHeight: compact ? 18 : 44
+    // -1 keeps the M3 pill handle; >= 0 squares it off.
+    property real handleRadius: -1
+    property int indicatorRadius: 16
     property int stateLayerSize: compact ? 26 : 40
     property int tickSize: 4
     property int trackGap: 6
@@ -179,8 +185,8 @@ Item {
             height: root.trackHeight
             topLeftRadius: Math.min(root.trackRadius, height / 2)
             bottomLeftRadius: Math.min(root.trackRadius, height / 2)
-            topRightRadius: 2
-            bottomRightRadius: 2
+            topRightRadius: root.trackInnerRadius
+            bottomRightRadius: root.trackInnerRadius
             color: root.enabled ? root.activeTrackColor : Theme.withAlpha(root.disabledActiveColor, 0.38)
             // Drags track the finger instantly; clicks/keys glide.
             Behavior on width { enabled: Theme.animationsEnabled && !root.dragging; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
@@ -194,8 +200,8 @@ Item {
             width: sliderArea.inactiveW
             anchors.verticalCenter: parent.verticalCenter
             height: root.trackHeight
-            topLeftRadius: 2
-            bottomLeftRadius: 2
+            topLeftRadius: root.trackInnerRadius
+            bottomLeftRadius: root.trackInnerRadius
             topRightRadius: Math.min(root.trackRadius, height / 2)
             bottomRightRadius: Math.min(root.trackRadius, height / 2)
             color: root.enabled ? root.inactiveTrackColor : Theme.withAlpha(root.disabledInactiveColor, 0.12)
@@ -219,8 +225,8 @@ Item {
             y: sliderArea.handleCenterY + root._thinSide / 2 + root.trackGap
             height: sliderArea.activeH
             width: root.trackHeight
-            topLeftRadius: 2
-            topRightRadius: 2
+            topLeftRadius: root.trackInnerRadius
+            topRightRadius: root.trackInnerRadius
             bottomLeftRadius: Math.min(root.trackRadius, width / 2)
             bottomRightRadius: Math.min(root.trackRadius, width / 2)
             color: root.enabled ? root.activeTrackColor : Theme.withAlpha(root.disabledActiveColor, 0.38)
@@ -235,8 +241,8 @@ Item {
             width: root.trackHeight
             topLeftRadius: Math.min(root.trackRadius, width / 2)
             topRightRadius: Math.min(root.trackRadius, width / 2)
-            bottomLeftRadius: 2
-            bottomRightRadius: 2
+            bottomLeftRadius: root.trackInnerRadius
+            bottomRightRadius: root.trackInnerRadius
             color: root.enabled ? root.inactiveTrackColor : Theme.withAlpha(root.disabledInactiveColor, 0.12)
             Rectangle {
                 antialiasing: Theme.shapesAa
@@ -318,7 +324,7 @@ Item {
                 antialiasing: Theme.shapesAa
                 id: handleRect
                 anchors.fill: parent
-                radius: Math.min(width, height) / 2
+                radius: root.handleRadius >= 0 ? root.handleRadius : Math.min(width, height) / 2
                 color: root.enabled ? root.handleColor : Theme.withAlpha(Theme.on_surface, 0.38)
                 Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
             }
@@ -339,7 +345,7 @@ Item {
                     Rectangle {
                         antialiasing: Theme.shapesAa
                         anchors.fill: parent
-                        radius: 16
+                        radius: root.indicatorRadius
                         color: root.valueIndicatorColor
                         Text {
                             antialiasing: Theme.textAa

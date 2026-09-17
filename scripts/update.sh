@@ -1,24 +1,28 @@
 #!/bin/bash
 set -u
 
-TARGET="all"
+TARGETS=()
 UNATTENDED=0
 
 for arg in "$@"; do
     case "$arg" in
-        system|flatpak|all) TARGET="$arg" ;;
+        system|flatpak|all) TARGETS+=("$arg") ;;
         -y|--yes|--unattended) UNATTENDED=1 ;;
         -h|--help)
-            echo "Usage: update.sh [system|flatpak|all] [-y|--yes|--unattended]"
+            echo "Usage: update.sh [system|flatpak|all]... [-y|--yes|--unattended]"
             exit 0
             ;;
         *)
             echo "Unknown argument: $arg" >&2
-            echo "Usage: update.sh [system|flatpak|all] [-y|--yes|--unattended]" >&2
+            echo "Usage: update.sh [system|flatpak|all]... [-y|--yes|--unattended]" >&2
             exit 2
             ;;
     esac
 done
+
+if [[ ${#TARGETS[@]} -eq 0 ]]; then
+    TARGETS=("all")
+fi
 
 KEEPALIVE_PID=""
 
@@ -79,22 +83,26 @@ prune_orphans() {
     esac
 }
 
-case "$TARGET" in
-    system)
-        ensure_sudo
-        update_system
-        ;;
-    flatpak)
-        update_flatpak
-        ;;
-    all)
-        ensure_sudo
-        update_system
-        echo ""
-        update_flatpak
-        echo ""
-        prune_orphans
-        ;;
-esac
+for target in "${TARGETS[@]}"; do
+    case "$target" in
+        system)
+            ensure_sudo
+            update_system
+            echo ""
+            ;;
+        flatpak)
+            update_flatpak
+            echo ""
+            ;;
+        all)
+            ensure_sudo
+            update_system
+            echo ""
+            update_flatpak
+            echo ""
+            prune_orphans
+            ;;
+    esac
+done
 
 echo "Done."

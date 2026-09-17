@@ -8,6 +8,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Polkit
 import "../themes"
+import "../Ui"
 
 Scope {
     id: polkitScope
@@ -74,7 +75,8 @@ Scope {
     property bool hasRequest: agentActive && flow !== null
 
     property bool _winVisible: hasRequest
-    Timer { id: polkitHideTimer; interval: 0; repeat: false; onTriggered: if (!polkitScope.hasRequest) polkitScope._winVisible = false }
+    // Linger for the fade-through exit run (0 when animations are off).
+    Timer { id: polkitHideTimer; interval: Theme.animationsEnabled ? Theme.durMotionFadeThrough + 20 : 0; repeat: false; onTriggered: if (!polkitScope.hasRequest) polkitScope._winVisible = false }
     onHasRequestChanged: {
         if (hasRequest) {
             _winVisible = true
@@ -218,18 +220,25 @@ Scope {
                 anchors.verticalCenterOffset: polkitScope.barPos === "top" ? polkitScope.barT * 0.15 : polkitScope.barPos === "bottom" ? -polkitScope.barT * 0.15 : 0
                 width: 420
                 implicitHeight: dialogBox.implicitHeight
-                opacity: polkitScope.hasRequest ? 1 : 0
-                scale: polkitScope.hasRequest ? 1 : 0.94
-                Behavior on opacity { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
-                Behavior on scale { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic } }
+                // Dialog enter/exit: M3 fade through (fade + settle from 92%).
+                Motion {
+                    id: dialogMotion
+                    active: polkitScope.hasRequest
+                    pattern: Motion.FadeThrough
+                }
+                opacity: dialogMotion.opacity
+                scale: dialogMotion.scale
                 transform: Translate {
                     id: dialogSlide
                     x: dialogWrapper.shakeX
-                    y: polkitScope.hasRequest ? 0 : -Theme.panelSlideOffset
-                    Behavior on y { NumberAnimation { duration: Theme.animNormal; easing.type: Easing.OutCubic } }
+                    // Rise/fade coupled to the driver so they never desync.
+                    y: (1 - dialogMotion.opacity) * -Theme.panelSlideOffset
                 }
 
                 property real shakeX: 0
+                // Denied-prompt shake steps (utility motion, short + standard
+                // easing; collapses when animations are off).
+                readonly property int shakeStep: Theme.animationsEnabled ? 60 : 0
                 transformOrigin: Item.Center
                 Connections {
                     target: polkitScope
@@ -237,11 +246,11 @@ Scope {
                 }
                 SequentialAnimation {
                     id: shakeAnim
-                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: -12; duration: 55; easing.type: Easing.OutQuad }
-                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 10; duration: 65; easing.type: Easing.InOutQuad }
-                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: -6; duration: 60; easing.type: Easing.InOutQuad }
-                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 4; duration: 55; easing.type: Easing.InOutQuad }
-                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 0; duration: 60; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: -12; duration: dialogWrapper.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandardAccel }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 10; duration: dialogWrapper.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandard }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: -6; duration: dialogWrapper.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandard }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 4; duration: dialogWrapper.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandard }
+                    NumberAnimation { target: dialogWrapper; property: "shakeX"; to: 0; duration: dialogWrapper.shakeStep; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveStandardDecel }
                 }
 
                 Rectangle {

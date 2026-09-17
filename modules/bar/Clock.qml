@@ -69,7 +69,7 @@ Item {
             visible: !root.isTimeOnly
             text: root._dayStr
             color: root._hoverColor
-            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.DemiBold : Theme.barTextWeight
             anchors.verticalCenter: parent.verticalCenter
             opacity: visible ? 1 : 0
             width: visible ? implicitWidth : 0
@@ -78,7 +78,7 @@ Item {
             id: timeText
             text: root._timeStr
             color: root._hoverColor
-            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.DemiBold : Theme.barTextWeight
             anchors.verticalCenter: parent.verticalCenter
         }
     }
@@ -90,20 +90,20 @@ Item {
         ClockLabel {
             text: root._hhStr
             color: root._hoverColor
-            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.DemiBold : Theme.barTextWeight
             anchors.horizontalCenter: parent.horizontalCenter
         }
         ClockLabel {
             text: root._mmStr
             color: root._hoverColor
-            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.Medium : Font.Normal
+            font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.DemiBold : Theme.barTextWeight
             anchors.horizontalCenter: parent.horizontalCenter
         }
         ClockLabel {
             visible: !root.isTimeOnly && !root.isDate
             text: root._dddStr
             color: root._dimColor
-            font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             anchors.horizontalCenter: parent.horizontalCenter
             opacity: visible ? 0.85 : 0
             height: visible ? implicitHeight : 0
@@ -112,7 +112,7 @@ Item {
             visible: root.isDate
             text: root._vDayStr
             color: root._dimColor
-            font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             anchors.horizontalCenter: parent.horizontalCenter
             opacity: visible ? 0.85 : 0
             height: visible ? implicitHeight : 0
@@ -121,7 +121,7 @@ Item {
             visible: root.isDate
             text: root._vMonStr
             color: root._dimColor
-            font.pixelSize: Theme.fs(10); font.weight: Font.Normal
+            font.pixelSize: Theme.fs(10); font.weight: Theme.barTextWeight
             anchors.horizontalCenter: parent.horizontalCenter
             opacity: visible ? 0.85 : 0
             height: visible ? implicitHeight : 0
