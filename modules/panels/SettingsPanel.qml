@@ -17,7 +17,7 @@ import "../settings/pages" as Pages
 //
 // Colour/rounding mapping mirrors NexusControls: M3 surface roles from
 // Theme, fixed 28/32px outer rounding, 4px inner corners, 2px group gaps.
-// Backends stay jhqs (Theme, SettingsService, MangoService, …) — only the
+// Backends stay jhqs (Theme, SettingsService, UmbrielService, …) — only the
 // UI chrome is copied. The window lingers for Theme.panelHideDelay after
 // close so the exit animation can play (0 = instant when off).
 Scope {
@@ -35,7 +35,7 @@ Scope {
     // can never blank the panel.
     readonly property var navEntries: [
         {id: "global", title: "Appearance", icon: "󰔎", desc: "Rounding, animations, fonts", category: "appearance"},
-        {id: "mango", title: "Mango", icon: "󰖳", desc: "Layout, gaps, borders", category: "appearance"},
+        {id: "umbriel", title: "Umbriel", icon: "󰖔", desc: "Layout, gaps, borders", category: "appearance"},
         {id: "audio", title: "Audio", icon: "󰕾", desc: "Volume, outputs, brightness", category: "connectivity"},
         {id: "apps", title: "Apps", icon: "󰀻", desc: "Terminal, shell prompt", category: "system"},
         {id: "bar", title: "Top Bar", icon: "󰍹", desc: "Position, size, spacing", category: "shell"},
@@ -68,7 +68,7 @@ Scope {
     // under ComponentBehavior: Bound.
     function pageFor(s: string): Component {
         switch (s) {
-        case "mango": return mangoComp
+        case "umbriel": return umbrielComp
         case "audio": return audioComp
         case "apps": return appsComp
         case "bar": return barComp
@@ -91,7 +91,7 @@ Scope {
             _winVisible = true
             hideTimer.stop()
             SettingsService.refresh()
-            try { MangoService.refresh() } catch (e) {}
+            try { UmbrielService.refresh() } catch (e) {}
         } else {
             filterText = ""
             hideTimer.restart()
@@ -173,8 +173,8 @@ Scope {
             }
             // Dim lives in the SAME layer surface as the dialog: a separate
             // backdrop surface has no defined stacking order vs. the dialog,
-            // and on mango it can sit on top, dismissing the panel on ANY
-            // click (even inside the dialog).
+            // and on some compositors it can sit on top, dismissing the panel
+            // on ANY click (even inside the dialog).
             Rectangle {
                 antialiasing: Theme.shapesAa
                 anchors.fill: parent
@@ -188,10 +188,10 @@ Scope {
                 id: settingsBox
                 // Nexus sizing: 16/9 ratio, ~70% of screen height.
                 width: Math.min(1020, parent.width - 32)
-                implicitHeight: Math.min(660, parent.height - 60)
+                implicitHeight: Math.min(800, parent.height - 60)
                 x: (parent.width - width) / 2
                 y: (parent.height - implicitHeight) / 2
-                color: Theme.surface
+                color: Theme.panelWindowSurface
                 radius: 28
                 clip: true
                 visible: settingsScope._winVisible
@@ -220,7 +220,7 @@ Scope {
                     width: 40; height: 40
                     radius: 20
                     z: 10
-                    color: closeMouse.containsMouse ? Theme.withAlpha(Theme.error, 0.20) : Theme.surface_container_high
+                    color: Theme.surface_container_high
                     antialiasing: Theme.shapesAa
                     Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                     Text {
@@ -231,7 +231,7 @@ Scope {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    MouseArea { id: closeMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: settingsScope.dismissed() }
+                    StateLayer { id: closeMouse; radius: 20; color: Theme.error; onClicked: settingsScope.dismissed() }
                 }
                 Row {
                     anchors.fill: parent
@@ -272,6 +272,13 @@ Scope {
                                         readonly property int topGap: (catStart && index !== 0) ? 12 : 0
                                         width: navList.width
                                         height: 76 + topGap
+                                        // M3 expressive shape morph: corner radii ride the
+                                        // spatial spring, so the selection indicator grows
+                                        // and shrinks smoothly instead of snapping.
+                                        property real morphTopRadius: (isCurrent || catStart) ? 28 : 4
+                                        property real morphBottomRadius: (isCurrent || catEnd) ? 28 : 4
+                                        Behavior on morphTopRadius { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+                                        Behavior on morphBottomRadius { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
                                         Rectangle {
                                             anchors.left: parent.left
                                             anchors.right: parent.right
@@ -279,12 +286,12 @@ Scope {
                                             height: 76
                                             // One radius everywhere: outer corners of a
                                             // group are round, inner corners stay small.
-                                            topLeftRadius: (isCurrent || catStart) ? 28 : 4
-                                            topRightRadius: (isCurrent || catStart) ? 28 : 4
-                                            bottomLeftRadius: (isCurrent || catEnd) ? 28 : 4
-                                            bottomRightRadius: (isCurrent || catEnd) ? 28 : 4
+                                            topLeftRadius: morphTopRadius
+                                            topRightRadius: morphTopRadius
+                                            bottomLeftRadius: morphBottomRadius
+                                            bottomRightRadius: morphBottomRadius
                                             color: isCurrent ? Theme.secondary_container
-                                                : navMouse.containsMouse ? Theme.surface_container_highest : Theme.surface_container_high
+                                                : navMouse.containsMouse ? Theme.panelCardHighest : Theme.panelCardHigh
                                             antialiasing: Theme.shapesAa
                                             Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                                             Row {
@@ -297,6 +304,9 @@ Scope {
                                                     radius: 22
                                                     color: isCurrent ? Theme.accent : Theme.secondary_container
                                                     antialiasing: Theme.shapesAa
+                                                    scale: isCurrent ? 1 : 0.9
+                                                    Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+                                                    Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: modelData.icon
@@ -304,6 +314,7 @@ Scope {
                                                         color: isCurrent ? Theme.onAccent : Theme.on_secondary_container
                                                         antialiasing: Theme.textAa
                                                         renderType: Theme.textRenderType
+                                                        Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
                                                     }
                                                 }
                                                 Column {
@@ -330,7 +341,13 @@ Scope {
                                                     }
                                                 }
                                             }
-                                            MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: settingsScope.selectSection(modelData.id) }
+                                            StateLayer {
+                                                id: navMouse
+                                                radius: 28
+                                                showHoverBackground: false
+                                                color: isCurrent ? Theme.on_secondary_container : Theme.textPrimary
+                                                onClicked: settingsScope.selectSection(modelData.id)
+                                            }
                                         }
                                     }
                                 }
@@ -445,7 +462,7 @@ Scope {
     }
 
     Component { id: globalComp; Pages.GlobalPage {} }
-    Component { id: mangoComp; Pages.MangoPage {} }
+    Component { id: umbrielComp; Pages.UmbrielPage {} }
     Component { id: audioComp; Pages.AudioPage {} }
     Component { id: appsComp; Pages.AppsPage {} }
     Component { id: barComp; Pages.TopBarPage {} }

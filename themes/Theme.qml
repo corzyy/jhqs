@@ -155,12 +155,8 @@ Singleton {
     readonly property color surface2: frostFill(surface_container_high, 0.18, 0.84)
     readonly property color bgHover: frostFill(surface_container_highest, 0.14, 0.88)
     readonly property color bgSelected: frostFill(primary_container, 0.08, 0.92)
-    readonly property color bgTileActive: frostFill(primary_container, 0.32, 0.70)
-    readonly property color bgTileInactive: frostFill(surface_container, 0.35, 0.68)
-    readonly property color cardBg: frostFill(surface_container_high, 0.45, 0.55)
-    readonly property color onTileActive: on_primary_container
+    readonly property color cardBg: panelFill(surface_container_high)
     readonly property color borderColor: outline_variant
-    readonly property color borderOuter: scrim
     readonly property color textPrimary: on_surface
     readonly property color textSecondary: on_surface_variant
     readonly property color textMuted: outline
@@ -170,7 +166,6 @@ Singleton {
     readonly property color iconColorSelected: on_primary
     readonly property color onAccent: on_primary
     readonly property color accent: primary
-    readonly property color accentDim: primary_container
     readonly property color divider: outline_variant
     readonly property color errorColor: error
 
@@ -224,6 +219,7 @@ Singleton {
         adapter: JsonAdapter {
             property int radius: 0
             property bool animationsEnabled: true
+            property real animationSpeed: 1.0
             property string clockPosition: "center"
             property string clockFormat: "full"
             property string workspacesPosition: "left"
@@ -250,8 +246,6 @@ Singleton {
         }
     }
     // Minimal is the only shell theme: former Modern branches deleted.
-    // minimalTheme stays as a constant for SettingsService.
-    readonly property bool minimalTheme: true
 
     // Einzige Schreibpfade für Adapter-Settings (ein Guard statt ~20x
     // kopierter clamp/compare/write-Blöcke). Alle Adapter deklarieren
@@ -278,7 +272,7 @@ Singleton {
         fileView.writeAdapter()
     }
     // Shell rounding (Global > Rounding). Single source for all shell
-    // radii; synced to MangoWM border_radius by the Global slider.
+    // radii; synced to Umbriel window rounding by the Global slider.
     readonly property int cornerRadius: Math.max(0, Math.min(40, Math.round(shellFile.adapter.radius ?? 0)))
     readonly property int cornerRadiusSmall: Math.max(0, Math.min(12, Math.round(cornerRadius * 0.6)))
     function setCornerRadius(v: int): void { setAdapterInt(shellFile, "radius", v, 0, 40) }
@@ -303,6 +297,16 @@ Singleton {
     }
     readonly property bool animationsEnabled: shellFile.adapter.animationsEnabled
     function setAnimationsEnabled(v: bool): void { setAdapterBool(shellFile, "animationsEnabled", v) }
+    // Global animation speed multiplier (Global > Animations). 1.0 = token
+    // durations as specified; 2.0 plays them twice as fast. All duration
+    // tokens below route through animMs() so one value drives every
+    // animation in the shell. Clamped to 0.5x-2x.
+    readonly property real animationSpeed: Math.max(0.5, Math.min(2.0, shellFile.adapter.animationSpeed ?? 1.0))
+    function setAnimationSpeed(v: real): void { setAdapterReal(shellFile, "animationSpeed", v, 0.5, 2.0) }
+    function animMs(ms: real): int {
+        if (!animationsEnabled) return 0
+        return Math.max(1, Math.round(ms / animationSpeed))
+    }
     readonly property string clockPosition: (shellFile.adapter.clockPosition === "left" || shellFile.adapter.clockPosition === "right") ? shellFile.adapter.clockPosition : "center"
     // Clock label formats (right-click the clock to cycle):
     // full: "Monday 20:15" | short: "Mon 20:15" | date: "8th May 20:15" | timeOnly: "20:15"
@@ -363,13 +367,7 @@ Singleton {
     readonly property bool textNative: shellFile.adapter.aaTextNative !== undefined ? !!shellFile.adapter.aaTextNative : true
     readonly property bool imageSmooth: shellFile.adapter.aaImageSmooth !== undefined ? !!shellFile.adapter.aaImageSmooth : true
     readonly property bool imageMipmap: shellFile.adapter.aaImageMipmap !== undefined ? !!shellFile.adapter.aaImageMipmap : false
-    readonly property bool itemAntialiasing: shapesAa
     readonly property int textRenderType: textNative ? Text.NativeRendering : Text.QtRendering
-    function setShapesAa(v: bool): void { setAdapterBool(shellFile, "aaShapes", v) }
-    function setTextAa(v: bool): void { setAdapterBool(shellFile, "aaText", v) }
-    function setTextNative(v: bool): void { setAdapterBool(shellFile, "aaTextNative", v) }
-    function setImageSmooth(v: bool): void { setAdapterBool(shellFile, "aaImageSmooth", v) }
-    function setImageMipmap(v: bool): void { setAdapterBool(shellFile, "aaImageMipmap", v) }
     property int barEffectiveWidth: 30
     property int barEffectiveHeight: 30
     property var barAnchors: ({})
@@ -407,7 +405,6 @@ Singleton {
         let a = barAnchors[(id || "").trim()]
         return a ? a : null
     }
-    function hasBarAnchor(id: string): bool { return barAnchor(id) !== null }
     property int anchorRefreshTrigger: 0
     Timer {
         id: anchorRefreshDebounce
@@ -474,6 +471,29 @@ Singleton {
         if (a < floorA) a = floorA
         return withAlpha(c, a)
     }
+    // Shell transparency: the Global > Transparency slider and the Top Bar
+    // page's Opacity slider write the same `opacity` value, so the bar and
+    // every panel window stay in sync. The floor keeps panels readable while
+    // Umbriel's layer blur provides the frosted backdrop.
+    readonly property real panelTransparency: Math.max(0.0, Math.min(1.0, 1.0 - barOpacity))
+    function setPanelTransparency(v: real): void {
+        let t = Math.max(0.0, Math.min(1.0, Number(v)))
+        if (isNaN(t)) return
+        setBarOpacity(1.0 - t)
+    }
+    readonly property real panelWindowAlpha: Math.max(0.35, barOpacity)
+    readonly property color panelWindowBg: withAlpha(bg, panelWindowAlpha)
+    readonly property color panelWindowSurface: withAlpha(surface, panelWindowAlpha)
+    // Panel content: follows the same transparency slider with a higher floor
+    // so text and controls stay readable while the compositor blur shows
+    // through the cards.
+    readonly property real panelContentAlpha: Math.max(0.55, 1.0 - panelTransparency * 0.45)
+    function panelFill(c: color): color { return withAlpha(c, panelContentAlpha) }
+    readonly property color panelCard: panelFill(surface_container)
+    readonly property color panelCardHigh: panelFill(surface_container_high)
+    readonly property color panelCardHighest: panelFill(surface_container_highest)
+    readonly property color panelCardLow: panelFill(surface_container_low)
+    readonly property color panelCardLowest: panelFill(surface_container_lowest)
 
     property int sharedMenuWidth: 360
     property int sharedMenuHeight: 444
@@ -510,14 +530,6 @@ Singleton {
             if (fh) sharedMenuHeight = fh
         }
     }
-    function setSharedMenuSize(w: int, h: int) {
-        let cw = Math.max(200, Math.min(800, Math.round(w)))
-        let ch = Math.max(200, Math.min(800, Math.round(h)))
-        if (sharedMenuWidth === cw && sharedMenuHeight === ch) return
-        sharedMenuWidth = cw
-        sharedMenuHeight = ch
-    }
-
     property int volumeOsdTrigger: 0
     function triggerVolumeOsd(): void { volumeOsdTrigger++ }
 
@@ -659,7 +671,6 @@ Singleton {
     }
 
     readonly property var barModuleIds: ["launcher", "workspaces", "activewindow", "clock", "weather", "updates", "systemtray", "network", "volume", "bluetooth", "vitals", "controlcenter", "netanjahu"]
-    readonly property var barSections: ["left", "twofifths", "center", "fourfifths", "right"]
     function barNormalizeSection(s: string): string {
         let v = (s || "").trim().toLowerCase()
         if (v === "left") return "left"
@@ -1019,82 +1030,34 @@ Singleton {
     function toggleTrayPinned(id: string): void { setTrayPinned(id, !isTrayPinned(id)) }
     function toggleTrayHidden(id: string): void { setTrayHidden(id, !isTrayHidden(id)) }
 
-    FileView {
-        id: powerModeFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/powermode.json"
-        watchChanges: true; onFileChanged: debouncedReload(powerModeFile); blockLoading: true; printErrors: false
-        adapter: JsonAdapter { property string mode: "balanced" }
-    }
-    readonly property string powerMode: powerModeFile.adapter.mode || "balanced"
-    function powerModeLabel(): string {
-        let m = (powerMode || "").toLowerCase()
-        if (m === "performance") return "Performance"
-        if (m === "power-saver") return "Power Saver"
-        return "Balanced"
-    }
-    function powerModeIcon(): string {
-        let m = (powerMode || "").toLowerCase()
-        if (m === "performance") return "󰓅"
-        if (m === "power-saver") return "󰌪"
-        return "󰾅"
-    }
-    Process { id: powerModeProc; command: ["bash", "-c", "echo"] }
-    function cyclePowerMode(): void {
-        let cur = (powerModeFile.adapter.mode || "balanced").toLowerCase()
-        let next = "balanced"
-        if (cur === "balanced") next = "performance"
-        else if (cur === "performance") next = "power-saver"
-        else next = "balanced"
-        powerModeFile.adapter.mode = next
-        powerModeFile.writeAdapter()
-        // PERF: Quickshell PowerProfiles API already applies the profile
-        // synchronously. The old powerprofilesctl fork duplicated the same
-        // action (2 writers, race on rapid toggle). Keep API only.
-        try {
-            if (next === "performance") PowerProfiles.profile = PowerProfile.Performance
-            else if (next === "power-saver") PowerProfiles.profile = PowerProfile.PowerSaver
-            else PowerProfiles.profile = PowerProfile.Balanced
-        } catch(e) {}
-    }
-
     function withAlpha(c: color, a: real): color { return Qt.rgba(c.r, c.g, c.b, a) }
 
-    readonly property int animMicro: animationsEnabled ? 100 : 0
-    readonly property int animFast: animationsEnabled ? 150 : 0
-    readonly property int animNormal: animationsEnabled ? 200 : 0
-    readonly property int animSlow: animationsEnabled ? 300 : 0
-    readonly property int animEmph: animationsEnabled ? 400 : 0
-    readonly property int animStagger: animationsEnabled ? 30 : 0
-    readonly property int animBounce: animationsEnabled ? 350 : 0
-    readonly property int easingStandard: Easing.OutCubic
-    readonly property int easingEmph: Easing.OutBack
-    readonly property int easingBounce: Easing.OutBack
-    readonly property int easingSmooth: Easing.InOutCubic
-    readonly property int easingBezier: Easing.BezierSpline
+    readonly property int animFast: animMs(150)
+    readonly property int animNormal: animMs(200)
+    readonly property int animSlow: animMs(300)
+    readonly property int animEmph: animMs(400)
+    readonly property int animStagger: animMs(30)
     readonly property var curveEmphasized: [0.2, 0, 0, 1, 1, 1]
     readonly property var curveEmphasizedDecelerate: [0.05, 0.7, 0.1, 1, 1, 1]
     readonly property var curveEmphasizedAccelerate: [0.3, 0, 0.8, 0.15, 1, 1]
-    readonly property real easingOvershoot: 1.55
-    readonly property real hoverOvershoot: 1.7
     readonly property real hoverScale: 1.06
     readonly property real pressScale: 0.94
-    readonly property real iconPopScale: 1.08
 
     // ---- Caelestia-expressive motion tokens (caelestia-dots/shell) ----
     // Durations match AnimDurationTokens; curves match AnimCurves. Kept
     // separate from the legacy animFast/animNormal aliases so existing
     // call-sites keep working while new Ui/Anim primitives bind here.
     // All durations collapse to 0 when animations are disabled.
-    readonly property int durSmall: animationsEnabled ? 200 : 0
-    readonly property int durNormal: animationsEnabled ? 400 : 0
-    readonly property int durLarge: animationsEnabled ? 600 : 0
-    readonly property int durExtraLarge: animationsEnabled ? 1000 : 0
-    readonly property int durFastSpatial: animationsEnabled ? 350 : 0
-    readonly property int durDefaultSpatial: animationsEnabled ? 500 : 0
-    readonly property int durSlowSpatial: animationsEnabled ? 650 : 0
-    readonly property int durFastEffects: animationsEnabled ? 150 : 0
-    readonly property int durDefaultEffects: animationsEnabled ? 200 : 0
-    readonly property int durSlowEffects: animationsEnabled ? 300 : 0
+    readonly property int durSmall: animMs(200)
+    readonly property int durNormal: animMs(400)
+    readonly property int durLarge: animMs(600)
+    readonly property int durExtraLarge: animMs(1000)
+    readonly property int durFastSpatial: animMs(350)
+    readonly property int durDefaultSpatial: animMs(500)
+    readonly property int durSlowSpatial: animMs(650)
+    readonly property int durFastEffects: animMs(150)
+    readonly property int durDefaultEffects: animMs(200)
+    readonly property int durSlowEffects: animMs(300)
     // BezierSpline control points (6 values per cubic segment). The
     // emphasized curve is two segments (12 values), everything else one.
     readonly property var curveStandard: [0.2, 0, 0, 1, 1, 1]
@@ -1163,8 +1126,8 @@ Singleton {
     // Shared axis: 400ms emphasized, 30dp slide on X/Y or 80%/110% scale on
     // Z (forward: in 0.8->1, out 1->1.1; backward mirrored).
     // The curve is the M3 emphasized token: cubic-bezier(0.2, 0, 0, 1).
-    readonly property int durMotionFadeThrough: animationsEnabled ? 300 : 0
-    readonly property int durMotionSharedAxis: animationsEnabled ? 400 : 0
+    readonly property int durMotionFadeThrough: animMs(300)
+    readonly property int durMotionSharedAxis: animMs(400)
     readonly property var curveMotion: curveEmphasized
     readonly property real motionSlideDistance: 30
     readonly property real motionFadeThroughScale: 0.92
@@ -1174,8 +1137,9 @@ Singleton {
     readonly property real motionFadeThroughExit: 0.35
     readonly property real motionFadeThroughEnter: 0.65
     // Indeterminate progress (ambient motion; period never collapses — the
-    // animator itself is gated on animationsEnabled instead).
-    readonly property int durSpinner: 1200
+    // animator itself is gated on animationsEnabled instead). Speed-scaled
+    // so the spinner matches the rest of the shell.
+    readonly property int durSpinner: Math.max(1, Math.round(1200 / animationSpeed))
 
     readonly property int panelAnimFade: durDefaultEffects
     // Panel slide rides DefaultSpatial (500ms): panels travel their full
@@ -1184,15 +1148,22 @@ Singleton {
     readonly property int panelAnimSlide: durDefaultSpatial
     readonly property int panelAnimScale: durNormal
     readonly property int panelAnimExit: durFastEffects
-    readonly property int panelAnimCollapse: durDefaultEffects
-    readonly property int expanderDur: durDefaultEffects
-    readonly property int celestiaPanelDur: durDefaultSpatial
-    readonly property var celestiaPanelCurve: curveDefaultSpatial
-    // Windows/loaders stay mapped until the popout close run has finished:
-    // Caelestia closes on the same expressive default spatial Behavior as it
-    // opens (500ms, no fast exit), so the old FastEffects-based delay would
-    // tear the surface down mid-flight.
-    readonly property int panelHideDelay: animationsEnabled ? durDefaultSpatial + 20 : 0
+    // Panel close (CaelestiaPopout curtain): shorter than the open run and
+    // non-overshooting (the open curve's y > 1 would drive frameAxis
+    // negative past the bar edge). Emphasized-decelerate leaves immediately
+    // and lands gently, so dismissal reads as a snap back instead of a
+    // second full-length run. Must stay below panelHideDelay.
+    readonly property int panelAnimClose: durFastSpatial
+    readonly property var curvePanelClose: curveEmphasizedDecelerate
+    // Windows/loaders stay mapped until the popout close run has finished.
+    // A plain close lands in panelAnimClose (350ms), but a morph handoff can
+    // hold the outgoing card for durPanelMorphHold, let the outgoing content
+    // lead (panelMorphLead) and then fade the card for durDefaultEffects;
+    // the hold can also fall back to a full close run. Cover the worst case
+    // or the surface would be torn down mid-run.
+    readonly property int panelHideDelay: animationsEnabled
+        ? Math.max(durDefaultSpatial, durPanelMorphHold + panelMorphRelease + durDefaultEffects) + 20
+        : 0
     // Cross-panel morph (Ui/PanelMorph + Ui/CaelestiaPopout): opening a bar
     // panel while another is open hands the outgoing card's pose to the
     // incoming popout, which glides from there to its own settled pose.
@@ -1201,23 +1172,30 @@ Singleton {
     // well below panelHideDelay, because the outgoing window unmaps then.
     readonly property int durPanelMorph: animationsEnabled ? durDefaultSpatial : 0
     readonly property var curvePanelMorph: curveDefaultSpatial
-    readonly property int durPanelMorphHold: animationsEnabled ? 300 : 0
-    // Eased glide progress at which the incoming content starts fading in.
-    // curveDefaultSpatial is front-loaded (0.99 of the way at 0.4), so this
-    // is ~200ms into a 500ms morph; the card is already at its pose, which
-    // keeps the full-size content from spilling past the morphing frame.
-    readonly property real panelMorphReveal: 0.4
+    readonly property int durPanelMorphHold: animMs(300)
+    // Content choreography of a morph (CaelestiaPopout). The cards never
+    // blend (two translucent layer surfaces wash out over the desktop and
+    // flicker): the incoming card stays hidden while the outgoing content
+    // leads — it fades/shifts out over panelMorphContentOut — then the
+    // incoming card is swapped in at the exact outgoing pose (invisible,
+    // the cards match there) and the glide starts. Its content arrives
+    // after panelMorphContentDelay over panelMorphContentIn. Shift/scale
+    // are the shared-axis travel of the content for drill-in/out switches.
+    readonly property int panelMorphLead: durFastEffects
+    // Incoming card takeover is an animation (aligned to the animation
+    // clock), the outgoing release is a timer; keep a couple of frames
+    // between them so the release can never expose the desktop first.
+    readonly property int panelMorphRelease: panelMorphLead + animMs(40)
+    readonly property int panelMorphContentOut: durFastEffects
+    readonly property int panelMorphContentDelay: panelMorphLead
+    readonly property int panelMorphContentIn: durDefaultEffects
+    readonly property real panelMorphShift: 14
+    readonly property real panelMorphScale: 0.04
     // Attached-bar morph: dropdown boxes sit flush with the bar edge
     // instead of floating detached below it. Must stay 0: the panel
     // windows are placed on the compositor's remaining area (bar bottom =
     // window top), so any overlap is clipped and only wastes the border.
     // The rounded top corners still merge into the bar for the morph look.
     readonly property int panelAttachOverlap: 0
-    readonly property real panelOvershootScale: 1.35
-    readonly property real panelOvershootSlide: 1.25
     readonly property int panelSlideOffset: 18
-    readonly property int panelEasingFade: Easing.OutCubic
-    readonly property int panelEasingSlide: Easing.OutBack
-    readonly property int panelEasingScale: Easing.OutBack
-    readonly property int panelEasingExit: Easing.InCubic
 }

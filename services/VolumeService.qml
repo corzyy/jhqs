@@ -71,7 +71,6 @@ Singleton {
     // PipeWire shouldn't fork forever at 5s).
     property int _probeFails: 0
     Timer {
-        id: fallbackProbeTimer
         interval: _probeFails >= 3 ? 15000 : 5000
         running: !root.sinkReady
         repeat: true

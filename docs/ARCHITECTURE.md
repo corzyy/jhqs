@@ -6,16 +6,17 @@ jhqs/
 ├── shell.qml              — the ONLY file in the root (entry point: UseQApplication,
 │                             IconTheme Papirus, closeAll/closeOthers/toggleExclusive, IpcHandler jhqs)
 │
-├── Commons/               — Omarchy-Quattro parity: Color/Style facades over
-│                             themes/Theme.qml (source of truth stays Theme) +
-│                             Util (pure helpers) + Border/BorderGeometry.js (ported)
+├── Commons/               — Util (pure helpers: audio-name cleanup, icon
+│                             source resolution, shell escaping)
 │
 ├── Ui/                    — shared visuals: BarAnchor + PanelSpring (from modules/),
 │                             MSlider.qml (from components/common/, removed),
 │                             Motion.qml (M3 transition patterns: fade through +
 │                             shared axis X/Y/Z; fade/scale/slide outputs, one
-│                             instance per content slot; Anim/CAnim/AnchorAnim
-│                             primitives bind to Theme.anim*For(type)),
+│                             instance per content slot; Anim (with inline
+│                             CAnim) binds to Theme.anim*For(type)),
+│                             PanelKit.qml (panel design primitives: Card,
+│                             SectionLabel, IconButton, TogglePill, DeviceRow),
 │                             PanelShell/CaelestiaPopout (bar popout open/close)
 │                             + PanelMorph.qml singleton: opening a bar panel
 │                             while another is open hands the outgoing card's
@@ -27,7 +28,7 @@ jhqs/
 │
 ├── config/                — canonical settings & state (FileView watchers point here)
 │   ├── topbar_settings.json (thickness/opacity/position/radius/animations/…)
-│   ├── calendar.json, dnd.json, gamemode.json, powermode.json,
+│   ├── calendar.json, dnd.json, gamemode.json,
 │   │   controlcenter.json (ControlCenter edit-mode block order, tile order, sizes, hidden tiles)
 │   ├── font_settings.json, shared_menu.json
 │   ├── current_wallpaper.txt, pin
@@ -56,8 +57,10 @@ jhqs/
 │
 ├── modules/
 │   ├── TopBar.qml         — bar shell (delegates to services + modules/bar/*)
-│   ├── bar/               — bar atoms: Workspaces, Clock, Launcher, UpdatesIndicator, WeatherWidget,
-│   │                         ActiveWindow, SystemTray (single button → SystemTrayPanel)
+│   ├── bar/               — bar atoms: Workspaces, Clock, StatusWidgets (Bluetooth/Network/
+│   │                         Netanjahu), UpdatesIndicator, WeatherWidget, ActiveWindow,
+│   │                         SystemTray (single button → SystemTrayPanel); Launcher + CcSlider
+│   │                         live inline in their single consumers (BarModule, ControlCenterPanel)
 │   ├── panels/            — top-bar panels (shell.qml: `import "./modules/panels" as Panels`):
 │   │                         Bluetooth/Network/Volume/Vitals/Weather/SystemTray/Settings/
 │   │                         UpdateCenter panels + CalendarMenu.qml + CalendarModel.js
@@ -68,16 +71,16 @@ jhqs/
 │   │                         + views/ (ListRow+ModuleRow merged into MenuRow.qml 2026-09-10)
 │   ├── Notifications.qml  — list shell + inline NotifCard delegate (merged 2026-09-10,
 │   │                             `modules/notifications/` removed)
-│   ├── settings/          — SettingsControls.qml (merged 2026-09-10, was 7 files:
-│   │                             Dropdown/Row/Section/Sidebar/SliderRow/TextField/Toggle;
-│   │                             use as SettingsControls.SettingsRow) + pages/
+│   ├── settings/          — NexusControls.qml (Nexus control kit: switches,
+│   │                             rows, dropdowns, sliders, SearchBar, PageBase,
+│   │                             PreviewTile) + pages/
 │   └── JhqsMenu, Lockscreen, Notifications, Polkit, VolumeOSD (stay in modules/)
-│       + panels/* above (all panels: `import "../../Ui"` → BarAnchor/PanelSpring;
+│       + panels/* above (all panels: `import "../../Ui"` → BarAnchor/PanelSpring/PanelKit;
 │                             sliders: `import "../../Ui" as Ui` → Ui.MSlider)
 │
 ├── scripts/
-│   ├── check-updates.sh, volume.sh, lock-auth.sh (reads config/pin), run-update.sh,
-│   │   debug-updates.sh, test-polkit.sh, render-everforest.py
+│   ├── check-updates.sh, volume.sh, lock-auth.sh (reads config/pin), update.sh,
+│   │   test-polkit.sh, render-everforest.py, design-snapshots.py
  │   └── tui/               — flatpak-tui.py, flatpak-tui-remove.py
 │
 └── docs/                  — this file
@@ -100,7 +103,7 @@ Rules learned the hard way:
 
 ## Settings paths
 All FileView watchers and init scripts use `~/.config/quickshell/jhqs/config/<name>.json`
-(topbar_settings, calendar, dnd, gamemode, powermode, font_settings, shared_menu) plus
+(topbar_settings, calendar, dnd, gamemode, font_settings, shared_menu) plus
 `config/current_wallpaper.txt` and `config/pin`. Theme-engine data stays in `themes/`
 (matugen binary writes `themes/matugen.json` per ~/.config/matugen/config.toml).
 Init pattern: `mkdir -p ~/.config/quickshell/jhqs/config; if [ ! -f … ]; then echo default;
@@ -124,6 +127,14 @@ plugins/ manifest map removed (2026-09-10, nothing loaded it at runtime);
 QML merges same day: categories/ 5→MenuCategories, calendar/ 3→inline in
 CalendarMenu, NotificationCard→inline in Notifications, ListRow+ModuleRow→MenuRow,
 settings primitives 7→SettingsControls.
+Dead-code pass (2026-09-17): removed unreachable Commons facades (Border/Color/
+Style/BorderGeometry.js), Ui/AnimLoader + Ui/AnchorAnim, services/DesignService,
+modules/settings/SettingsControls.qml (superseded by NexusControls), plus dead
+members across services/Theme/panels; merged duplicated panel primitives into
+Ui/PanelKit.qml and the six settings option tiles into NexusControls.PreviewTile.
+Merge pass (2026-09-17): CAnim folded into Ui/Anim.qml as an inline component,
+CcSlider inlined into ControlCenterPanel, Launcher inlined into BarModule, and
+Bluetooth/Network/Netanjahu widgets merged into modules/bar/StatusWidgets.qml.
 
 ## Verification
 ```

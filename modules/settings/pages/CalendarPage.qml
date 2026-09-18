@@ -17,7 +17,7 @@ NexusControls.PageBase {
                 { id: "left", label: "Left" },
                 { id: "right", label: "Right" }
             ]
-            delegate: Rectangle {
+            delegate: NexusControls.PreviewTile {
                 required property var modelData
                 readonly property string sideId: modelData.id
                 readonly property bool isCurrent: (Theme.calendarNotifLeft ? "left" : "right") === sideId
@@ -25,17 +25,10 @@ NexusControls.PageBase {
                 readonly property bool notifFirst: sideId === "left"
                 width: (parent.width - 8) / 2
                 height: 88
-                radius: 16
-                antialiasing: Theme.shapesAa
-                color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
-                    : sideMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                    : (Theme.surface_container)
-                border.color: isCurrent ? Theme.accent : Theme.divider
-                border.width: isCurrent ? 2 : 1
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Rectangle {
+                selected: isCurrent
+                label: modelData.label
+                onClicked: Theme.setCalendarNotifSide(sideId)
+                Rectangle {
                         antialiasing: Theme.shapesAa
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 66
@@ -120,22 +113,10 @@ NexusControls.PageBase {
                                             color: modelData === 1 ? Theme.accent : Theme.textMuted
                                         }
                                     }
-                                }
                             }
                         }
                     }
-                    Text {
-                        antialiasing: Theme.textAa
-                        renderType: Theme.textRenderType
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: modelData.label
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(11)
-                        font.weight: isCurrent ? Font.Medium : Font.Normal
-                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
-                    }
                 }
-                MouseArea { id: sideMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setCalendarNotifSide(sideId) }
             }
         }
     }

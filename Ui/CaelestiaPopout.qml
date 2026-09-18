@@ -24,7 +24,8 @@
 // the same instant the surface is created would swallow the first frames of
 // the run (surface mapping latency) and visibly fast-forward the motion.
 //
-// Second addition: a drop shadow around the card (see the holder). The
+// Second addition: a drop shadow around the card (see shadowSource, which
+// blurs a plain card-shaped rect rather than the card contents). The
 // popout reserves extra room past the card's free edge so the shadow can
 // paint there, while the curtain clip cuts it along the fused bar edge —
 // the panel keeps reading as one mass with the bar.
@@ -34,10 +35,12 @@
 // the incoming popout maps already at the outgoing card's pose, the outgoing
 // card waits for that first frame and then fades out underneath it, and the
 // incoming card glides to its own settled pose on a plain NumberAnimation
-// (no curtain): a container transform. Content is hidden only while the
-// frame is still moving and fades back in as the glide nears its pose
-// (`contentFade`), not after the settle — the curve is front-loaded, so
-// that is ~200ms into the run.
+// (no curtain): a container transform. The content is choreographed instead
+// of hard-swapped: the outgoing content leads (fades/shifts out while the
+// incoming card is still hidden), the incoming card is swapped in at the
+// identical pose, and its content follows with the shared-axis travel.
+// Hosts bind content opacity to `contentFade` and the transform to
+// `contentScale`/`contentOffset*` (PanelShell does both).
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
@@ -87,12 +90,21 @@ Item {
     // incoming side of a switch. `_morphIn` drives the card from the
     // outgoing panel's pose instead of the settled one; `_morphOut` holds
     // the card open until the incoming surface has rendered, then fades it.
+    // `_morphDir` snapshots PanelMorph.direction for the content run (it
+    // must survive PanelMorph.finish() while the outgoing card still fades).
     property string morphId: ""
     property bool _morphIn: false
     property bool _morphOut: false
     property bool _morphFade: false
-    property bool _morphAnimate: false
     property bool _morphStarted: false
+    property int _morphDir: 0
+    // Content choreography (driven by the animations below): the outgoing
+    // content leads — it fades/shifts out while the incoming card is still
+    // hidden — then the card is swapped in and the incoming content
+    // follows. All 0..1 progress values.
+    property real _morphCardIn: 1
+    property real _morphContentIn: 1
+    property real _morphContentOut: 1
     // Only the primary screen's window runs the handoff; the other screen
     // variants share the show flags but never map. Hosts pass
     // Theme.isPrimaryScreen(modelData) down (PanelShell forwards it via
@@ -126,6 +138,8 @@ Item {
             if (root._tryMorphIn())
                 return
             morphHoldTimer.stop()
+            morphFadeTimer.stop()
+            root.stopMorphRuns()
             root._morphIn = false
             root._morphOut = false
             root._morphFade = false
@@ -137,6 +151,9 @@ Item {
             morphRun.stop()
             if (root._tryMorphOut())
                 return
+            morphHoldTimer.stop()
+            morphFadeTimer.stop()
+            root.stopMorphRuns()
             root._morphIn = false
             root._morphOut = false
             root._morphFade = false
@@ -155,23 +172,32 @@ Item {
     // Frame driver (ClipWrapper offsetScale): the frame STRETCHES along the
     // bar axis. Its near edge is pinned to the bar, so the panel is attached
     // for the whole run and can never be separated from the bar by a gap.
+    // Open rides the expressive default-spatial run (500ms + overshoot);
+    // close rides the shorter exit token (350ms, no overshoot) so dismissal
+    // snaps back. Duration/curve bindings are read when the Behavior fires,
+    // i.e. exactly when `_open` flips.
     property real _offsetScale: _open ? 0 : 1
     Behavior on _offsetScale {
         // Morph-in snaps the curtain open: the card is already at the
         // outgoing pose and only glides from there (see morph below).
         enabled: Theme.animationsEnabled && !root._morphIn
-        Anim {}
+        NumberAnimation {
+            duration: root._open ? Theme.durDefaultSpatial : Theme.panelAnimClose
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: root._open ? Theme.curveDefaultSpatial : Theme.curvePanelClose
+        }
     }
     // Content driver: the content rides the same 0/1 range but on its own
     // curve/duration, so the frame stretches first and the content settles
-    // after it — the content moves independently of the frame.
+    // after it — the content moves independently of the frame. On close it
+    // matches the frame run so both land together.
     property real _contentOffset: _open ? 0 : 1
     Behavior on _contentOffset {
         enabled: Theme.animationsEnabled && !root._morphIn
         NumberAnimation {
-            duration: Theme.durSlowSpatial
+            duration: root._open ? Theme.durSlowSpatial : Theme.panelAnimClose
             easing.type: Easing.BezierSpline
-            easing.bezierCurve: Theme.curveSlowSpatial
+            easing.bezierCurve: root._open ? Theme.curveSlowSpatial : Theme.curvePanelClose
         }
     }
 
@@ -202,6 +228,63 @@ Item {
         from: 0
         to: 1
     }
+    // Incoming card takeover: hidden while the outgoing content leads, then
+    // swapped in at the outgoing pose — the cards match there, so the swap
+    // is invisible — exactly when the glide starts. The cards never blend:
+    // two translucent layer surfaces wash out the desktop and flicker.
+    SequentialAnimation {
+        id: morphCardInAnim
+        PauseAnimation { duration: Theme.panelMorphLead }
+        NumberAnimation {
+            target: root
+            property: "_morphCardIn"
+            from: 0
+            to: 1
+            duration: 1
+        }
+    }
+    // Glide phase gate: the container transform starts with the takeover.
+    SequentialAnimation {
+        id: morphGlidePhase
+        PauseAnimation { duration: Theme.panelMorphLead }
+        ScriptAction { script: morphRun.start() }
+    }
+    // Incoming content: arrives with the takeover, after the outgoing
+    // content has cleared.
+    SequentialAnimation {
+        id: morphContentInAnim
+        PauseAnimation { duration: Theme.panelMorphContentDelay }
+        NumberAnimation {
+            target: root
+            property: "_morphContentIn"
+            from: 0
+            to: 1
+            duration: Theme.panelMorphContentIn
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: Theme.curveDefaultEffects
+        }
+    }
+    // Outgoing content: leads the run, leaving before the new content
+    // arrives so the two never double-expose.
+    NumberAnimation {
+        id: morphContentOutAnim
+        target: root
+        property: "_morphContentOut"
+        from: 1
+        to: 0
+        duration: Theme.panelMorphContentOut
+        easing.type: Easing.BezierSpline
+        easing.bezierCurve: Theme.curveFastEffects
+    }
+    function stopMorphRuns(): void {
+        morphCardInAnim.stop()
+        morphGlidePhase.stop()
+        morphContentInAnim.stop()
+        morphContentOutAnim.stop()
+        root._morphCardIn = 1
+        root._morphContentIn = 1
+        root._morphContentOut = 1
+    }
 
     function _publishRect(): void {
         if (root.morphId === "" || !root._open || !root.morphActive)
@@ -225,7 +308,12 @@ Item {
         root._morphOut = false
         root._morphFade = false
         morphHoldTimer.stop()
+        morphFadeTimer.stop()
         morphRun.stop()
+        morphCardInAnim.stop()
+        morphGlidePhase.stop()
+        morphContentInAnim.stop()
+        morphContentOutAnim.stop()
         root._morphT = 0
         root._fromW = r.width
         root._fromH = r.height
@@ -233,8 +321,11 @@ Item {
         root._fromEdge = root.horizontalBar
             ? (root.barPos === "top" ? r.y : r.y + r.height)
             : (root.barPos === "left" ? r.x : r.x + r.width)
+        root._morphDir = PanelMorph.direction
+        root._morphCardIn = 0
+        root._morphContentIn = 0
+        root._morphContentOut = 1
         root._morphIn = true
-        root._morphAnimate = false
         root._morphStarted = false
         root._open = true
         root._publishRect()
@@ -248,31 +339,41 @@ Item {
             running = false
             if (!root._morphIn || root._morphStarted)
                 return
-            // First rendered frame: start the glide and let the outgoing
-            // card fade (markReady -> PanelMorph.ready).
+            // First rendered frame: start the choreography (the incoming
+            // card stays hidden until the outgoing content has led) and let
+            // the outgoing card release (markReady -> ready).
             root._morphStarted = true
-            root._morphAnimate = true
-            morphRun.start()
+            morphCardInAnim.restart()
+            morphGlidePhase.restart()
+            morphContentInAnim.restart()
             morphSettleTimer.restart()
             PanelMorph.markReady(root.morphId)
         }
     }
     Timer {
         id: morphSettleTimer
-        interval: Theme.durPanelMorph + 20
+        interval: Theme.panelMorphLead + Theme.durPanelMorph + 20
         repeat: false
         onTriggered: root._morphIn = false
     }
 
     // Outgoing side: hold the open card until the incoming surface is on
     // screen, then fade it out (the incoming card covers the same pixels).
+    // The content leads: it shifts/fades out right away while the incoming
+    // card is still hidden, so the exit is visible instead of being covered
+    // by the new card.
     function _tryMorphOut(): bool {
         if (!root.morphEnabled || root._morphIn || !root._open)
             return false
         if (root.morphId === "" || !PanelMorph.isSource(root.morphId))
             return false
+        root._morphDir = PanelMorph.direction
         root._morphOut = true
         root._morphFade = false
+        // The content exit starts on `ready` (the incoming's first frame),
+        // so both sides of the choreography share one clock even when the
+        // incoming surface takes a moment to render.
+        root._morphContentOut = 1
         morphHoldTimer.restart()
         return true
     }
@@ -285,6 +386,7 @@ Item {
             if (!root._morphOut || root._morphFade)
                 return
             PanelMorph.finish()
+            root.stopMorphRuns()
             root._morphOut = false
             root._open = false
         }
@@ -295,25 +397,46 @@ Item {
             if (!PanelMorph.ready || !root._morphOut || root._morphFade)
                 return
             morphHoldTimer.stop()
-            root._morphFade = true
-            PanelMorph.finish()
+            // Incoming surface is up: run the content exit now (lead phase)
+            // and release the outgoing card when the incoming one takes
+            // over; by then it is fully covered (or only its uncovered rim
+            // is left to dissolve).
+            morphContentOutAnim.restart()
+            morphFadeTimer.restart()
         }
         function onActiveChanged() {
             // Handoff aborted (incoming side could not claim a rect).
             if (PanelMorph.active || !root._morphOut || root._morphFade)
                 return
             morphHoldTimer.stop()
+            morphFadeTimer.stop()
+            root.stopMorphRuns()
             root._morphOut = false
             root._open = false
+        }
+    }
+    // Outgoing card release: runs just after the incoming card has taken
+    // over (opaque by then), so the outgoing fade only ever dissolves its
+    // uncovered rim.
+    Timer {
+        id: morphFadeTimer
+        interval: Theme.panelMorphRelease
+        repeat: false
+        onTriggered: {
+            if (!root._morphOut || root._morphFade)
+                return
+            root._morphFade = true
+            PanelMorph.finish()
         }
     }
 
     // ---- geometry ------------------------------------------------------
     // Stretched frame size along the bar axis: 0 at the bar edge -> full.
     readonly property real frameAxis: axisSize * (1 - _offsetScale)
-    // The holder is drawn through the MultiEffect shadow layer below, which
-    // resamples its texture on fractional geometry (soft text). Snap the
-    // frame extent to whole pixels so the layer stays 1:1.
+    // Snap the frame extent to whole pixels: the shadow layer above
+    // resamples its source on fractional geometry (shadow shimmer), and
+    // the sub-pixel step is invisible at animation speeds. Content renders
+    // directly (not through the layer), so text stays native either way.
     readonly property real frameExtent: Math.ceil(frameAxis)
     readonly property real perpExtent: Math.ceil(perpSize)
     // Content offset along the axis: full-size content parked outside the
@@ -351,7 +474,7 @@ Item {
         }
     }
     // The fixed edge stays put; the far edge is where the curtain grows.
-    // Integer positions keep the shadow layer from resampling (see above).
+    // Integer positions keep the shadow source texture 1:1 (no shimmer).
     x: horizontalBar ? Math.round(perpPos - perpPad) : barPos === "left" ? Math.round(effEdge) : Math.round(effEdge - width)
     y: horizontalBar ? barPos === "top" ? Math.round(effEdge) : Math.round(effEdge - height) : Math.round(perpPos - perpPad)
 
@@ -373,6 +496,43 @@ Item {
         }
     }
 
+    // Drop shadow, cast from a plain rounded-rect silhouette instead of the
+    // card contents. The previous layer wrapped the whole card, so every
+    // animated frame (open/close/morph) and every content change while open
+    // re-rasterized all panel text into the texture before blurring it. A
+    // flat source makes the shadow one cheap rect raster + blur pass and
+    // lets the card itself render natively on top (no resampling). The
+    // popout paints the card fill here; host cards stay transparent so the
+    // silhouette is only composited once. sourceRect reaches into the
+    // perpendicular padding so the effect can spill into perpPad/shadowPad,
+    // and the popout's own clip cuts the shadow at the fused bar edge.
+    Item {
+        id: shadowSource
+
+        x: holder.x
+        y: holder.y
+        width: holder.width
+        height: holder.height
+        visible: root.visible
+        // The morphing card fades its frame; the shadow must follow.
+        opacity: holder.opacity
+        layer.enabled: true
+        layer.sourceRect: Qt.rect(-root.perpPad, 0, width + root.perpPad * 2, height)
+        layer.effect: MultiEffect {
+            shadowEnabled: true
+            shadowColor: Theme.withAlpha(Theme.shadow, 0.5)
+            shadowOpacity: 0.45
+            shadowBlur: 0.9
+            shadowVerticalOffset: 8
+        }
+        Rectangle {
+            anchors.fill: parent
+            radius: root.frameRadius
+            color: Theme.panelWindowBg
+            antialiasing: Theme.shapesAa
+        }
+    }
+
     // Holder = the stretched frame. Its near edge sits exactly on the bar
     // edge (the viewport is pinned there), so the card always touches the
     // bar. The extra shadowPad keeps the card's free edge away from the far
@@ -385,54 +545,49 @@ Item {
         width: root.horizontalBar ? root.perpExtent : root.frameExtent
         height: root.horizontalBar ? root.frameExtent : root.perpExtent
 
-        // Drop shadow cast by the whole card (frame + fused fillets):
-        // applied to the holder so the popout's own clip cuts it at the
-        // bar edge. sourceRect reaches into the perpendicular padding so
-        // the fillet shoulders are part of the silhouette; the effect's
-        // auto-padding then lets the shadow spill into perpPad/shadowPad.
-        layer.enabled: root.visible
-        layer.sourceRect: Qt.rect(-root.perpPad, 0, width + root.perpPad * 2, height)
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.withAlpha(Theme.shadow, 0.5)
-            shadowOpacity: 0.45
-            shadowBlur: 0.9
-            shadowVerticalOffset: 8
-        }
-
         // Comp transition: 0/1 with default effects both ways. A morphing
         // source fades its frame here once the incoming surface is up.
-        opacity: root._open && !root._morphFade ? 1 : 0
+        // During a morph-in the card is hidden through `_morphCardIn`
+        // until the lead phase ends (driven in morphFrame), so the outgoing
+        // content is never cut off by an abrupt cover.
+        opacity: root._open && !root._morphFade ? (root._morphIn ? root._morphCardIn : 1) : 0
         Behavior on opacity {
+            enabled: Theme.animationsEnabled && !root._morphIn
             Anim {
                 type: Anim.DefaultEffects
             }
         }
     }
 
-    // Content handoff: during a morph the cards show frame only while the
-    // frame is still moving — the full-size content would spill past it.
-    // The outgoing content clears right away (fade-through); the incoming
-    // content fades in as soon as the glide is nearly at its pose
-    // (panelMorphReveal), so it no longer waits for the settle. Hosts bind
-    // their content item's opacity to this — PanelShell multiplies it into
-    // innerFade, the direct popouts bind their Flickable/Loader.
-    property real contentFade: root._morphOut || (root._morphIn && root._morphT < Theme.panelMorphReveal) ? 0 : 1
-    Behavior on contentFade {
-        // The incoming prime snaps (its card is not visible yet); every
-        // other change fades on the default effects run.
-        enabled: Theme.animationsEnabled && !(root._morphIn && !root._morphAnimate)
-        NumberAnimation {
-            duration: Theme.durDefaultEffects
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: Theme.curveDefaultEffects
-        }
-    }
+    // Content handoff (Ui/PanelMorph choreography): the outgoing content
+    // leads — it fades/shifts out while the incoming card is still hidden —
+    // then the incoming content arrives once the card is swapped in.
+    // Hosts bind their content item's opacity to this
+    // (PanelShell multiplies it into innerFade) and their content transform
+    // to contentScale/contentOffset*.
+    property real contentFade: root._morphOut ? root._morphContentOut
+                             : root._morphIn ? root._morphContentIn
+                             : 1
+    readonly property real morphOutT: 1 - root._morphContentOut
+    // Shared-axis travel: drill-in switches push the content along the bar
+    // axis (forward: old content exits up, new arrives from below; back:
+    // mirrored). Lateral switches (bar panel <-> bar panel) crossfade with
+    // the scale only, no travel.
+    readonly property real morphTravel: root._morphOut
+        ? -root._morphDir * Theme.panelMorphShift * root.morphOutT
+        : root._morphIn ? root._morphDir * Theme.panelMorphShift * (1 - root._morphContentIn) : 0
+    readonly property real contentOffsetX: (!root.horizontalBar && root._morphDir !== 0) ? root.morphTravel : 0
+    readonly property real contentOffsetY: (root.horizontalBar && root._morphDir !== 0) ? root.morphTravel : 0
+    readonly property real contentScale: root._morphOut ? 1 - Theme.panelMorphScale * root.morphOutT
+                                        : root._morphIn ? 1 - Theme.panelMorphScale * (1 - root._morphContentIn)
+                                        : 1
 
     // Popout transition: slow effects on the way in, default effects out.
     property real _innerFade: _open ? 1 : 0
     Behavior on _innerFade {
-        enabled: Theme.animationsEnabled
+        // A morph-in drives its content purely through `contentFade` (the
+        // card swap is separate), so the inner fade snaps for it.
+        enabled: Theme.animationsEnabled && !root._morphIn
         NumberAnimation {
             duration: root._open ? Theme.durSlowEffects : Theme.durDefaultEffects
             easing.type: Easing.BezierSpline

@@ -10,8 +10,9 @@ Item {
     property bool vertical: false
     property bool slotHovered: false
 
-    // Icons are hidden while their state is inactive (see visible bindings
-    // below), so the tint only distinguishes hover and the muted state.
+    // Network/bluetooth/dnd icons are hidden while inactive; the volume icon
+    // is always shown (its glyph already encodes level/mute). The tint only
+    // distinguishes hover.
     readonly property color _netFg: slotHovered ? Theme.accent : Theme.textPrimary
     readonly property color _btFg: slotHovered ? Theme.accent : Theme.textPrimary
     readonly property color _volFg: slotHovered ? Theme.accent : Theme.textPrimary
@@ -40,7 +41,7 @@ Item {
             spacing: 7
             StatusIcon { glyph: NetworkService.icon; tint: root._netFg; visible: NetworkService.netActive }
             StatusIcon { glyph: BluetoothService.icon; tint: root._btFg; visible: BluetoothService.btActive }
-            StatusIcon { glyph: VolumeService.icon; tint: root._volFg; visible: VolumeService.isMuted }
+            StatusIcon { glyph: VolumeService.icon; tint: root._volFg }
             StatusIcon { glyph: "󰂛"; tint: root._dndFg; visible: Theme.dndEnabled }
             StatusIcon { id: rowSession; glyph: "󰐥"; tint: root._sessionFg }
         }
@@ -51,7 +52,7 @@ Item {
             spacing: 3
             StatusIcon { glyph: NetworkService.icon; tint: root._netFg; visible: NetworkService.netActive }
             StatusIcon { glyph: BluetoothService.icon; tint: root._btFg; visible: BluetoothService.btActive }
-            StatusIcon { glyph: VolumeService.icon; tint: root._volFg; visible: VolumeService.isMuted }
+            StatusIcon { glyph: VolumeService.icon; tint: root._volFg }
             StatusIcon { glyph: "󰂛"; tint: root._dndFg; visible: Theme.dndEnabled }
             StatusIcon { id: colSession; glyph: "󰐥"; tint: root._sessionFg }
         }

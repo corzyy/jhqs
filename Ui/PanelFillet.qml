@@ -23,10 +23,13 @@ Shape {
     // or "bottom" (mirrored below the box bottom edge).
     property string edge: "top"
     // Horn footprint along the bar edge.
-    property real extent: 30
+    property real extent: Math.max(12, Theme.cornerRadius * 2)
     // Horn reach down the panel side; lands where the side border starts
     // so the outline emerges straight out of the joint.
-    property real length: 20
+    property real length: Math.max(12, Theme.cornerRadius * 2)
+    // Fill should match the owning card so the joint stays one mass when the
+    // panel is translucent.
+    property color fillColor: Theme.bg
 
     readonly property bool usable: (edge === "top" || edge === "bottom")
         && (side === "left" || side === "right")
@@ -57,7 +60,7 @@ Shape {
     }
 
     ShapePath {
-fillColor: Theme.bg
+fillColor: root.fillColor
         strokeWidth: 0
         strokeColor: "transparent"
 

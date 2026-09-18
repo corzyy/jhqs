@@ -24,6 +24,8 @@ Item {
     // assignment in DraggableModule.qml:116.
     property var monitor: null
     property bool slotHovered: false
+    // Workspace-Backend (siehe Workspaces.qml).
+    readonly property var wsBackend: UmbrielService
 
     readonly property bool activeVisible: (moduleId !== "weather" || WeatherService.hasData)
                                        && (moduleId !== "systemtray" || trayCount > 0)
@@ -180,7 +182,7 @@ Item {
     function screenNameForWheel(): string {
         // Follow the focused monitor (matches Workspaces display).
         try {
-            let f = MangoService.focusedMonitor
+            let f = wsBackend.focusedMonitor
             if (f && ("" + f).length > 0) return "" + f
         } catch (e) {}
         try {
@@ -192,8 +194,8 @@ Item {
     function wheel(dy: real): bool {
         if (moduleId === "workspaces") {
             let sn = screenNameForWheel()
-            if (dy > 0) MangoService.prevTag(sn)
-            else MangoService.nextTag(sn)
+            if (dy > 0) wsBackend.prevTag(sn)
+            else wsBackend.nextTag(sn)
             return true
         }
         if (moduleId === "volume") {
@@ -209,8 +211,6 @@ Item {
 
     implicitWidth: activeVisible ? widgetLoader.implicitWidth : 0
     implicitHeight: activeVisible ? widgetLoader.implicitHeight : 0
-
-    readonly property var currentItem: widgetLoader.item
 
     Loader {
         id: widgetLoader
@@ -238,6 +238,27 @@ Item {
             case "netanjahu": return netanjahuComp
             }
             return null
+        }
+    }
+
+    // Launcher glyph button (single consumer: the launcher module).
+    component Launcher: Item {
+        id: launcher
+        implicitWidth: 22; implicitHeight: 22
+        signal clicked()
+        Text {
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+            anchors.centerIn: parent
+            text: ""
+            font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(18)
+            color: launcherMouse.containsMouse ? Theme.primary : Theme.textPrimary
+        }
+        MouseArea {
+            id: launcherMouse
+            anchors.fill: parent
+            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: launcher.clicked()
         }
     }
 
@@ -274,14 +295,14 @@ Item {
     }
     Component { id: weatherComp; WeatherWidget { vertical: root.vertical; onClicked: root.requestWeather() } }
     Component { id: updatesComp; UpdatesIndicator { vertical: root.vertical; onClicked: root.requestUpdates() } }
-    Component { id: networkComp; NetworkWidget { vertical: root.vertical; onClicked: root.requestNetwork() } }
+    Component { id: networkComp; StatusWidgets.Network { vertical: root.vertical; onClicked: root.requestNetwork() } }
     Component {
         id: volumeComp
         VolumeWidget { vertical: root.vertical; onClicked: root.requestVolume(); onMiddleClicked: VolumeService.toggleMute() }
     }
     Component {
         id: btComp
-        BluetoothWidget { vertical: root.vertical; onClicked: root.requestBluetooth(); onRightClicked: BluetoothService.togglePower(); onMiddleClicked: BluetoothService.togglePower() }
+        StatusWidgets.Bluetooth { vertical: root.vertical; onClicked: root.requestBluetooth(); onRightClicked: BluetoothService.togglePower(); onMiddleClicked: BluetoothService.togglePower() }
     }
     Component { id: vitalsComp; VitalsWidget { vertical: root.vertical; onClicked: root.requestVitals() } }
     Component {
@@ -289,6 +310,6 @@ Item {
         SystemTray { vertical: root.vertical; onClicked: root.requestSystemTray() }
     }
     Component { id: activeComp; ActiveWindow { vertical: root.vertical } }
-    Component { id: controlCenterComp; ControlCenterWidget { vertical: root.vertical; onClicked: root.requestControlCenter(); onSessionClicked: root.requestSession() } }
-    Component { id: netanjahuComp; NetanjahuWidget { vertical: root.vertical; onClicked: root.requestNetanjahu() } }
+    Component { id: controlCenterComp; ControlCenterWidget { vertical: root.vertical; slotHovered: root.slotHovered; onClicked: root.requestControlCenter(); onSessionClicked: root.requestSession() } }
+    Component { id: netanjahuComp; StatusWidgets.Netanjahu { vertical: root.vertical; onClicked: root.requestNetanjahu() } }
 }

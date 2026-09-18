@@ -97,7 +97,6 @@ Singleton {
         locationFile.adapter.showLabel = nv
         locationFile.writeAdapter()
     }
-    readonly property string cityName: configuredLocation
     readonly property string unitName: {
         let u = (locationFile.adapter.unit || "").trim().toLowerCase()
         return (u === "metric" || u === "imperial") ? u : "auto"
@@ -321,7 +320,6 @@ Singleton {
         }
     }
     Timer {
-        id: refreshTimer
         interval: root.refreshMinutes * 60 * 1000
         // PERF: no thundering-herd at boot — FileView onLoaded already
         // triggers the first refresh via locationQuery. Start periodic only.
@@ -330,7 +328,6 @@ Singleton {
     }
     // First fetch delayed 5s so shell startup isn't blocked by 3 curls.
     Timer {
-        id: startupFetchTimer
         interval: 5000; running: true; repeat: false
         onTriggered: {
             if (!root.hasData) root.refresh()

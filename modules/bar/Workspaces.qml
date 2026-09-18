@@ -22,7 +22,7 @@ Item {
 
     function resolveScreenName(): string {
         try {
-            const focused = MangoService.focusedMonitor
+            const focused = ws.focusedMonitor
             if (focused && ("" + focused).length > 0)
                 return "" + focused
         } catch (e) {}
@@ -40,10 +40,12 @@ Item {
     }
 
     // --- Workspace-Modell ---
-    readonly property bool useMango: MangoService.isMango
+    // Backend: Umbriel (umbriel-IPC). Der Service liefert die hier genutzte
+    // API (tagsFor/activateTag/...).
+    readonly property bool useUmbriel: UmbrielService.isUmbriel
+    readonly property bool useCompositor: useUmbriel
+    readonly property var ws: UmbrielService
     readonly property var visibleWorkspaces: collectWorkspaces()
-    // Kompatibilitäts-Alias (intern/extern bislang als sortedWorkspaces gelesen).
-    readonly property var sortedWorkspaces: visibleWorkspaces
 
     // Repeater werden über die konstante Länge modelliert und binden ihre
     // Inhalte über diesen Zugriff: Inhaltsänderungen (Fokus/Belegung) ändern
@@ -55,14 +57,14 @@ Item {
     }
 
     function collectWorkspaces(): var {
-        if (!useMango)
+        if (!useCompositor)
             return []
         try {
             let tags = []
             try {
-                tags = MangoService.tagsFor(root.screenName)
+                tags = ws.tagsFor(root.screenName)
             } catch (e) {
-                tags = MangoService.tags
+                tags = ws.tags
             }
             if (!tags || tags.length === 0)
                 return fallbackTags()
@@ -72,12 +74,12 @@ Item {
         }
     }
 
-    // Fallback, solange der erste mmsg-Poll noch läuft: feste Tag-Anzahl,
+    // Fallback, solange der erste Umbriel-Poll noch läuft: feste Tag-Anzahl,
     // damit die Bar nie leer bleibt.
     function fallbackTags(): var {
         let count = 10
         try {
-            count = MangoService.tagCountFor(root.screenName) || MangoService.tagCount || 10
+            count = ws.tagCountFor(root.screenName) || ws.tagCount || 10
         } catch (e) {}
         count = Math.max(1, Math.min(20, count))
         const guessed = guessActiveTag()
@@ -91,7 +93,7 @@ Item {
 
     function guessActiveTag(): int {
         try {
-            for (const tag of (MangoService.tags || [])) {
+            for (const tag of (ws.tags || [])) {
                 if (tag && tag.active)
                     return tag.index
             }
@@ -103,16 +105,19 @@ Item {
     function filterVisibleTags(tags: var): var {
         let dynamicMode = false
         try {
-            dynamicMode = MangoService.mangoDynamicTags
+            dynamicMode = UmbrielService.dynamicTags
         } catch (e) {}
         const visible = []
         for (let i = 0; i < tags.length; i++) {
             const tag = tags[i]
             // PERF/UX: im Dynamic-Mode bleiben verborgene Tags im Modell, aber
             // kollabieren animiert (reveal) statt sofort zerstört zu werden.
+            // Umbriel liefert benannte Workspaces (Name oder Index).
+            const label = (tag.name !== undefined && tag.name !== null && ("" + tag.name).length > 0)
+                ? ("" + tag.name) : ("" + tag.index)
             visible.push({
                 id: tag.index,
-                name: "" + tag.index,
+                name: label,
                 focused: !!tag.active,
                 active: !!tag.active,
                 occupied: (tag.clients || 0) > 0,
@@ -130,7 +135,7 @@ Item {
         if (!!tag.active || !!tag.urgent || (tag.clients || 0) > 0)
             return true
         try {
-            return MangoService.isPinned(tag.index)
+            return ws.isPinned(tag.index)
         } catch (e) {
             return false
         }
@@ -165,7 +170,7 @@ Item {
     function activateWorkspace(workspace: var): void {
         if (!workspace)
             return
-        MangoService.activateTag(workspace.id, root.screenName)
+        ws.activateTag(workspace.id, root.screenName)
     }
 
     // --- Koordinaten-API (Kompatibilität für BarModule.qml) ---
@@ -206,9 +211,9 @@ Item {
 
     function cycleWorkspace(down: bool): void {
         if (down)
-            MangoService.prevTag(root.screenName)
+            ws.prevTag(root.screenName)
         else
-            MangoService.nextTag(root.screenName)
+            ws.nextTag(root.screenName)
     }
 
     // --- Geteilter Delegate (eine Quelle für horizontal + vertikal) ---
@@ -261,12 +266,14 @@ Item {
         // Caelestia workspace motion: focus/hover fades ride the effects
         // curve, hover scale the fast-spatial curve, and siblings glide when
         // the row reflows (ActiveIndicator trailing-pill equivalent).
+        // x/y are owned by RowLayout/ColumnLayout, so they are deliberately
+        // NOT animated: a Behavior there fights the layout's per-frame
+        // assignments and makes the whole row trail the width morph. The
+        // implicit-size Behaviors below drive the reflow instead.
         Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
         Behavior on scale { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
-        Behavior on x { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
-        Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
-        Behavior on implicitWidth { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
-        Behavior on implicitHeight { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+        Behavior on implicitWidth { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+        Behavior on implicitHeight { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
 
         // M3-Indikator (Pille)
         Rectangle {
@@ -278,8 +285,10 @@ Item {
             radius: (delegate.isVertical ? width : height) / 2
             color: delegate.focused ? Theme.accent : delegate.occupied ? Theme.textSecondary : Theme.divider
             // Pille morphs length + tint when focus/occupancy changes.
-            Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
-            Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+            // Same fast-spatial timing as the delegate's implicit size, so
+            // the indicator and its slot never drift apart.
+            Behavior on width { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+            Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
             Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         }
 

@@ -9,9 +9,9 @@ import "../../Ui" as Ui
 //
 // Mapping of Caelestia design tokens onto jhqs:
 //   Colours.palette.m3surface            -> Theme.surface
-//   m3surfaceContainer                   -> Theme.surface_container
-//   m3surfaceContainerHigh(est)          -> Theme.surface_container_high(est)
-//   m3surfaceContainerLow(est)           -> Theme.surface_container_low(est)
+//   m3surfaceContainer                   -> Theme.panelCard
+//   m3surfaceContainerHigh(est)          -> Theme.panelCardHigh(est)
+//   m3surfaceContainerLow(est)           -> Theme.panelCardLow(est)
 //   m3primary / m3onPrimary              -> Theme.accent / Theme.onAccent
 //   m3secondaryContainer                 -> Theme.secondary_container
 //   m3onSecondaryContainer               -> Theme.on_secondary_container
@@ -20,7 +20,7 @@ import "../../Ui" as Ui
 //   rounding extraSmall 4 / extraLarge 28
 //   (fixed M3 values, like Nexus — independent of Theme.cornerRadius)
 //
-// Usage (mirrors the old SettingsControls namespacing):
+// Usage (namespace-qualified inline components):
 //   import "../settings" as S
 //   S.NexusControls.ToggleRow { text: "..."; checked: ...; onToggled: ... }
 //
@@ -37,7 +37,7 @@ QtObject {
         property bool last: false
         antialiasing: Theme.shapesAa
         width: parent ? parent.width : 300
-        color: hoverMouse.containsMouse ? Theme.surface_container_high : Theme.surface_container
+        color: hoverMouse.containsMouse ? Theme.panelCardHigh : Theme.panelCard
         topLeftRadius: first ? 28 : 4
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
@@ -96,8 +96,8 @@ QtObject {
             antialiasing: Theme.shapesAa
             color: {
                 if (root.disabled)
-                    return root.checked ? Qt.alpha(Theme.on_surface, 0.12) : Qt.alpha(Theme.surface_container_highest, 0.38)
-                return root.checked ? Theme.accent : Theme.surface_container_highest
+                    return root.checked ? Qt.alpha(Theme.on_surface, 0.12) : Qt.alpha(Theme.panelCardHighest, 0.38)
+                return root.checked ? Theme.accent : Theme.panelCardHighest
             }
 
             Rectangle {
@@ -180,8 +180,8 @@ QtObject {
                         strokeWidth: Theme.fs(16) * 0.15
                         strokeColor: {
                             if (root.disabled)
-                                return root.checked ? Theme.outline : Theme.surface_container
-                            return root.checked ? Theme.accent : Theme.surface_container_highest
+                                return root.checked ? Theme.outline : Theme.panelCard
+                            return root.checked ? Theme.accent : Theme.panelCardHighest
                         }
                         fillColor: "transparent"
                         capStyle: Theme.cornerRadius === 0 ? ShapePath.SquareCap : ShapePath.RoundCap
@@ -203,7 +203,7 @@ QtObject {
                         }
 
                         Behavior on strokeColor {
-                            Ui.CAnim {}
+                            Ui.Anim.CAnim {}
                         }
                     }
 
@@ -251,12 +251,12 @@ QtObject {
             }
         }
 
-        MouseArea {
+        Ui.StateLayer {
             id: swMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: !root.disabled
-            cursorShape: root.disabled ? Qt.ForbiddenCursor : Qt.PointingHandCursor
+            showHoverBackground: false
+            disabled: root.disabled
+            radius: Math.round(height / 2)
+            color: root.checked ? Theme.onAccent : Theme.textPrimary
             onClicked: mouse => { if (!root.disabled) root.toggled(!root.checked); mouse.accepted = true }
         }
     }
@@ -274,7 +274,7 @@ QtObject {
         width: parent ? parent.width : 300
         implicitHeight: Math.max(col.implicitHeight, sw.trackHeight) + 24
         height: implicitHeight
-        color: rowMouse.containsMouse ? Theme.surface_container_high : Theme.surface_container
+        color: rowMouse.containsMouse ? Theme.panelCardHigh : Theme.panelCard
         topLeftRadius: first ? 28 : 4
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
@@ -282,7 +282,13 @@ QtObject {
         Behavior on color { enabled: Theme.animationsEnabled; ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects } }
         // Declared before the Row: the switch keeps its own press feedback and
         // clicks on the text/empty area fall through to here.
-        MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.toggled(!root.checked) }
+        Ui.StateLayer {
+            id: rowMouse
+            showHoverBackground: false
+            radius: 28
+            color: Theme.textPrimary
+            onClicked: root.toggled(!root.checked)
+        }
         Row {
             anchors.fill: parent
             anchors.leftMargin: 20; anchors.rightMargin: 16
@@ -343,7 +349,7 @@ QtObject {
         width: parent ? parent.width : 300
         implicitHeight: row.implicitHeight + 22
         height: implicitHeight
-        color: Theme.surface_container
+        color: Theme.panelCard
         topLeftRadius: first ? 28 : 4
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
@@ -431,7 +437,7 @@ QtObject {
                         bottomLeftRadius: 2
                         topRightRadius: 8
                         bottomRightRadius: 8
-                        color: Theme.surface_container_highest
+                        color: Theme.panelCardHighest
                         antialiasing: Theme.shapesAa
                         Behavior on width { enabled: Theme.animationsEnabled && !sliderMouse.dragging; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
                         Behavior on x { enabled: Theme.animationsEnabled && !sliderMouse.dragging; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
@@ -550,7 +556,7 @@ QtObject {
             antialiasing: Theme.shapesAa
             width: parent.width
             height: 64
-            color: btnMouse.containsMouse ? Theme.surface_container_high : Theme.surface_container
+            color: btnMouse.containsMouse ? Theme.panelCardHigh : Theme.panelCard
             topLeftRadius: root.first ? 28 : 4
             topRightRadius: root.first ? 28 : 4
             bottomLeftRadius: root.open ? 4 : (root.last ? 28 : 4)
@@ -613,7 +619,7 @@ QtObject {
                     }
                 }
             }
-            MouseArea { id: btnMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.open = !root.open }
+            Ui.StateLayer { id: btnMouse; showHoverBackground: false; radius: 28; color: Theme.textPrimary; onClicked: root.open = !root.open }
         }
         Column {
             width: parent.width
@@ -632,7 +638,7 @@ QtObject {
                     bottomLeftRadius: isLastOpt && root.last ? 28 : 4
                     bottomRightRadius: isLastOpt && root.last ? 28 : 4
                     color: isCurrent ? Theme.withAlpha(Theme.accent, 0.20)
-                        : optMouse.containsMouse ? Theme.surface_container_high : Theme.surface_container
+                        : optMouse.containsMouse ? Theme.panelCardHigh : Theme.panelCard
                     border.color: isCurrent ? Theme.accent : "transparent"
                     border.width: 1
                     antialiasing: Theme.shapesAa
@@ -647,7 +653,7 @@ QtObject {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
                     }
-                    MouseArea { id: optMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.picked(modelData + ""); root.open = false } }
+                    Ui.StateLayer { id: optMouse; showHoverBackground: false; radius: 28; color: Theme.accent; onClicked: { root.picked(modelData + ""); root.open = false } }
                 }
             }
         }
@@ -667,7 +673,7 @@ QtObject {
         antialiasing: Theme.shapesAa
         width: parent ? parent.width : 300
         height: 64
-        color: Theme.surface_container
+        color: Theme.panelCard
         topLeftRadius: first ? 28 : 4
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
@@ -707,7 +713,7 @@ QtObject {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 200; height: 40
                 radius: 20
-                color: Theme.surface_container_highest
+                color: Theme.panelCardHighest
                 border.color: fieldInput.activeFocus ? Theme.accent : "transparent"
                 border.width: fieldInput.activeFocus ? 2 : 0
                 antialiasing: Theme.shapesAa
@@ -750,7 +756,7 @@ QtObject {
         antialiasing: Theme.shapesAa
         width: parent ? parent.width : 300
         height: subtext.length > 0 ? 64 : 52
-        color: Theme.surface_container
+        color: Theme.panelCard
         topLeftRadius: first ? 28 : 4
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
@@ -819,7 +825,7 @@ QtObject {
         antialiasing: Theme.shapesAa
         width: parent ? parent.width : 300
         height: 64
-        color: navMouse.containsMouse ? Theme.surface_container_high : Theme.surface_container
+        color: navMouse.containsMouse ? Theme.panelCardHigh : Theme.panelCard
         topLeftRadius: first ? 28 : 4
         topRightRadius: first ? 28 : 4
         bottomLeftRadius: last ? 28 : 4
@@ -870,7 +876,7 @@ QtObject {
                 antialiasing: Theme.textAa
             }
         }
-        MouseArea { id: navMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: e => root.clicked(e) }
+        Ui.StateLayer { id: navMouse; showHoverBackground: false; radius: 28; color: Theme.textPrimary; onClicked: e => root.clicked(e) }
     }
 
     // Pill search field (Nexus NavPane SearchBar).
@@ -883,7 +889,7 @@ QtObject {
         width: parent ? parent.width : 300
         height: 48
         radius: 24
-        color: Theme.surface_container_lowest
+        color: Theme.panelCardLowest
         border.color: searchInput.activeFocus ? Theme.accent : Theme.divider
         border.width: searchInput.activeFocus ? 2 : 1
         Row {
@@ -917,7 +923,7 @@ QtObject {
                 font.pixelSize: Theme.fs(13)
                 color: Theme.textSecondary
                 antialiasing: Theme.textAa
-                MouseArea { anchors.fill: parent; anchors.margins: -8; cursorShape: Qt.PointingHandCursor; onClicked: { searchInput.text = ""; searchInput.focus = false; root.textChanged2("") } }
+                Ui.StateLayer { anchors.fill: parent; anchors.margins: -8; radius: 12; color: Theme.textPrimary; onClicked: { searchInput.text = ""; searchInput.focus = false; root.textChanged2("") } }
             }
         }
         Text {
@@ -956,6 +962,53 @@ QtObject {
             id: body
             width: parent.width
             spacing: 2
+        }
+    }
+
+    // Selectable option tile (bar position, notif position, layout, …):
+    // preview graphic supplied as default content, label auto-rendered.
+    // Replaces the six near-identical tile recipes the pages used to carry.
+    component PreviewTile: Rectangle {
+        id: tile
+        property bool selected: false
+        property string label: ""
+        property int contentSpacing: 6
+        property bool interactionEnabled: true
+        default property alias content: body.data
+        signal clicked()
+        radius: 16
+        antialiasing: Theme.shapesAa
+        color: tile.selected ? Theme.withAlpha(Theme.accent, 0.16)
+            : (hover.containsMouse && tile.interactionEnabled) ? Theme.withAlpha(Theme.textPrimary, 0.08)
+            : Theme.panelCard
+        border.color: tile.selected ? Theme.accent : Theme.divider
+        border.width: tile.selected ? 2 : 1
+        Column {
+            anchors.centerIn: parent
+            spacing: tile.contentSpacing
+            Column {
+                id: body
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: tile.contentSpacing
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: tile.label
+                font.family: Theme.iconFontFamily
+                font.pixelSize: Theme.fs(11)
+                font.weight: tile.selected ? Font.Medium : Font.Normal
+                color: tile.selected ? Theme.textPrimary : Theme.textSecondary
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+            }
+        }
+        Ui.StateLayer {
+            id: hover
+            showHoverBackground: false
+            disabled: !tile.interactionEnabled
+            radius: 16
+            color: Theme.accent
+            onClicked: tile.clicked()
         }
     }
 }

@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import "../../themes"
+import "../../Ui"
 
 Item {
     id: root
@@ -118,18 +119,15 @@ Item {
         onRequestNetanjahu: root.requestNetanjahu()
     }
 
-    Rectangle {
-        id: activeBar
-        antialiasing: Theme.shapesAa
-        property bool isH: root.barPos === "top" || root.barPos === "bottom"
-        property real thick: 3
-        width: isH ? parent.width : thick
-        height: isH ? thick : parent.height
-        radius: 0
-        color: Theme.accent
-        x: isH ? 0 : (root.barPos === "left" ? parent.width - width : 0)
-        y: isH ? (root.barPos === "top" ? parent.height - height : 0) : 0
-        opacity: root.active ? 1 : 0
+    // Ripple: painted above the module content but driven manually from
+    // slotPointer, so the drag/click logic and the widget MouseAreas stay
+    // untouched (disabled StateLayer never takes input itself).
+    StateLayer {
+        id: slotRipple
+        disabled: true
+        showHoverBackground: false
+        radius: Math.round(Math.min(width, height) / 2)
+        color: Theme.textPrimary
     }
 
     MouseArea {
@@ -153,6 +151,7 @@ Item {
             suppressClick = false
             pressedX = mouse.x
             pressedY = mouse.y
+            slotRipple.press(mouse.x, mouse.y)
             root.pressBegun()
         }
         onPositionChanged: mouse => {

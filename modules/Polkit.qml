@@ -229,7 +229,6 @@ Scope {
                 opacity: dialogMotion.opacity
                 scale: dialogMotion.scale
                 transform: Translate {
-                    id: dialogSlide
                     x: dialogWrapper.shakeX
                     // Rise/fade coupled to the driver so they never desync.
                     y: (1 - dialogMotion.opacity) * -Theme.panelSlideOffset
@@ -541,7 +540,6 @@ Scope {
 
                             Rectangle {
                                 antialiasing: Theme.shapesAa
-                                id: inputBox
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 38
                                 radius: Theme.cornerRadiusSmall

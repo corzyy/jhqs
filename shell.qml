@@ -28,7 +28,6 @@ ShellRoot {
         command: ["bash", "-c", "echo"]
     }
     Timer {
-        id: wallpaperGuardTimer
         interval: 1200; running: true; repeat: false
         onTriggered: {
             if (wallpaperGuardProc.running) return
@@ -114,6 +113,9 @@ ShellRoot {
         readonly property int vitals: 10
         readonly property int controlCenter: 11
         readonly property int netanjahu: 12
+        readonly property int audio: 13
+        readonly property int bluetoothMenu: 14
+        readonly property int updatesMenu: 15
     }
 
     property int activePanel: panel.none
@@ -132,6 +134,9 @@ ShellRoot {
     readonly property bool vitalsVisible: activePanel === panel.vitals
     readonly property bool controlCenterVisible: activePanel === panel.controlCenter
     readonly property bool netanjahuVisible: activePanel === panel.netanjahu
+    readonly property bool audioVisible: activePanel === panel.audio
+    readonly property bool bluetoothMenuVisible: activePanel === panel.bluetoothMenu
+    readonly property bool updatesMenuVisible: activePanel === panel.updatesMenu
 
     property int systemTrigger: 0
     property int consumedSystemTrigger: 0
@@ -162,7 +167,12 @@ ShellRoot {
     component PanelLoader: Loader {
         required property bool shown
         property bool hold: false
-        active: shown || hold
+        // Extra keep-alive independent of the exit-animation hold: used by
+        // the control center while one of its drill-ins is open, so backing
+        // out finds the panel already loaded and morphs immediately instead
+        // of missing the handoff to a cold (async) load.
+        property bool keepHold: false
+        active: shown || hold || keepHold
         asynchronous: true
         Timer {
             id: holdTimer
@@ -188,7 +198,8 @@ ShellRoot {
         network: panel.network, volume: panel.volume, bluetooth: panel.bluetooth,
         updates: panel.updates, vitals: panel.vitals, systemtray: panel.systemTray,
         settings: panel.settings, controlcenter: panel.controlCenter,
-        netanjahu: panel.netanjahu
+        netanjahu: panel.netanjahu, audio: panel.audio,
+        bluetoothmenu: panel.bluetoothMenu, updatesmenu: panel.updatesMenu
     })
     // Bar-Modul-IDs weichen teils ab (launcher->menu, clock->calendar).
     readonly property var panelForModule: ({
@@ -220,8 +231,21 @@ ShellRoot {
         [panel.bluetooth]: "bluetooth",
         [panel.updates]: "updates",
         [panel.vitals]: "vitals",
-        [panel.controlCenter]: "controlcenter"
+        [panel.controlCenter]: "controlcenter",
+        [panel.audio]: "audio",
+        [panel.bluetoothMenu]: "bluetoothmenu",
+        [panel.updatesMenu]: "updatesmenu"
     })
+
+    // Depth on the control-center drill-in axis: bar panels are lateral (0),
+    // the CC is level 1, its drill-ins level 2. The content choreography
+    // slides deeper (+) or back (-) along that axis; lateral switches (bar
+    // panel <-> bar panel) only crossfade.
+    function panelDepth(p: int): int {
+        if (p === panel.controlCenter) return 1
+        if (p === panel.audio || p === panel.bluetoothMenu || p === panel.updatesMenu) return 2
+        return 0
+    }
 
     // Start the handoff before activePanel flips: the outgoing popout must
     // already know it is the source when its `shown` turns false. Switches
@@ -233,7 +257,9 @@ ShellRoot {
             Ui.PanelMorph.finish()
             return
         }
-        Ui.PanelMorph.begin(from, toId)
+        const fromDepth = panelDepth(root.activePanel)
+        const toDepth = panelDepth(to)
+        Ui.PanelMorph.begin(from, toId, toDepth === fromDepth ? 0 : (toDepth > fromDepth ? 1 : -1))
     }
 
     function openPanel(p: int) {
@@ -277,7 +303,6 @@ ShellRoot {
     // 13 independent booleans fanning out through TopBar.
 
     Modules.TopBar {
-        id: topBar
         menuOpen: root.menuVisible
         calendarOpen: root.calendarVisible
         weatherOpen: root.weatherVisible
@@ -315,7 +340,7 @@ ShellRoot {
     function openSettings(section: string): void {
         let s = (section || "global").trim() || "global"
         if (s === "modules") s = "vitals"
-        let valid = ["global", "mango", "audio", "apps", "bar", "vitals", "workspaces", "calendar", "notif", "search", "weather"]
+        let valid = ["global", "umbriel", "audio", "apps", "bar", "vitals", "workspaces", "calendar", "notif", "search", "weather"]
         if (valid.indexOf(s) === -1) s = "global"
         settingsSection = s
         if (settingsLoader.item) settingsLoader.item.section = s
@@ -375,6 +400,9 @@ ShellRoot {
             + " settings=" + root.settingsVisible
             + " systemtray=" + root.systemTrayVisible
             + " controlcenter=" + root.controlCenterVisible
+            + " audio=" + root.audioVisible
+            + " bluetoothmenu=" + root.bluetoothMenuVisible
+            + " updatesmenu=" + root.updatesMenuVisible
             + " netanjahu=" + root.netanjahuVisible
         }
         function toggleCalendar(): void { root.toggleNamedPanel("calendar") }
@@ -398,6 +426,15 @@ ShellRoot {
         function toggleControlCenter(): void { root.toggleNamedPanel("controlcenter") }
         function showControlCenter(): void { root.showNamedPanel("controlcenter") }
         function hideControlCenter(): void { root.closeAll() }
+        function toggleAudio(): void { root.toggleNamedPanel("audio") }
+        function showAudio(): void { root.showNamedPanel("audio") }
+        function hideAudio(): void { root.closeAll() }
+        function toggleBluetoothMenu(): void { root.toggleNamedPanel("bluetoothmenu") }
+        function showBluetoothMenu(): void { root.showNamedPanel("bluetoothmenu") }
+        function hideBluetoothMenu(): void { root.closeAll() }
+        function toggleUpdatesMenu(): void { root.toggleNamedPanel("updatesmenu") }
+        function showUpdatesMenu(): void { root.showNamedPanel("updatesmenu") }
+        function hideUpdatesMenu(): void { root.closeAll() }
         function toggleNetanjahu(): void { root.toggleNamedPanel("netanjahu") }
         function showNetanjahu(): void { root.showNamedPanel("netanjahu") }
         function hideNetanjahu(): void { root.closeAll() }
@@ -515,7 +552,15 @@ ShellRoot {
         }
     }
 
-    PanelLoader { id: ccLoader; shown: root.controlCenterVisible; sourceComponent: ccComp }
+    PanelLoader {
+        id: ccLoader
+        shown: root.controlCenterVisible
+        // Backing out of audio/bluetooth/updates must morph from the CC
+        // card, so keep the CC instantiated while a drill-in is open (its
+        // window is unmapped, only the item stays).
+        keepHold: root.audioVisible || root.bluetoothMenuVisible || root.updatesMenuVisible
+        sourceComponent: ccComp
+    }
     Component {
         id: ccComp
         Cc.ControlCenterPanel {
@@ -523,6 +568,55 @@ ShellRoot {
             onDismissed: root.closeAll()
             onSettingsRequested: root.openSettings("global")
             onPowerRequested: root.openSystem()
+            onAudioRequested: root.openPanel(panel.audio)
+            onBluetoothRequested: root.openPanel(panel.bluetoothMenu)
+            onUpdatesRequested: root.openPanel(panel.updatesMenu)
+        }
+    }
+
+    // Updates drill-in: opened from the CC updates tile, reuses the
+    // standalone update-center body in back-header mode, anchored to the
+    // control center so the card morphs out of / back into the CC card.
+    PanelLoader { id: updMenuLoader; shown: root.updatesMenuVisible; sourceComponent: updMenuComp }
+    Component {
+        id: updMenuComp
+        Panels.UpdateCenterPanel {
+            showUpdates: root.updatesMenuVisible
+            showBack: true
+            panelModuleId: "updatesmenu"
+            anchorModuleId: "controlcenter"
+            onDismissed: root.closeAll()
+            onBackRequested: root.openPanel(panel.controlCenter)
+        }
+    }
+
+    // Bluetooth drill-in: opened from the CC bluetooth tile, reuses the
+    // standalone BluetoothPanel body in back-header mode, anchored to the
+    // control center so the card morphs out of / back into the CC card.
+    PanelLoader { id: btMenuLoader; shown: root.bluetoothMenuVisible; sourceComponent: btMenuComp }
+    Component {
+        id: btMenuComp
+        Panels.BluetoothPanel {
+            showBluetooth: root.bluetoothMenuVisible
+            showBack: true
+            panelModuleId: "bluetoothmenu"
+            anchorModuleId: "controlcenter"
+            onDismissed: root.closeAll()
+            onBackRequested: root.openPanel(panel.controlCenter)
+        }
+    }
+
+    // Audio drill-in: opened from the CC volume block, morphs out of the CC
+    // card. Back returns to the control center (reverse handoff via
+    // beginPanelMorph); Escape/outside click closes everything like the CC's
+    // other drill-ins.
+    PanelLoader { id: audioLoader; shown: root.audioVisible; sourceComponent: audioComp }
+    Component {
+        id: audioComp
+        Cc.AudioPanel {
+            showAudio: root.audioVisible
+            onDismissed: root.closeAll()
+            onBackRequested: root.openPanel(panel.controlCenter)
         }
     }
 

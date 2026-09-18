@@ -1,18 +1,21 @@
 {
     "center": [
         "updates",
-        "activewindow",
         "clock",
-        "weather"
+        "weather",
+        "activewindow"
     ],
     "fourfifths": [
+        "vitals"
     ],
     "hidden": [
         "activewindow",
         "network",
         "bluetooth",
         "volume",
-        "netanjahu"
+        "netanjahu",
+        "vitals",
+        "updates"
     ],
     "left": [
         "launcher",
@@ -26,8 +29,7 @@
         "volume"
     ],
     "twofifths": [
-        "netanjahu",
-        "vitals"
+        "netanjahu"
     ],
     "version": 1
 }

@@ -123,7 +123,11 @@ Scope {
                         width: parent.width
                         height: parent.height
                         implicitHeight: Math.max(120, Math.min(24 + trayFlick.contentHeight, 440))
-                        color: Theme.bg
+                        // Fill comes from the popout's shadow layer (see
+                        // CaelestiaPopout shadowSource): it paints the same
+                        // rounded silhouette behind this card, so the shadow
+                        // silhouette is only composited once.
+                        color: "transparent"
                         border.color: Theme.panelBorderColor
                         border.width: 2
                         radius: Theme.cornerRadius
@@ -132,19 +136,20 @@ Scope {
                         clip: false
                         // Square fused corners (tray-menu joint); plain children,
                         // so they emerge with the card exactly like the box.
-                        PanelCorner { side: "left"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
-                        PanelCorner { side: "right"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
+                        PanelCorner { fillColor: Theme.panelWindowBg; side: "left"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
+                        PanelCorner { fillColor: Theme.panelWindowBg; side: "right"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
                         // Outward-curved shoulders on top of the fusion (Caelestia joint).
-                        PanelFillet { side: "left"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
-                        PanelFillet { side: "right"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
+                        PanelFillet { fillColor: Theme.panelWindowBg; side: "left"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
+                        PanelFillet { fillColor: Theme.panelWindowBg; side: "right"; edge: trayScope.barPos === "bottom" ? "bottom" : "top"; visible: trayPopout.offsetScale < 1 }
                         // Seam strip: erases the collar outline along the fused edge.
                         Rectangle {
                             antialiasing: Theme.shapesAa
+                            visible: Theme.panelAccentBorder
                             x: 0
                             y: trayScope.barPos === "bottom" ? trayBox.height - 2 : 0
                             width: trayBox.width
                             height: 2
-                            color: Theme.bg
+                            color: Theme.panelWindowBg
                         }
 
                     MouseArea {
@@ -250,7 +255,7 @@ Scope {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 40
                                         radius: Theme.cornerRadiusSmall
-                                        color: rowMouse.containsMouse ? Theme.bgHover : "transparent"
+                                        color: "transparent"
                                         border.color: rowMouse.containsMouse ? Theme.divider : "transparent"
                                         border.width: 1
                                         opacity: isHidden ? 0.55 : 1.0
@@ -264,12 +269,11 @@ Scope {
                                             rowMenuAnchor.anchor.item = trayRow
                                             rowMenuAnchor.open()
                                         }
-                                        MouseArea {
+                                        StateLayer {
                                             id: rowMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
                                             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                                            cursorShape: Qt.PointingHandCursor
+                                            radius: Theme.cornerRadiusSmall
+                                            color: Theme.textPrimary
                                             onClicked: mouse => {
                                                 if (mouse.button === Qt.RightButton) {
                                                     if (trayRow.item.hasMenu) trayRow.openMenu()
@@ -355,7 +359,7 @@ Scope {
                                                 Layout.preferredWidth: 52
                                                 Layout.preferredHeight: 28
                                                 radius: Theme.cornerRadiusSmall
-                                                color: trayRow.isPinned ? Theme.bgSelected : (pinMouse.containsMouse ? Theme.bgHover : Theme.panelSurface)
+                                                color: trayRow.isPinned ? Theme.bgSelected : Theme.panelSurface
                                                 border.color: Theme.divider
                                                 border.width: 1
                                                 Text {
@@ -366,11 +370,10 @@ Scope {
                                                     font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Medium
                                                     color: trayRow.isPinned ? Theme.textPrimary : Theme.textSecondary
                                                 }
-                                                MouseArea {
+                                                StateLayer {
                                                     id: pinMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
+                                                    radius: Theme.cornerRadiusSmall
+                                                    color: Theme.textPrimary
                                                     onClicked: Theme.toggleTrayPinned(trayRow.iid)
                                                 }
                                             }
@@ -380,7 +383,7 @@ Scope {
                                                 Layout.preferredWidth: 52
                                                 Layout.preferredHeight: 28
                                                 radius: Theme.cornerRadiusSmall
-                                                color: trayRow.isHidden ? Theme.bgSelected : (hideMouse.containsMouse ? Theme.bgHover : Theme.panelSurface)
+                                                color: trayRow.isHidden ? Theme.bgSelected : Theme.panelSurface
                                                 border.color: Theme.divider
                                                 border.width: 1
                                                 Text {
@@ -391,11 +394,10 @@ Scope {
                                                     font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Medium
                                                     color: trayRow.isHidden ? Theme.textPrimary : Theme.textSecondary
                                                 }
-                                                MouseArea {
+                                                StateLayer {
                                                     id: hideMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
+                                                    radius: Theme.cornerRadiusSmall
+                                                    color: Theme.textPrimary
                                                     onClicked: Theme.toggleTrayHidden(trayRow.iid)
                                                 }
                                             }

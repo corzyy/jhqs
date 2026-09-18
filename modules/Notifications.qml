@@ -118,8 +118,8 @@ Scope {
     //    closes the gap instead of jumping
     //  - stack siblings glide to their new row (Column re-layout) on the
     //    spatial curve — the ListView move/displaced equivalent
-    Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
-    Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial } }
+    Behavior on height { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
+    Behavior on y { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial } }
     onIsDismissingChanged: {
         try { progressAnim.stop() } catch(e) { }
         if (isDismissing && cachedDelegateHeight === 0) {
@@ -138,8 +138,9 @@ Scope {
         delegateRoot.isDismissing = true
         collapseTimer.toExpire = !!toExpire
         // Exit choreography: fade/slide out first (FastEffects), then
-        // collapse the height (DefaultSpatial). Durations collapse to 0
-        // with animations off, preserving the old instant dismiss.
+        // collapse the height (FastSpatial, same as the height Behavior
+        // below). Durations collapse to 0 with animations off, preserving
+        // the old instant dismiss.
         collapseTimer.interval = Theme.durFastEffects
         collapseTimer.restart()
     }
@@ -150,7 +151,7 @@ Scope {
         onTriggered: {
             try { delegateRoot.cachedDelegateHeight = 0 } catch(e) { }
             finishTimer.toExpire = toExpire
-            finishTimer.interval = Theme.durDefaultSpatial
+            finishTimer.interval = Theme.durFastSpatial
             finishTimer.restart()
         }
     }
@@ -331,7 +332,6 @@ Scope {
                     Text {
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
-                        id: bodyText
                         Layout.fillWidth: true
                         visible: delegateRoot.cachedBody.length > 0
                         text: delegateRoot.cachedBody
@@ -460,7 +460,6 @@ Scope {
                         font.pixelSize: Theme.fs(14)
                     }
                     MouseArea {
-                        id: sendMa
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -583,7 +582,6 @@ Scope {
 
 
                 Repeater {
-                    id: rep
                     model: notifScope.notifServer ? notifScope.notifServer.trackedNotifications : []
                     delegate: NotifCard {
                         listWidth: listCol.width

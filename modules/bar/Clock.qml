@@ -65,7 +65,6 @@ Item {
         anchors.centerIn: parent
         spacing: 8
         ClockLabel {
-            id: dayText
             visible: !root.isTimeOnly
             text: root._dayStr
             color: root._hoverColor
@@ -75,7 +74,6 @@ Item {
             width: visible ? implicitWidth : 0
         }
         ClockLabel {
-            id: timeText
             text: root._timeStr
             color: root._hoverColor
             font.pixelSize: Theme.fs(13); font.weight: Theme.textBold ? Font.DemiBold : Theme.barTextWeight

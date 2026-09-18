@@ -172,7 +172,7 @@ Scope {
                             Rectangle {
                                 Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                 radius: Theme.cornerRadiusSmall
-                                color: refMouse.containsMouse ? Theme.bgHover : "transparent"
+                                color: "transparent"
                                 border.color: Theme.divider
                                 border.width: 1
                                 Text {
@@ -181,7 +181,7 @@ Scope {
                                     font.family: Theme.iconFontFamily; font.pixelSize: Theme.fs(14)
                                     color: Theme.textSecondary
                                 }
-                                MouseArea { id: refMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: VitalsService.refresh() }
+                                StateLayer { id: refMouse; radius: Theme.cornerRadiusSmall; color: Theme.accent; onClicked: VitalsService.refresh() }
                             }
                         }
                         MetricCard {

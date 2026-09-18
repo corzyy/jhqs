@@ -43,8 +43,10 @@ Scope {
     property bool osdVisible: false
     property bool _winVisible: osdVisible
     // The window lingers for the fade-out duration so the exit run stays
-    // visible (0 with animations off — instant, as before).
-    Timer { id: osdHideTimer; interval: Theme.durDefaultEffects; repeat: false; onTriggered: if (!osdScope.osdVisible) osdScope._winVisible = false }
+    // visible (0 with animations off — instant, as before). Must match the
+    // Ui.Motion FadeThrough run below (durMotionFadeThrough), not the
+    // effects token: a shorter linger cut the fade mid-flight.
+    Timer { id: osdHideTimer; interval: Theme.durMotionFadeThrough; repeat: false; onTriggered: if (!osdScope.osdVisible) osdScope._winVisible = false }
     onOsdVisibleChanged: {
         if (osdVisible) { _winVisible = true; osdHideTimer.stop() }
         else osdHideTimer.restart()
@@ -99,7 +101,6 @@ Scope {
         hideTimer.interval = 1200
         hideTimer.restart()
     }
-    function showOsd() { showVolume() }
 
     onVolPctChanged: {
         if (!inited) return
@@ -228,42 +229,6 @@ Scope {
     property int displayPct: pollOverride ? fallbackPct : (sinkReady ? volPct : fallbackPct)
     property bool displayMuted: pollOverride ? fallbackMuted : (sinkReady ? isMuted : fallbackMuted)
 
-    readonly property var volumeIcons: ["󰝟", "󰕿", "󰖀", "󰕾"]
-    function iconFor(pct: int, muted: bool): string {
-        return volumeIcons[volumeTier(pct, muted)]
-    }
-
-    property bool osdDragging: false
-    Process { id: osdVolSetProc; command: ["bash","-c","echo"] }
-    Process { id: audioSettingsProc; command: ["bash", "-c", "command -v pavucontrol >/dev/null 2>&1 && pavucontrol 2>/dev/null &"] }
-    function toggleOsdMute() {
-        let m = !displayMuted
-        if (sinkReady) {
-            try { sink.audio.muted = m } catch(e) { }
-        } else {
-            let v = m ? "1" : "0"
-            osdVolSetProc.command = ["bash","-c","wpctl set-mute @DEFAULT_AUDIO_SINK@ " + v + " 2>/dev/null; pactl set-sink-mute @DEFAULT_SINK@ " + v + " 2>/dev/null || true"]
-            if (!osdVolSetProc.running) osdVolSetProc.running = true
-        }
-        fallbackMuted = m
-        showVolume()
-    }
-    function setOsdVolumePct(v: int) {
-        let clamped = Math.max(0, Math.min(100, v))
-        if (sinkReady) {
-            try {
-                if (sink.audio.muted) sink.audio.muted = false
-                sink.audio.volume = clamped/100
-            } catch(e) { }
-        } else {
-            let frac = (clamped/100).toFixed(2)
-            osdVolSetProc.command = ["bash","-c","wpctl set-volume @DEFAULT_AUDIO_SINK@ "+frac+" 2>/dev/null; wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null; pactl set-sink-mute @DEFAULT_SINK@ 0 2>/dev/null || true"]
-            if (!osdVolSetProc.running) osdVolSetProc.running = true
-        }
-        fallbackPct = clamped; fallbackMuted = false
-        showVolume()
-    }
-
     Variants {
         model: Quickshell.screens
         PanelWindow {
@@ -306,7 +271,7 @@ Scope {
                     width: 2 + osdScope.quattroPad + iconW + osdScope.quattroIconGap + osdScope.quattroBarWidth + osdScope.quattroGap + valueW + osdScope.quattroPad + 2
                     height: 2 + osdScope.quattroPad + 20 + osdScope.quattroPad + 2
                     radius: Theme.cornerRadius
-                    color: Theme.bg
+                    color: Theme.panelWindowBg
                     border.color: Theme.panelBorderColor
                     border.width: 2
                     antialiasing: Theme.shapesAa

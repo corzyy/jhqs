@@ -7,5 +7,4 @@ singleton BluetoothService 1.0 BluetoothService.qml
 singleton SettingsService 1.0 SettingsService.qml
 singleton WeatherService 1.0 WeatherService.qml
 singleton VitalsService 1.0 VitalsService.qml
-singleton DesignService 1.0 DesignService.qml
-singleton MangoService 1.0 MangoService.qml
+singleton UmbrielService 1.0 UmbrielService.qml

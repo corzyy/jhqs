@@ -3,7 +3,7 @@
     "refreshSeconds": 2,
     "showCpu": true,
     "showGpu": true,
-    "showLabels": true,
+    "showLabels": false,
     "showRam": true,
     "showTopProcs": true,
     "warnThreshold": 75

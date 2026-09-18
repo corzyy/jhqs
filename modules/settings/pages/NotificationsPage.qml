@@ -21,7 +21,7 @@ NexusControls.PageBase {
                 { id: "bottom-center", label: "Bottom Center" },
                 { id: "bottom-right", label: "Bottom Right" }
             ]
-            delegate: Rectangle {
+            delegate: NexusControls.PreviewTile {
                 required property var modelData
                 readonly property string posId: modelData.id
                 readonly property bool isCurrent: Theme.notifPosition === posId
@@ -30,17 +30,11 @@ NexusControls.PageBase {
                 readonly property bool isRight: posId.indexOf("right") !== -1
                 width: (parent.width - 16) / 3
                 height: 68
-                radius: 16
-                antialiasing: Theme.shapesAa
-                color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
-                    : posMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                    : (Theme.surface_container)
-                border.color: isCurrent ? Theme.accent : Theme.divider
-                border.width: isCurrent ? 2 : 1
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Rectangle {
+                selected: isCurrent
+                label: modelData.label
+                contentSpacing: 4
+                onClicked: Theme.setNotifPosition(posId)
+                Rectangle {
                         antialiasing: Theme.shapesAa
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 44
@@ -59,21 +53,9 @@ NexusControls.PageBase {
                             color: isCurrent ? Theme.accent : Theme.textMuted
                         }
                     }
-                    Text {
-                        antialiasing: Theme.textAa
-                        renderType: Theme.textRenderType
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: modelData.label
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(11)
-                        font.weight: isCurrent ? Font.Medium : Font.Normal
-                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
-                    }
                 }
-                MouseArea { id: posMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setNotifPosition(posId) }
             }
         }
-    }
     NexusControls.SliderRow { first: true; last: true; label: "Timeout"; from: 0; to: 30; stepSize: 1; unit: "s"; value: Theme.notifTimeout; onMoved: v => Theme.setNotifTimeout(Math.round(v)); onApplied: v => Theme.setNotifTimeout(Math.round(v)) }
 
     NexusControls.SectionHeader { text: "Focus" }

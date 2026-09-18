@@ -1,10 +1,12 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Services.Mpris
 import Quickshell.Widgets
 import "../../themes"
 import "../../services"
+import "../../Ui"
 
 // Android 17 / M3 Expressive media carousel:
 // - every MPRIS session is a card; the active one is large, the others are
@@ -21,7 +23,25 @@ Item {
     property int activeIndex: 0
     // Clamp only against a non-empty list: the model can briefly be empty at
     // startup, which must not reset an explicitly chosen activeIndex.
-    onPlayersChanged: if (players && players.length > 0 && root.activeIndex >= players.length) root.activeIndex = 0
+    onPlayersChanged: {
+        if (players && players.length > 0 && root.activeIndex >= players.length) root.activeIndex = 0
+        root.maybeFollowPlaying()
+    }
+    // Sessions can go idle while another one is audible (e.g. an app exposing
+    // a stopped session next to the playing one). Keep the expanded card on
+    // whatever is playing: a user-selected card is left alone while it plays.
+    function maybeFollowPlaying(): void {
+        const vals = root.players
+        if (!vals || vals.length === 0) return
+        const cur = vals[root.activeIndex]
+        if (cur && cur.isPlaying) return
+        for (let i = 0; i < vals.length; i++) {
+            if (vals[i] && vals[i].isPlaying) {
+                root.activeIndex = i
+                return
+            }
+        }
+    }
 
     implicitHeight: playerCount > 0 ? 150 : 96
 
@@ -30,7 +50,6 @@ Item {
     readonly property color fg: Qt.rgba(1, 1, 1, 1.0)
     readonly property color fgDim: Qt.rgba(1, 1, 1, 0.74)
     readonly property color glass: Qt.rgba(1, 1, 1, 0.16)
-    readonly property color glassHover: Qt.rgba(1, 1, 1, 0.26)
 
     // Carousel geometry: the active card takes whatever the peeks leave over.
     readonly property real peekWidth: 40
@@ -66,6 +85,7 @@ Item {
                 Layout.fillHeight: true
                 cardPlayer: modelData
                 active: index === root.activeIndex
+                onPlayingChanged: root.maybeFollowPlaying()
                 onExpandRequested: root.requestExpand(index)
             }
         }
@@ -76,7 +96,7 @@ Item {
         anchors.fill: parent
         visible: root.playerCount === 0
         radius: 32
-        color: Theme.surface_container_high
+        color: Theme.panelCardHigh
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.12)
         antialiasing: Theme.shapesAa
@@ -85,7 +105,7 @@ Item {
             anchors.fill: parent
             gradient: Gradient {
                 GradientStop { position: 0.0; color: Theme.withAlpha(Theme.primary_container, 0.25) }
-                GradientStop { position: 1.0; color: Theme.withAlpha(Theme.surface_container_high, 1.0) }
+                GradientStop { position: 1.0; color: Theme.panelCardHigh }
             }
         }
         ColumnLayout {
@@ -138,12 +158,7 @@ Item {
             width: 28
             height: 28
             radius: width / 2
-            color: buttonMouse.containsMouse && button.enabled ? root.glassHover : "transparent"
-
-            Behavior on color {
-                enabled: Theme.animationsEnabled
-                ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
-            }
+            color: "transparent"
         }
 
         Text {
@@ -161,11 +176,10 @@ Item {
             }
         }
 
-        MouseArea {
+        StateLayer {
             id: buttonMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            radius: 14
+            color: button.active ? Theme.primary : root.fg
             onClicked: button.activated()
         }
     }
@@ -213,15 +227,41 @@ Item {
         onCardPlayerChanged: { syncDisplay(); refreshAppIcon() }
         Component.onCompleted: { syncDisplay(); refreshAppIcon() }
 
-        // position is only pushed on nonlinear changes; poke it with a timer
-        // while this card is the active one.
+        // Playback position: MPRIS pushes updates on (non)linear changes;
+        // the 1s poke keeps players that stay silent fresh. The *displayed*
+        // position is extrapolated between pushes so the wave and thumb
+        // glide instead of stepping once per second.
         property real positionSecs: 0
+        property double positionStamp: 0
+        // Ignore stale position signals right after a seek commit: the
+        // player acks asynchronously and would bounce the thumb backwards.
+        property double seekGuardUntil: 0
         property bool seeking: false
+        // While seeking this holds seconds (converted from the mouse
+        // fraction), so displayPosition has one unit everywhere.
         property real seekPreview: 0
-        readonly property real displayPosition: seeking ? seekPreview : positionSecs
+        property int _posTick: 0
+        readonly property real displayPosition: {
+            if (cardItem.seeking)
+                return Math.max(0, Math.min(cardItem.trackLength, cardItem.seekPreview))
+            if (!cardItem.playing || !cardItem.hasProgress || cardItem.positionStamp <= 0)
+                return cardItem.positionSecs
+            cardItem._posTick
+            return Math.min(cardItem.trackLength, cardItem.positionSecs + (Date.now() - cardItem.positionStamp) / 1000)
+        }
         readonly property real progressFrac: trackLength > 0 ? Math.max(0, Math.min(1, displayPosition / trackLength)) : 0
 
-        onActiveChanged: if (cardItem.active && cardItem.cardPlayer) cardItem.positionSecs = cardItem.cardPlayer.position
+        function syncPosition(): void {
+            if (!cardItem.cardPlayer) return
+            let p = cardItem.cardPlayer.position
+            cardItem.positionSecs = (isFinite(p) && p > 0) ? p : 0
+            cardItem.positionStamp = Date.now()
+        }
+        onActiveChanged: {
+            if (cardItem.active) cardItem.syncPosition()
+            else cardItem.seeking = false
+        }
+        onPlayingChanged: if (cardItem.playing) cardItem.syncPosition()
 
         Timer {
             running: cardItem.active && cardItem.playing && cardItem.hasProgress
@@ -229,12 +269,25 @@ Item {
             repeat: true
             onTriggered: if (cardItem.cardPlayer) cardItem.cardPlayer.positionChanged()
         }
+        // Extrapolation tick: at typical track rates this is sub-pixel per
+        // step, so the bar reads as continuously moving.
+        Timer {
+            running: cardItem.active && cardItem.playing && cardItem.hasProgress
+            interval: 200
+            repeat: true
+            onTriggered: cardItem._posTick++
+        }
         Connections {
             target: cardItem.cardPlayer
             ignoreUnknownSignals: true
-            function onPositionChanged() { if (!cardItem.seeking) cardItem.positionSecs = cardItem.cardPlayer.position }
+            function onPositionChanged() {
+                if (cardItem.seeking || Date.now() < cardItem.seekGuardUntil) return
+                cardItem.syncPosition()
+            }
             function onPostTrackChanged() {
                 cardItem.positionSecs = 0
+                cardItem.positionStamp = Date.now()
+                cardItem.seekGuardUntil = Date.now() + 400
                 cardItem.seeking = false
                 if (cardItem.active) trackChangeAnim.restart()
                 else cardItem.syncDisplay()
@@ -303,6 +356,8 @@ Item {
             let target = Math.max(0, Math.min(cardItem.trackLength, frac * cardItem.trackLength))
             cardItem.seeking = false
             cardItem.positionSecs = target
+            cardItem.positionStamp = Date.now()
+            cardItem.seekGuardUntil = cardItem.positionStamp + 400
             cardItem.cardPlayer.position = target
         }
 
@@ -326,7 +381,7 @@ Item {
         ClippingRectangle {
             anchors.fill: parent
             radius: Math.min(32, width / 2)
-            color: Theme.surface_container_high
+            color: Theme.panelCardHigh
             border.width: 1
             border.color: Qt.rgba(1, 1, 1, 0.12)
             antialiasing: Theme.shapesAa
@@ -526,12 +581,11 @@ Item {
                             renderType: Theme.textRenderType
                         }
 
-                        MouseArea {
+                        StateLayer {
                             id: playMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            enabled: cardItem.controlsEnabled && cardItem.canToggle
+                            disabled: !(cardItem.controlsEnabled && cardItem.canToggle)
+                            radius: Math.round(height / 2)
+                            color: Theme.on_primary
                             onClicked: cardItem.togglePlay()
                         }
                     }
@@ -547,6 +601,14 @@ Item {
                         onActivated: cardItem.prev()
                     }
 
+                    // Seek bar: port of Android's SystemUI SquigglyProgress
+                    // (android13-release .../media/SquigglyProgress.kt, dims
+                    // qs_media_seekbar_progress_*). The played portion is a
+                    // traveling sine whose amplitude tapers to zero over 1.5
+                    // wavelengths at the playhead, so the squiggle dissolves
+                    // into the flat inactive line instead of being cut off.
+                    // The wave flattens while paused and freezes while
+                    // scrubbing; a time pill tracks the thumb.
                     Item {
                         id: seekBar
                         Layout.fillWidth: true
@@ -554,40 +616,212 @@ Item {
                         visible: cardItem.hasProgress
 
                         readonly property bool hot: seekMouse.containsMouse || cardItem.seeking
+                        // AOSP QS media defaults, scaled up for the card:
+                        // wavelength 20dp, amplitude 1.5dp, phase 8dp/s,
+                        // stroke 2dp.
+                        readonly property real waveLen: 20
+                        readonly property real waveAmp: 2.5
+                        readonly property real waveStroke: 4
+                        readonly property real phaseSpeed: 8
+                        // Amplitude is up while playing; travel freezes while
+                        // scrubbing (the shape stays put under the thumb).
+                        readonly property bool waveActive: cardItem.active && cardItem.playing
+                        readonly property bool waveTravel: seekBar.waveActive && !cardItem.seeking && Theme.animationsEnabled
+                        readonly property real progressPx: seekBar.width * cardItem.progressFrac
 
-                        function fracAt(x: real): real {
-                            return width > 0 ? Math.max(0, Math.min(1, x / width)) : 0
+                        // AOSP amplitude ease: 800ms emphasized-decelerate
+                        // in on play, 550ms standard-decelerate out on pause.
+                        property real waveAmount: 0
+                        onWaveActiveChanged: waveAmount = waveActive ? 1 : 0
+                        Component.onCompleted: waveAmount = waveActive ? 1 : 0
+                        Behavior on waveAmount {
+                            enabled: Theme.animationsEnabled
+                            NumberAnimation {
+                                duration: seekBar.waveActive ? Theme.durLarge : Theme.durDefaultSpatial
+                                easing.type: Easing.BezierSpline
+                                easing.bezierCurve: seekBar.waveActive ? Theme.curveEmphasizedDecelerate : Theme.curveStandardDecel
+                            }
                         }
 
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width
-                            height: 5
-                            radius: height / 2
-                            color: Qt.rgba(1, 1, 1, 0.26)
-                            antialiasing: Theme.shapesAa
+                        // Traveling phase: one wavelength per run, looped
+                        // (8px/s => one wavelength per 2.5s).
+                        property real phase: 0
+                        NumberAnimation {
+                            target: seekBar
+                            property: "phase"
+                            from: 0
+                            to: seekBar.waveLen
+                            duration: Math.max(1, Math.round(seekBar.waveLen / seekBar.phaseSpeed * 1000))
+                            loops: Animation.Infinite
+                            running: seekBar.waveTravel
+                        }
 
+                        // AOSP envelope: the squiggle is always at least 20%
+                        // of the bar when idle and follows the true position
+                        // past 60%, so it stays readable at 0%.
+                        readonly property real waveEndFrac: cardItem.progressFrac > 0.6
+                            ? cardItem.progressFrac
+                            : 0.2 + 0.4 * (cardItem.progressFrac / 0.6)
+                        readonly property real taper: seekBar.waveLen * 1.5
+
+                        function r2(v: real): string { return (Math.round(v * 100) / 100).toString() }
+                        function ampAt(x: real, sign: real): real {
+                            const wp = seekBar.width * seekBar.waveEndFrac
+                            const c = Math.max(0, Math.min(1, (wp + seekBar.taper / 2 - x) / seekBar.taper))
+                            return sign * seekBar.waveAmount * seekBar.waveAmp * c
+                        }
+                        // AOSP path construction: moveTo(waveStart), then one
+                        // cubic per half wavelength with horizontal tangents
+                        // at every knot (control points share midX).
+                        function buildWavePath(): string {
+                            if (seekBar.width <= 0) return ""
+                            const cy = seekBar.height / 2
+                            const half = seekBar.waveLen / 2
+                            let x = -seekBar.phase - seekBar.waveLen / 2
+                            let sign = 1
+                            let amp = seekBar.ampAt(x, sign)
+                            let d = "M " + seekBar.r2(x) + " " + seekBar.r2(cy)
+                            while (x < seekBar.width) {
+                                sign = -sign
+                                const nx = x + half
+                                const mx = x + half / 2
+                                const namp = seekBar.ampAt(nx, sign)
+                                d += " C " + seekBar.r2(mx) + " " + seekBar.r2(cy + amp)
+                                    + " " + seekBar.r2(mx) + " " + seekBar.r2(cy + namp)
+                                    + " " + seekBar.r2(nx) + " " + seekBar.r2(cy + namp)
+                                amp = namp
+                                x = nx
+                            }
+                            return d
+                        }
+                        readonly property string wavePath: buildWavePath()
+
+                        // Full-track squiggle in the inactive tint; the active
+                        // copy is clipped at the playhead (AOSP draws the same
+                        // path with two paints and clips).
+                        Item {
+                            anchors.fill: parent
+                            clip: true
+
+                            Shape {
+                                width: seekBar.width
+                                height: seekBar.height
+                                ShapePath {
+                                    fillColor: "transparent"
+                                    strokeColor: Qt.rgba(1, 1, 1, 0.26)
+                                    strokeWidth: seekBar.waveStroke
+                                    capStyle: ShapePath.RoundCap
+                                    PathSvg { path: seekBar.wavePath }
+                                }
+                            }
+
+                            Item {
+                                width: seekBar.progressPx
+                                height: seekBar.height
+                                clip: true
+                                Shape {
+                                    width: seekBar.width
+                                    height: seekBar.height
+                                    ShapePath {
+                                        fillColor: "transparent"
+                                        strokeColor: root.fg
+                                        strokeWidth: seekBar.waveStroke
+                                        capStyle: ShapePath.RoundCap
+                                        PathSvg { path: seekBar.wavePath }
+                                    }
+                                }
+                            }
+
+                            // Round left cap (AOSP drawPoint at x=0): the wave
+                            // starts off-screen, so the clip would otherwise
+                            // cut it square.
                             Rectangle {
-                                width: Math.round(parent.width * cardItem.progressFrac)
-                                height: parent.height
-                                radius: parent.radius
+                                width: seekBar.waveStroke
+                                height: width
+                                radius: width / 2
+                                x: -width / 2
+                                y: seekBar.height / 2
+                                    + Math.cos(Math.abs(-seekBar.phase - seekBar.waveLen / 2) / seekBar.waveLen * Math.PI * 2)
+                                        * seekBar.waveAmp * seekBar.waveAmount
+                                    - height / 2
                                 color: root.fg
                                 antialiasing: Theme.shapesAa
                             }
                         }
+
+                        // M3 state halo behind the thumb.
                         Rectangle {
-                            width: seekBar.hot ? 16 : 12
+                            anchors.centerIn: seekThumb
+                            width: 30
+                            height: 30
+                            radius: 15
+                            color: Qt.rgba(1, 1, 1, 0.14)
+                            opacity: seekBar.hot ? 1 : 0
+                            antialiasing: Theme.shapesAa
+                            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects } }
+                        }
+                        Rectangle {
+                            id: seekThumb
+                            width: cardItem.seeking ? 18 : (seekBar.hot ? 15 : 12)
                             height: width
                             radius: width / 2
-                            x: Math.max(0, Math.min(seekBar.width - width, seekBar.width * cardItem.progressFrac - width / 2))
+                            x: Math.max(0, Math.min(seekBar.width - width, seekBar.progressPx - width / 2))
                             anchors.verticalCenter: parent.verticalCenter
                             color: root.fg
                             antialiasing: Theme.shapesAa
 
                             Behavior on width {
                                 enabled: Theme.animationsEnabled
-                                NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial }
+                                NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
                             }
+                        }
+
+                        // Scrub time pill, Android-media style.
+                        Rectangle {
+                            width: bubbleText.implicitWidth + 18
+                            height: 22
+                            radius: 11
+                            x: Math.max(0, Math.min(seekBar.width - width, seekBar.progressPx - width / 2))
+                            y: -height - 4
+                            color: Qt.rgba(0, 0, 0, 0.62)
+                            border.color: Qt.rgba(1, 1, 1, 0.2)
+                            border.width: 1
+                            antialiasing: Theme.shapesAa
+                            visible: opacity > 0.01
+                            opacity: cardItem.seeking ? 1 : 0
+
+                            Behavior on opacity { enabled: Theme.animationsEnabled; NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects } }
+
+                            Text {
+                                id: bubbleText
+                                anchors.centerIn: parent
+                                text: seekBar.formatTime(cardItem.displayPosition)
+                                color: root.fg
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fs(11)
+                                font.weight: Font.Bold
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
+                            }
+                        }
+
+                        function fracAt(x: real): real {
+                            return width > 0 ? Math.max(0, Math.min(1, x / width)) : 0
+                        }
+                        // seekPreview is stored in seconds so displayPosition
+                        // never mixes units while scrubbing (the old code fed
+                        // a 0..1 fraction into the seconds path, pinning the
+                        // thumb near the start during drags).
+                        function previewAt(x: real): void {
+                            cardItem.seekPreview = seekBar.fracAt(x) * cardItem.trackLength
+                        }
+                        function formatTime(secs: real): string {
+                            let v = Math.max(0, isFinite(secs) ? secs : 0)
+                            let s = Math.floor(v % 60)
+                            let m = Math.floor(v / 60) % 60
+                            let h = Math.floor(v / 3600)
+                            if (h > 0) return h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+                            return m + ":" + (s < 10 ? "0" : "") + s
                         }
 
                         MouseArea {
@@ -596,10 +830,22 @@ Item {
                             enabled: cardItem.controlsEnabled && cardItem.seekable
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onPressed: mouse => { cardItem.seekPreview = seekBar.fracAt(mouse.x); cardItem.seeking = true }
-                            onPositionChanged: mouse => { if (cardItem.seeking) cardItem.seekPreview = seekBar.fracAt(mouse.x) }
+                            acceptedButtons: Qt.LeftButton
+                            onPressed: mouse => {
+                                cardItem.seeking = true
+                                seekBar.previewAt(mouse.x)
+                            }
+                            onPositionChanged: mouse => {
+                                if (cardItem.seeking) seekBar.previewAt(mouse.x)
+                            }
                             onReleased: mouse => cardItem.commitSeek(seekBar.fracAt(mouse.x))
                             onCanceled: cardItem.seeking = false
+                            onWheel: wheel => {
+                                if (!cardItem.seekable || cardItem.trackLength <= 0) return
+                                const step = wheel.angleDelta.y > 0 ? 5 : -5
+                                cardItem.commitSeek(Math.max(0, Math.min(1, cardItem.progressFrac + step / cardItem.trackLength)))
+                                wheel.accepted = true
+                            }
                         }
                     }
 
@@ -626,11 +872,10 @@ Item {
 
         // Selecting a pill expands it; the active card's controls sit above
         // this area and win whenever this card is already active.
-        MouseArea {
-            anchors.fill: parent
-            enabled: !cardItem.active
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+        StateLayer {
+            disabled: cardItem.active
+            radius: Math.min(32, width / 2)
+            color: root.fg
             onClicked: cardItem.expandRequested()
         }
     }

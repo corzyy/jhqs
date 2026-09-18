@@ -139,7 +139,7 @@ Lifecycle:
 
 Panels:
   module <name> <action>      action: toggle | open | close
-  module settings open <section>   sections: global mango bar vitals
+  module settings open <section>   sections: global umbriel bar vitals
                                    workspaces calendar notif
   Modules: $MODULES
 

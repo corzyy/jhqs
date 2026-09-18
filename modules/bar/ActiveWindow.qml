@@ -17,7 +17,7 @@ Item {
     implicitHeight: vertical ? col.implicitHeight + 10 : row.implicitHeight + 10
 
     readonly property string winAppId: {
-        try { return MangoService.focusedAppId || "" } catch (e) { return "" }
+        try { return UmbrielService.focusedAppId || "" } catch (e) { return "" }
     }
     readonly property string winIcon: {
         Theme.appsRev
@@ -31,7 +31,7 @@ Item {
     }
     readonly property string winTitle: {
         try {
-            if ((MangoService.focusedTitle || "").trim().length > 0) return "" + MangoService.focusedTitle
+            if ((UmbrielService.focusedTitle || "").trim().length > 0) return "" + UmbrielService.focusedTitle
         } catch (e) { }
         if (winAppId.length > 0) return winAppId
         return "Desktop"

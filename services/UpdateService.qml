@@ -56,19 +56,6 @@ Singleton {
         onTriggered: { try { settingsFile.reload() } catch (e) { } }
     }
 
-    function setCheckSchedule(schedule: string): void {
-        if (schedule === checkSchedule) return
-        settingsFile.adapter.checkSchedule = schedule
-        settingsFile.writeAdapter()
-        checkNow()
-    }
-    function setOfferShutdownAction(v: bool): void {
-        let nv = !!v
-        if (offerShutdownAction === nv) return
-        settingsFile.adapter.offerShutdownAction = nv
-        settingsFile.writeAdapter()
-    }
-
     function checkNow(): void {
         // PERF: coalesce boot + net-flap + rpm-touch storms. All 5 timer
         // sources funnel here; without this 3 check-updates.sh runs queue up.
@@ -113,12 +100,6 @@ Singleton {
         return "usage: debug on|off|toggle|count <n> | debug 5"
     }
 
-    // CPU: status() used to scan updates 2x (system+flatpak). Single pass.
-    function count(source: string): int {
-        let total = 0
-        for (let i = 0; i < updates.length; i++) if (updates[i].source === source) total++
-        return total
-    }
     // Cached per-updates-change breakdown so status()/panel header don't
     // re-scan the list on every binding evaluation.
     readonly property var _counts: {

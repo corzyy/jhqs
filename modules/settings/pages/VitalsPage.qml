@@ -28,7 +28,7 @@ NexusControls.PageBase {
                 { id: "gpu", label: "GPU", icon: "󰢮", flag: "showGpu", defTrue: false },
                 { id: "top", label: "Processes", icon: "", flag: "showTopProcs", defTrue: true }
             ]
-            delegate: Rectangle {
+            delegate: NexusControls.PreviewTile {
                 required property var modelData
                 readonly property string metricId: modelData.id
                 readonly property bool isAvail: metricId === "top" ? true : metricId !== "gpu" || VitalsService.gpuAvailable
@@ -37,17 +37,12 @@ NexusControls.PageBase {
                 readonly property string metricText: !isAvail ? "–" : root.metricTextFor(metricId)
                 width: (parent.width - 8) / 2
                 height: 64
-                radius: 16
-                antialiasing: Theme.shapesAa
-                color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
-                    : metricMouse.containsMouse && isAvail ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                    : (Theme.surface_container)
-                border.color: isCurrent ? Theme.accent : Theme.divider
-                border.width: isCurrent ? 2 : 1
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Row {
+                selected: isCurrent
+                interactionEnabled: isAvail
+                label: modelData.label
+                contentSpacing: 4
+                onClicked: VitalsService.setFlag(modelData.flag, !isCurrent, modelData.defTrue)
+                Row {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 5
                         Text {
@@ -70,32 +65,9 @@ NexusControls.PageBase {
                             anchors.verticalCenter: parent.verticalCenter
                         }
                     }
-                    Text {
-                        antialiasing: Theme.textAa
-                        renderType: Theme.textRenderType
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: modelData.label
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(11)
-                        font.weight: isCurrent ? Font.Medium : Font.Normal
-                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
-                    }
-                }
-                MouseArea {
-                    id: metricMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    enabled: isAvail
-                    cursorShape: isAvail ? Qt.PointingHandCursor : Qt.ForbiddenCursor
-                    onClicked: {
-                        // Modellgetrieben via VitalsService.setFlag (ein Pfad
-                        // statt if/else-Kette über alle Metriken).
-                        VitalsService.setFlag(modelData.flag, !isCurrent, modelData.defTrue)
-                    }
                 }
             }
         }
-    }
 
     NexusControls.SectionHeader { text: "Thresholds" }
     NexusControls.SliderRow { first: true; label: "Refresh"; from: 1; to: 10; stepSize: 1; unit: "s"; value: VitalsService.refreshSeconds; onMoved: v => VitalsService.setRefreshSeconds(Math.round(v)); onApplied: v => VitalsService.setRefreshSeconds(Math.round(v)) }

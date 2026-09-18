@@ -33,87 +33,6 @@ Scope {
         function setRefreshMinutes(n: int): string { return WeatherService.setRefreshMinutes(n) }
     }
 
-    // ---------- Same design primitives as Volume/Network panels ----------
-    component SectionLabel: Text {
-        antialiasing: Theme.textAa
-        renderType: Theme.textRenderType
-        color: Theme.textSecondary
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fs(10)
-        font.weight: Font.Bold
-        font.letterSpacing: 1.2
-    }
-    component Card: Rectangle {
-        antialiasing: Theme.shapesAa
-        radius: Theme.cornerRadiusSmall
-        color: Theme.cardBg
-        border.color: Theme.divider
-        border.width: 1
-    }
-    component IconBtn: Rectangle {
-        id: iconBtnRoot
-        required property string glyph
-        property bool active: false
-        signal pressed()
-        width: 28; height: 28
-        radius: Theme.cornerRadiusSmall
-        antialiasing: Theme.shapesAa
-        color: btnMouse.containsMouse ? Theme.bgHover : "transparent"
-        border.color: (iconBtnRoot.active || btnMouse.containsMouse) ? Theme.divider : "transparent"
-        border.width: 1
-        Text {
-            anchors.centerIn: parent
-            text: iconBtnRoot.glyph
-            color: (iconBtnRoot.active || btnMouse.containsMouse) ? Theme.accent : Theme.textSecondary
-            font.family: Theme.iconFontFamily
-            font.pixelSize: Theme.fs(13)
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-        }
-        MouseArea {
-            id: btnMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: iconBtnRoot.pressed()
-        }
-    }
-    component TogglePill: Rectangle {
-        id: pillRoot
-        required property bool on
-        property string onText: "°C"
-        property string offText: "°F"
-        signal pressed()
-        implicitWidth: pillLabel.implicitWidth + 24
-        implicitHeight: 26
-        radius: height / 2
-        antialiasing: Theme.shapesAa
-        color: pillMouse.containsMouse
-            ? (on ? Theme.withAlpha(Theme.accent, 0.28) : Theme.withAlpha(Theme.textPrimary, 0.14))
-            : (on ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.textPrimary, 0.06))
-        border.color: on ? Theme.accent : Theme.divider
-        border.width: 1
-        Text {
-            id: pillLabel
-            anchors.centerIn: parent
-            text: pillRoot.on ? pillRoot.onText : pillRoot.offText
-            color: pillRoot.on ? Theme.textPrimary : Theme.textSecondary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fs(10)
-            font.weight: Font.Bold
-            font.letterSpacing: 0.6
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-        }
-        MouseArea {
-            id: pillMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: pillRoot.pressed()
-        }
-    }
-
     readonly property string heroTitle: WeatherService.reportLocation !== "" ? WeatherService.reportLocation : "No location set"
     readonly property string heroMeta: {
         let cond = (WeatherService.reportCondition || "").trim().toUpperCase()
@@ -201,7 +120,11 @@ Scope {
                             })
                         }
                         implicitHeight: Math.max(120, Math.min(contentCol.implicitHeight + 20, wxAnchor.screenHeight - wxAnchor.edgeOffset - 24))
-                        color: Theme.bg
+                        // Fill comes from the popout's shadow layer (see
+                        // CaelestiaPopout shadowSource): it paints the same
+                        // rounded silhouette behind this card, so the shadow
+                        // silhouette is only composited once.
+                        color: "transparent"
                         border.color: Theme.panelBorderColor
                         border.width: 2
                         radius: Theme.cornerRadius
@@ -210,19 +133,20 @@ Scope {
                         clip: false
                         // Square fused corners (tray-menu joint); plain children,
                         // so they emerge with the card exactly like the box.
-                        PanelCorner { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
-                        PanelCorner { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
+                        PanelCorner { fillColor: Theme.panelWindowBg; side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
+                        PanelCorner { fillColor: Theme.panelWindowBg; side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
                         // Outward-curved shoulders on top of the fusion (Caelestia joint).
-                        PanelFillet { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
-                        PanelFillet { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
+                        PanelFillet { fillColor: Theme.panelWindowBg; side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
+                        PanelFillet { fillColor: Theme.panelWindowBg; side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: wxPopout.offsetScale < 1 }
                         // Seam strip: erases the collar outline along the fused edge.
                         Rectangle {
                             antialiasing: Theme.shapesAa
+                            visible: Theme.panelAccentBorder
                             x: 0
                             y: root.barPos === "bottom" ? wxBox.height - 2 : 0
                             width: wxBox.width
                             height: 2
-                            color: Theme.bg
+                            color: Theme.panelWindowBg
                         }
                     MouseArea {
                         anchors.fill: parent
@@ -314,23 +238,23 @@ Scope {
                                         renderType: Theme.textRenderType
                                     }
                                 }
-                                IconBtn {
+                                PanelKit.IconButton {
                                     glyph: "󰍎"
                                     active: WeatherService.editingLocation
-                                    onPressed: {
+                                    onClicked: {
                                         if (WeatherService.editingLocation) WeatherService.cancelEditingLocation()
                                         else wxBox.startLocationEdit()
                                     }
                                 }
-                                IconBtn {
+                                PanelKit.IconButton {
                                     glyph: "↻"
-                                    onPressed: WeatherService.refresh()
+                                    onClicked: WeatherService.refresh()
                                 }
                             }
                             // Location search editor — M3 fade enter/exit
                             // (stays in layout until the fade-out finished,
                             // then the panel height glides).
-                            Card {
+                            PanelKit.Card {
                                 readonly property bool locEditing: WeatherService.editingLocation
                                 opacity: locEditing ? 1 : 0
                                 visible: opacity > 0.01
@@ -345,7 +269,7 @@ Scope {
                                     anchors.fill: parent
                                     anchors.margins: 10
                                     spacing: 6
-                                    SectionLabel { text: "SEARCH LOCATION" }
+                                    PanelKit.SectionLabel { text: "SEARCH LOCATION" }
                                     RowLayout {
                                         Layout.fillWidth: true
                                         spacing: 6
@@ -409,7 +333,7 @@ Scope {
                                             Layout.preferredWidth: 34; Layout.preferredHeight: 36
                                             radius: Theme.cornerRadiusSmall
                                             antialiasing: Theme.shapesAa
-                                            color: clearMouse.containsMouse && !WeatherService.savingLocation ? Theme.withAlpha(Theme.textPrimary, 0.07) : "transparent"
+                                            color: "transparent"
                                             border.color: Theme.divider
                                             border.width: 1
                                             Text {
@@ -421,12 +345,11 @@ Scope {
                                                 antialiasing: Theme.textAa
                                                 renderType: Theme.textRenderType
                                             }
-                                            MouseArea {
+                                            StateLayer {
                                                 id: clearMouse
-                                                anchors.fill: parent
-                                                enabled: !WeatherService.savingLocation
-                                                hoverEnabled: true
-                                                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                                disabled: WeatherService.savingLocation
+                                                radius: Theme.cornerRadiusSmall
+                                                color: Theme.textPrimary
                                                 onClicked: { WeatherService.clearLocation(); keyCatcher.forceActiveFocus() }
                                             }
                                         }
@@ -444,7 +367,7 @@ Scope {
                                                 implicitHeight: 36
                                                 radius: Theme.cornerRadiusSmall
                                                 antialiasing: Theme.shapesAa
-                                                color: index === WeatherService.suggestionIndex || sugMouse.containsMouse ? Theme.withAlpha(Theme.accent, 0.14) : "transparent"
+                                                color: index === WeatherService.suggestionIndex ? Theme.withAlpha(Theme.accent, 0.14) : "transparent"
                                                 border.color: index === WeatherService.suggestionIndex ? Theme.withAlpha(Theme.accent, 0.55) : "transparent"
                                                 border.width: index === WeatherService.suggestionIndex ? 1 : 0
                                                 RowLayout {
@@ -476,11 +399,10 @@ Scope {
                                                         renderType: Theme.textRenderType
                                                     }
                                                 }
-                                                MouseArea {
+                                                StateLayer {
                                                     id: sugMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
+                                                    radius: Theme.cornerRadiusSmall
+                                                    color: Theme.accent
                                                     onPositionChanged: WeatherService.suggestionIndex = index
                                                     onClicked: { WeatherService.pickSuggestion(modelData); keyCatcher.forceActiveFocus() }
                                                 }
@@ -494,7 +416,7 @@ Scope {
                                 width: parent.width
                                 spacing: 8
                             // Hero now card. The set location lives here, under the temp.
-                            Card {
+                            PanelKit.Card {
                                 Layout.preferredWidth: 296
                                 Layout.alignment: Qt.AlignTop
                                 implicitHeight: Math.max(heroCol.implicitHeight, fcCol.implicitHeight) + 20
@@ -527,7 +449,7 @@ Scope {
                                             Layout.fillWidth: true
                                             Layout.alignment: Qt.AlignVCenter
                                             spacing: 2
-                                            SectionLabel { text: "NOW" }
+                                            PanelKit.SectionLabel { text: "NOW" }
                                             Row {
                                                 spacing: 2
                                                 Text {
@@ -553,12 +475,14 @@ Scope {
                                                 }
                                             }
                                         }
-                                        TogglePill {
+                                        PanelKit.TogglePill {
                                             Layout.alignment: Qt.AlignVCenter
                                             on: !WeatherService.useImperial
                                             onText: "°C"
                                             offText: "°F"
-                                            onPressed: WeatherService.setUnit(WeatherService.useImperial ? "metric" : "imperial")
+                                            offBgAlpha: 0.06
+                                            offBorderColor: Theme.divider
+                                            onClicked: WeatherService.setUnit(WeatherService.useImperial ? "metric" : "imperial")
                                         }
                                     }
                                     Text {
@@ -630,7 +554,7 @@ Scope {
                                 }
                             }
                                 // Forecast card.
-                                Card {
+                                PanelKit.Card {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignTop
                                     implicitHeight: Math.max(heroCol.implicitHeight, fcCol.implicitHeight) + 20
@@ -639,7 +563,7 @@ Scope {
                                     anchors.fill: parent
                                     anchors.margins: 10
                                     spacing: 6
-                                    SectionLabel { text: "NEXT 3 DAYS" }
+                                    PanelKit.SectionLabel { text: "NEXT 3 DAYS" }
                                     Repeater {
                                         model: root.showWeather ? WeatherService.forecastDays : []
                                         delegate: Rectangle {

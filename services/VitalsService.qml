@@ -50,11 +50,7 @@ Singleton {
         vitalsFile.writeAdapter()
     }
 
-    function setShowCpu(v: bool): void { setFlag("showCpu", v, false) }
-    function setShowRam(v: bool): void { setFlag("showRam", v, false) }
-    function setShowGpu(v: bool): void { setFlag("showGpu", v, false) }
     function setShowLabels(v: bool): void { setFlag("showLabels", v, true) }
-    function setShowTopProcs(v: bool): void { setFlag("showTopProcs", v, true) }
     function setRefreshSeconds(n: int): void {
         let c = Math.max(1, Math.min(10, Math.round(n)))
         if (isNaN(c)) return
@@ -96,13 +92,6 @@ Singleton {
         if (pct >= critThreshold) return 2
         if (pct >= warnThreshold) return 1
         return 0
-    }
-    readonly property int worstSeverity: {
-        let w = 0
-        if (showCpu) w = Math.max(w, severity(cpuPct))
-        if (showRam) w = Math.max(w, severity(ramPct))
-        if (showGpu && gpuAvailable) w = Math.max(w, severity(gpuPct))
-        return w
     }
 
     function status(): string {

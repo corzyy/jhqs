@@ -3,6 +3,7 @@ import QtQuick
 import "../../../themes"
 import "../../../services"
 import ".."
+import "../../../Ui"
 
 NexusControls.PageBase {
     id: root
@@ -51,14 +52,15 @@ NexusControls.PageBase {
                 color: Theme.textSecondary
             }
         }
-        MouseArea { id: previewMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setPanelAccentBorder(!Theme.panelAccentBorder) }
+        StateLayer { id: previewMouse; showHoverBackground: false; radius: 28; color: Theme.accent; onClicked: Theme.setPanelAccentBorder(!Theme.panelAccentBorder) }
     }
-    NexusControls.SliderRow { first: true; last: true; label: "Rounding"; from: 0; to: 40; stepSize: 1; unit: "px"; value: Theme.cornerRadius; onMoved: v => { Theme.setCornerRadius(Math.round(v)); MangoService.preview("border_radius", Math.round(v)) }; onApplied: v => { Theme.setCornerRadius(Math.round(v)); MangoService.applyBorderRadius(v) } }
+    NexusControls.SliderRow { first: true; last: true; label: "Transparency"; from: 0; to: 100; stepSize: 1; unit: "%"; value: Math.round(Theme.panelTransparency * 100); onMoved: v => Theme.setPanelTransparency(v / 100); onApplied: v => Theme.setPanelTransparency(v / 100) }
+    NexusControls.SliderRow { first: true; last: true; label: "Rounding"; from: 0; to: 40; stepSize: 1; unit: "px"; value: Theme.cornerRadius; onMoved: v => { Theme.setCornerRadius(Math.round(v)); UmbrielService.preview("cornerRadius", Math.round(v)) }; onApplied: v => { Theme.setCornerRadius(Math.round(v)); UmbrielService.applyCornerRadius(v) } }
     Text {
         width: parent.width
         leftPadding: 8
         wrapMode: Text.WordWrap
-        text: "Applies to the shell and MangoWM windows."
+        text: "Transparency applies to every panel and the top bar; the Top Bar page's Opacity slider stays in sync. Rounding applies to the shell and Umbriel windows."
         font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10)
         color: Theme.textMuted
         antialiasing: Theme.textAa
@@ -68,11 +70,18 @@ NexusControls.PageBase {
     NexusControls.SectionHeader { text: "Animations" }
     NexusControls.ToggleRow {
         first: true
-        last: true
         text: "Shell Animations"
         subtext: "Panels, menus, toggles and sliders"
         checked: Theme.animationsEnabled
         onToggled: n => Theme.setAnimationsEnabled(n)
+    }
+    NexusControls.SliderRow {
+        last: true
+        label: "Animation Speed"
+        from: 50; to: 200; stepSize: 10; unit: "%"
+        value: Math.round(Theme.animationSpeed * 100)
+        onMoved: v => Theme.setAnimationSpeed(v / 100)
+        onApplied: v => Theme.setAnimationSpeed(v / 100)
     }
 
     NexusControls.SectionHeader { text: "Font" }

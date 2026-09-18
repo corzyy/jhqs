@@ -18,23 +18,17 @@ NexusControls.PageBase {
                 { id: "left", label: "Left" },
                 { id: "right", label: "Right" }
             ]
-            delegate: Rectangle {
+            delegate: NexusControls.PreviewTile {
                 required property var modelData
                 readonly property string posId: modelData.id
                 readonly property bool isCurrent: Theme.barPosition === posId
                 width: (parent.width - 24) / 4
                 height: 56
-                radius: 16
-                antialiasing: Theme.shapesAa
-                color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
-                    : posMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                    : (Theme.surface_container)
-                border.color: isCurrent ? Theme.accent : Theme.divider
-                border.width: isCurrent ? 2 : 1
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 4
-                    Rectangle {
+                selected: isCurrent
+                label: modelData.label
+                contentSpacing: 4
+                onClicked: Theme.setBarPosition(posId)
+                Rectangle {
                         antialiasing: Theme.shapesAa
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 26
@@ -53,21 +47,9 @@ NexusControls.PageBase {
                             color: isCurrent ? Theme.accent : Theme.textMuted
                         }
                     }
-                    Text {
-                        antialiasing: Theme.textAa
-                        renderType: Theme.textRenderType
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: modelData.label
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(11)
-                        font.weight: isCurrent ? Font.Medium : Font.Normal
-                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
-                    }
                 }
-                MouseArea { id: posMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setBarPosition(posId) }
             }
         }
-    }
 
     NexusControls.SectionHeader { text: "Bar" }
     NexusControls.SliderRow { first: true; label: "Thickness"; from: 20; to: 48; stepSize: 1; unit: "px"; value: Theme.barThickness; onMoved: v => Theme.setBarThickness(Math.round(v)); onApplied: v => Theme.setBarThickness(Math.round(v)) }

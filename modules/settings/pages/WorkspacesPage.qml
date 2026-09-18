@@ -18,23 +18,16 @@ NexusControls.PageBase {
                 { id: "default2", label: "Default2" },
                 { id: "m3", label: "M3" }
             ]
-            delegate: Rectangle {
+            delegate: NexusControls.PreviewTile {
                 required property var modelData
                 readonly property string styleId: modelData.id
                 readonly property bool isCurrent: Theme.workspaceStyle === styleId
                 width: (parent.width - 16) / 3
                 height: 64
-                radius: 16
-                antialiasing: Theme.shapesAa
-                color: isCurrent ? Theme.withAlpha(Theme.accent, 0.16)
-                    : styleMouse.containsMouse ? (Theme.withAlpha(Theme.textPrimary, 0.08))
-                    : (Theme.surface_container)
-                border.color: isCurrent ? Theme.accent : Theme.divider
-                border.width: isCurrent ? 2 : 1
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Item {
+                selected: isCurrent
+                label: modelData.label
+                onClicked: Theme.setWorkspaceStyle(styleId)
+                Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 56
                         height: 22
@@ -110,32 +103,9 @@ NexusControls.PageBase {
                             }
                         }
                     }
-                    Text {
-                        antialiasing: Theme.textAa
-                        renderType: Theme.textRenderType
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: modelData.label
-                        font.family: Theme.iconFontFamily
-                        font.pixelSize: Theme.fs(11)
-                        font.weight: isCurrent ? Font.Medium : Font.Normal
-                        color: isCurrent ? Theme.textPrimary : Theme.textSecondary
-                    }
                 }
-                MouseArea { id: styleMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setWorkspaceStyle(styleId) }
             }
         }
-    }
-
-    NexusControls.SectionHeader { text: "Mango Tags" }
-    NexusControls.ToggleRow {
-        first: true
-        last: true
-        visible: MangoService.isMango
-        text: "Dynamic tags"
-        subtext: "Hide empty tags, show them on demand"
-        checked: MangoService.mangoDynamicTags
-        onToggled: n => MangoService.applyDynamicTags(n)
-    }
 
     NexusControls.SectionHeader { text: "Spacing" }
     NexusControls.SliderRow { first: true; last: true; label: "Distance"; from: 0; to: 24; stepSize: 1; unit: "px"; value: Theme.workspaceSpacing; onMoved: v => Theme.setWorkspaceSpacing(Math.round(v)); onApplied: v => Theme.setWorkspaceSpacing(Math.round(v)) }

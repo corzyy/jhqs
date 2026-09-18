@@ -111,12 +111,12 @@ Scope {
         }
         onExited: (code) => jhqsMenuScope.finishWebAppOp(code)
     }
-    // Setup targets open the matching mango config in the default editor
+    // Setup targets open the matching Umbriel config in the default editor
     // (VSCodium, with xdg-open/nvim fallbacks). Bindings point at the user
-    // file; monitors at the active monitors.conf.
-    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/monitors.conf\" 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim \"$HOME/.config/mango/configs/monitors.conf\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
-    Process { id: setupBindsProc; command: ["bash", "-c", "codium \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || xdg-open \"$HOME/.config/mango/configs/binds-user.conf\" 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim \"$HOME/.config/mango/configs/binds-user.conf\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
-    Process { id: setupAutostartProc; command: ["bash", "-c", "codium ~/.config/mango/configs/autostart.conf 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim ~/.config/mango/configs/autostart.conf; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    // file; monitors at outputs.toml; autostart lives in general.toml.
+    Process { id: setupMonitorsProc; command: ["bash", "-c", "codium \"$HOME/.config/umbriel/configs/outputs.toml\" 2>/dev/null || xdg-open \"$HOME/.config/umbriel/configs/outputs.toml\" 2>/dev/null || kitty --class setup-monitors --title \"Monitors\" bash -c 'nvim \"$HOME/.config/umbriel/configs/outputs.toml\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupBindsProc; command: ["bash", "-c", "codium \"$HOME/.config/umbriel/configs/keybinds-user.toml\" 2>/dev/null || xdg-open \"$HOME/.config/umbriel/configs/keybinds-user.toml\" 2>/dev/null || kitty --class setup-binds --title \"Keybindings\" bash -c 'nvim \"$HOME/.config/umbriel/configs/keybinds-user.toml\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
+    Process { id: setupAutostartProc; command: ["bash", "-c", "codium \"$HOME/.config/umbriel/configs/general.toml\" 2>/dev/null || xdg-open \"$HOME/.config/umbriel/configs/general.toml\" 2>/dev/null || kitty --class setup-autostart --title \"Autostart\" bash -c 'nvim \"$HOME/.config/umbriel/configs/general.toml\"; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
     Process { id: setupKittyProc; command: ["bash", "-c", "codium ~/.config/kitty/kitty.conf 2>/dev/null || kitty --class setup-kitty --title \"Kitty Config\" bash -c 'nvim ~/.config/kitty/kitty.conf; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
     Process { id: setupFishProc; command: ["bash", "-c", "kitty --class setup-fish --title \"Fish Config\" bash -c 'nvim ~/.config/fish/config.fish; echo; echo \"--- Done ---\"; read -n1 -s' &"] }
     Process { id: setupAppearanceProc; command: ["bash", "-c", "nwg-look 2>/dev/null || codium ~/.config/gtk-3.0/settings.ini 2>/dev/null || kitty --class setup-gtk --title \"GTK Appearance\" bash -c 'echo \"nwg-look not found\"; echo \"GTK Settings: ~/.config/gtk-3.0/settings.ini\"; cat ~/.config/gtk-3.0/settings.ini 2>/dev/null; read -n1 -s' &"] }
@@ -129,15 +129,16 @@ Scope {
     function runShellUpdate() {
         Quickshell.execDetached(["bash", "-c", "kitty --class jhqs-shell-update --title \"Shell Update\" bash -lc 'bash \"$HOME/.config/quickshell/jhqs/scripts/update-shell.sh\"; echo; echo \"--- Done ---\"; read -n1 -s' &"])
     }
-    // Live MangoWM keybinding menu (Learn > Keybindings/Apps/Windows/
+    // Live Umbriel keybinding menu (Learn > Keybindings/Apps/Windows/
     // Workspaces, rendered by Views.KeybindsView). Parsed from
-    // scripts/mango-keybinds.sh TSV rows (kind \t combo \t action \t src).
-    // The FileViews below re-run the parser whenever the mango configs
+    // scripts/umbriel-keybinds.py TSV rows
+    // (kind \t combo \t action \t src \t description).
+    // The FileViews below re-run the parser whenever the Umbriel configs
     // change, so the cheatsheet is always current while the menu is open;
     // the list is also (re)loaded on menu open and on entering the view.
-    FileView { id: keybindUserFile; path: Quickshell.env("HOME") + "/.config/mango/configs/binds-user.conf"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
-    FileView { id: keybindSystemFile; path: Quickshell.env("HOME") + "/.config/mango/configs/binds-system.conf"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
-    FileView { id: keybindMainFile; path: Quickshell.env("HOME") + "/.config/mango/config.conf"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
+    FileView { id: keybindUserFile; path: Quickshell.env("HOME") + "/.config/umbriel/configs/keybinds-user.toml"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
+    FileView { id: keybindSystemFile; path: Quickshell.env("HOME") + "/.config/umbriel/configs/keybinds-system.toml"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
+    FileView { id: keybindMainFile; path: Quickshell.env("HOME") + "/.config/umbriel/config.toml"; watchChanges: true; blockLoading: true; printErrors: false; onFileChanged: keybindWatchDebounce.restart() }
     Timer { id: keybindWatchDebounce; interval: 300; repeat: false; onTriggered: jhqsMenuScope.refreshKeybindsForce() }
     Process {
         id: keybindProc
@@ -154,7 +155,7 @@ Scope {
     function refreshKeybindsForce() {
         if (keybindProc.running) return
         keybindLoading = true
-        keybindProc.command = ["bash", Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/mango-keybinds.sh"]
+        keybindProc.command = ["python3", Quickshell.env("HOME") + "/.config/quickshell/jhqs/scripts/umbriel-keybinds.py"]
         keybindProc.running = true
     }
     function finishKeybinds(out) {
@@ -187,37 +188,49 @@ Scope {
             let combo = (cols[1] || "").trim()
             let action = (cols[2] || "").trim()
             let src = (cols[3] || "").trim()
+            let desc = (cols[4] || "").trim()
             if (combo === "" || action === "") continue
             let parts = combo.split("+").map(s => s.trim()).filter(s => s.length > 0)
             if (parts.length === 0) continue
             let kindLabel = kind === "mouse" ? "Mouse" : kind === "scroll" ? "Scroll" : "Keyboard"
-            let label = action.replace(/_/g, " ")
-            // Humanize jhqs shortcuts: "spawn jhqs module launcher toggle"
-            // reads poorly, so show "Open Menu" / "Open System" instead.
-            let jm = label.match(/^spawn jhqs module (\S+) toggle$/i)
-            if (jm) {
-                let mod = (jm[1] || "").toLowerCase()
-                if (mod === "launcher") mod = "menu"
-                mod = mod.charAt(0).toUpperCase() + mod.slice(1)
-                label = "open " + mod
-            } else if (/^spawn jhqs lock$/i.test(label)) {
-                label = "lock screen"
-            } else if (/^spawn jhqs reload$/i.test(label)) {
-                label = "reload shell"
-            } else if (/grim|slurp/i.test(label)) {
-                label = "take Screenshot"
+            // Prefer the compositor's own description (umbriel-keybinds.py);
+            // spawn binds and unknown actions fall back to humanizing the
+            // action string ("spawn:jhqs module launcher toggle" -> Open Menu).
+            let label = desc
+            if (label === "") {
+                let sm = action.match(/^spawn:\s*(.*)$/i)
+                if (sm) {
+                    let cmd = (sm[1] || "").trim()
+                    let jm = cmd.match(/^jhqs module (\S+) toggle$/i)
+                    if (jm) {
+                        let mod = (jm[1] || "").toLowerCase()
+                        if (mod === "launcher") mod = "menu"
+                        mod = mod.charAt(0).toUpperCase() + mod.slice(1)
+                        label = "open " + mod
+                    } else if (/^jhqs lock$/i.test(cmd)) {
+                        label = "lock screen"
+                    } else if (/^jhqs reload$/i.test(cmd)) {
+                        label = "reload shell"
+                    } else if (/grim|slurp/i.test(cmd)) {
+                        label = "take Screenshot"
+                    } else {
+                        label = "open " + cmd
+                    }
+                } else {
+                    label = action.replace(/[_-]/g, " ")
+                    if (/grim|slurp/i.test(label)) label = "take Screenshot"
+                }
+                label = label.charAt(0).toUpperCase() + label.slice(1)
             }
-            label = label.replace(/^spawn\b/i, "open")
-            label = label.charAt(0).toUpperCase() + label.slice(1)
             let hay = (combo + " " + action + " " + src + " " + kind + " " + label).toLowerCase()
             out.push({ kind: kind, kindLabel: kindLabel, combo: combo, parts: parts, action: action, label: label, src: src, hay: hay })
         }
         return out
     }
     function keybindTopicMatch(hayLower: string): bool {
-        if (keybindTopic === "apps") return /spawn|launch|kitty|nautilus|helium|opencode|launcher|lock|reload|quit/.test(hayLower || "")
-        if (keybindTopic === "windows") return /focus|move|exchange|float|fullscreen|maximize|kill|minimiz|scratchpad|gaps|resize|layout|proportion|scroller|dwindle|toggleglobal|togglejump/.test(hayLower || "")
-        if (keybindTopic === "workspaces") return /view|tag|monitor|workspace|axisbind|scroll/.test(hayLower || "")
+        if (keybindTopic === "apps") return /spawn|launch|kitty|nautilus|helium|opencode|launcher|lock|reload|quit|session/.test(hayLower || "")
+        if (keybindTopic === "workspaces") return /workspace|output|monitor|overview|scroll/.test(hayLower || "")
+        if (keybindTopic === "windows") return /window|column|focus|move|float|fullscreen|maximize|pin|scratchpad|resize|consume|layout|width|height/.test(hayLower || "")
         return true
     }
     function openKeybinds(topic) {
@@ -508,7 +521,7 @@ Scope {
         "filesystem", "glibc", "bash", "dbus", "dbus-broker",
         "dnf", "dnf5", "libdnf5", "rpm", "rpm-libs", "sudo",
         "polkit",
-        "mangowm", "quickshell", "sddm",
+        "umbriel", "umbriel-nightly", "quickshell", "sddm",
         "xdg-desktop-portal", "xdg-desktop-portal-gtk", "qt6-qtwayland", "qt5-qtwayland",
         "mesa-dri-drivers", "mesa-filesystem", "mesa-libGL", "mesa-libEGL", "mesa-vulkan-drivers",
         "NetworkManager",
@@ -2311,7 +2324,7 @@ Scope {
                 Quickshell.execDetached(["bash", "-c", "quickshell ipc -c jhqs call lockscreen lock >/dev/null 2>&1 || loginctl lock-session >/dev/null 2>&1 || true"])
                 return true
             } else if (title === "Log Out") {
-                Quickshell.execDetached(["bash", "-c", "mmsg dispatch quit >/dev/null 2>&1; loginctl terminate-user \"$USER\" >/dev/null 2>&1 || true"])
+                Quickshell.execDetached(["bash", "-c", "umbriel msg session-quit:skip-confirmation >/dev/null 2>&1; loginctl terminate-user \"$USER\" >/dev/null 2>&1 || true"])
                 return true
             } else if (title === "Suspend") {
                 Quickshell.execDetached(["bash", "-c", "systemctl suspend >/dev/null 2>&1 || loginctl suspend >/dev/null 2>&1 || true"])

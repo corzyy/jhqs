@@ -2,12 +2,14 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import "../../themes"
 import "../../services"
 import "../../Ui"
+import "../../Ui" as Ui
 import "./CalendarModel.js" as Cal
 
 Scope {
@@ -23,147 +25,447 @@ Scope {
         if (showCalendar) { _winVisible = true; calHideTimer.stop() } else calHideTimer.restart()
     }
 
-    // --- Month navigation header: prev / month-year / next + Today pill.
-    component CalHeader: ColumnLayout {
+    // --- M3 icon button: circular state-layer target for toolbars and
+    // inline card actions. `active` renders the filled (primary) variant.
+    component M3IconButton: Item {
+        id: iconButton
+        property string glyph: ""
+        property bool active: false
+        property int size: 40
+        property int glyphSize: 18
+        signal clicked()
+
+        implicitWidth: iconButton.size
+        implicitHeight: iconButton.size
+        Layout.preferredWidth: iconButton.size
+        Layout.preferredHeight: iconButton.size
+        scale: iconButtonLayer.pressed ? Theme.pressScale : 1
+        transformOrigin: Item.Center
+        Behavior on scale {
+            enabled: Theme.animationsEnabled
+            NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            antialiasing: Theme.shapesAa
+            color: iconButton.active ? Theme.primary : "transparent"
+            Behavior on color {
+                enabled: Theme.animationsEnabled
+                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+            }
+        }
+        Text {
+            anchors.centerIn: parent
+            text: iconButton.glyph
+            color: iconButton.active ? Theme.on_primary : Theme.textPrimary
+            font.family: Theme.iconFontFamily
+            font.pixelSize: Theme.fs(iconButton.glyphSize)
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+        }
+        StateLayer {
+            id: iconButtonLayer
+            radius: Math.round(iconButton.size / 2)
+            color: iconButton.active ? Theme.on_primary : Theme.textPrimary
+            onClicked: iconButton.clicked()
+        }
+    }
+
+    // --- M3 button: filled (primary) or tonal (surface_container_highest,
+    // which stays visible when a palette maps secondary_container onto the
+    // pane color — e.g. monochrome wallpapers).
+    component M3Button: Item {
+        id: m3Button
+        property string label: ""
+        property string glyph: ""
+        property bool filled: true
+        signal clicked()
+
+        implicitWidth: m3ButtonRow.implicitWidth + 34
+        implicitHeight: 36
+        Layout.preferredWidth: implicitWidth
+        Layout.preferredHeight: implicitHeight
+        scale: m3ButtonLayer.pressed ? Theme.pressScale : 1
+        transformOrigin: Item.Center
+        Behavior on scale {
+            enabled: Theme.animationsEnabled
+            NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            antialiasing: Theme.shapesAa
+            // Tonal = surface_container_highest, not secondary_container:
+            // monochrome palettes map secondary_container onto the pane
+            // color, which would make the button invisible.
+            color: m3Button.filled ? Theme.primary : Theme.surface_container_highest
+            Behavior on color {
+                enabled: Theme.animationsEnabled
+                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+            }
+        }
+        Row {
+            id: m3ButtonRow
+            anchors.centerIn: parent
+            spacing: 6
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: m3Button.glyph.length > 0
+                text: m3Button.glyph
+                color: m3Button.filled ? Theme.on_primary : Theme.textPrimary
+                font.family: Theme.iconFontFamily
+                font.pixelSize: Theme.fs(15)
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: m3Button.label
+                color: m3Button.filled ? Theme.on_primary : Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fs(12)
+                font.weight: Font.Medium
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+            }
+        }
+        StateLayer {
+            id: m3ButtonLayer
+            radius: Math.round(m3Button.height / 2)
+            color: m3Button.filled ? Theme.on_primary : Theme.textPrimary
+            onClicked: m3Button.clicked()
+        }
+    }
+
+    // --- M3 switch (copied from the settings app NexusControls.M3Switch):
+    // 1.7:1 track, handle widens while pressed, animated check/X icon, and
+    // Space/Enter support. The owning row still toggles from its StateLayer.
+    component M3Switch: Item {
+        id: m3Switch
+        property bool checked: false
+        property bool disabled: false
+        signal toggled(bool next)
+        // Tokens.font.body.medium.pointSize + Tokens.padding.small * 2
+        readonly property int trackHeight: Theme.fs(14) + 16
+        // StyledSwitch: implicitWidth = implicitHeight * 1.7
+        readonly property int trackWidth: Math.round(trackHeight * 1.7)
+        readonly property int handleSize: trackHeight - 4
+        implicitWidth: trackWidth
+        implicitHeight: trackHeight
+        activeFocusOnTab: !disabled
+        Keys.onSpacePressed: event => { if (!m3Switch.disabled) m3Switch.toggled(!m3Switch.checked); event.accepted = true }
+        Keys.onEnterPressed: event => { if (!m3Switch.disabled) m3Switch.toggled(!m3Switch.checked); event.accepted = true }
+        Keys.onReturnPressed: event => { if (!m3Switch.disabled) m3Switch.toggled(!m3Switch.checked); event.accepted = true }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: m3Switch.trackWidth
+            height: m3Switch.trackHeight
+            radius: height / 2
+            antialiasing: Theme.shapesAa
+            color: {
+                if (m3Switch.disabled)
+                    return m3Switch.checked ? Qt.alpha(Theme.on_surface, 0.12) : Qt.alpha(Theme.surface_container_highest, 0.38)
+                return m3Switch.checked ? Theme.accent : Theme.surface_container_highest
+            }
+
+            Rectangle {
+                // StyledSwitch: pressed handle widens to implicitHeight * 1.2
+                readonly property real nonAnimWidth: swMouse.pressed ? m3Switch.handleSize * 1.2 : m3Switch.handleSize
+
+                implicitWidth: nonAnimWidth
+                implicitHeight: m3Switch.handleSize
+                radius: Math.min(width, height) / 2
+                antialiasing: Theme.shapesAa
+                color: {
+                    if (m3Switch.disabled)
+                        return m3Switch.checked ? Theme.surface : Qt.alpha(Theme.on_surface, 0.12)
+                    return m3Switch.checked ? Theme.onAccent : Theme.outline
+                }
+
+                x: m3Switch.checked ? m3Switch.trackWidth - nonAnimWidth - 2 : 2
+                anchors.verticalCenter: parent.verticalCenter
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    antialiasing: Theme.shapesAa
+
+                    color: m3Switch.checked ? Theme.accent : Theme.on_surface
+                    opacity: swMouse.pressed ? 0.1 : swMouse.containsMouse ? 0.08 : 0
+
+                    Behavior on opacity {
+                        Ui.Anim {
+                            type: Ui.Anim.DefaultEffects
+                        }
+                    }
+                }
+
+                Shape {
+                    id: icon
+
+                    property point start1: {
+                        if (swMouse.pressed)
+                            return Qt.point(width * 0.2, height / 2)
+                        if (m3Switch.checked)
+                            return Qt.point(width * 0.15, height / 2)
+                        return Qt.point(width * 0.15, height * 0.15)
+                    }
+                    property point end1: {
+                        if (swMouse.pressed) {
+                            if (m3Switch.checked)
+                                return Qt.point(width * 0.4, height / 2)
+                            return Qt.point(width * 0.8, height / 2)
+                        }
+                        if (m3Switch.checked)
+                            return Qt.point(width * 0.4, height * 0.7)
+                        return Qt.point(width * 0.85, height * 0.85)
+                    }
+                    property point start2: {
+                        if (swMouse.pressed) {
+                            if (m3Switch.checked)
+                                return Qt.point(width * 0.4, height / 2)
+                            return Qt.point(width * 0.2, height / 2)
+                        }
+                        if (m3Switch.checked)
+                            return Qt.point(width * 0.4, height * 0.7)
+                        return Qt.point(width * 0.15, height * 0.85)
+                    }
+                    property point end2: {
+                        if (swMouse.pressed)
+                            return Qt.point(width * 0.8, height / 2)
+                        if (m3Switch.checked)
+                            return Qt.point(width * 0.85, height * 0.2)
+                        return Qt.point(width * 0.85, height * 0.15)
+                    }
+
+                    anchors.centerIn: parent
+                    width: height
+                    height: m3Switch.handleSize - 12
+                    preferredRendererType: Shape.CurveRenderer
+                    asynchronous: true
+
+                    ShapePath {
+                        strokeWidth: Theme.fs(16) * 0.15
+                        strokeColor: {
+                            if (m3Switch.disabled)
+                                return m3Switch.checked ? Theme.outline : Theme.surface_container
+                            return m3Switch.checked ? Theme.accent : Theme.surface_container_highest
+                        }
+                        fillColor: "transparent"
+                        capStyle: Theme.cornerRadius === 0 ? ShapePath.SquareCap : ShapePath.RoundCap
+
+                        startX: icon.start1.x
+                        startY: icon.start1.y
+
+                        PathLine {
+                            x: icon.end1.x
+                            y: icon.end1.y
+                        }
+                        PathMove {
+                            x: icon.start2.x
+                            y: icon.start2.y
+                        }
+                        PathLine {
+                            x: icon.end2.x
+                            y: icon.end2.y
+                        }
+
+                        Behavior on strokeColor {
+                            Ui.Anim.CAnim {}
+                        }
+                    }
+
+                    Behavior on start1 {
+                        PropertyAnimation {
+                            duration: Theme.durFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.curveFastSpatial
+                        }
+                    }
+                    Behavior on end1 {
+                        PropertyAnimation {
+                            duration: Theme.durFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.curveFastSpatial
+                        }
+                    }
+                    Behavior on start2 {
+                        PropertyAnimation {
+                            duration: Theme.durFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.curveFastSpatial
+                        }
+                    }
+                    Behavior on end2 {
+                        PropertyAnimation {
+                            duration: Theme.durFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.curveFastSpatial
+                        }
+                    }
+                }
+
+                Behavior on x {
+                    Ui.Anim {
+                        type: Ui.Anim.FastSpatial
+                    }
+                }
+
+                Behavior on implicitWidth {
+                    Ui.Anim {
+                        type: Ui.Anim.FastSpatial
+                    }
+                }
+            }
+        }
+
+        Ui.StateLayer {
+            id: swMouse
+            showHoverBackground: false
+            disabled: m3Switch.disabled
+            radius: Math.round(height / 2)
+            color: m3Switch.checked ? Theme.onAccent : Theme.textPrimary
+            onClicked: mouse => { if (!m3Switch.disabled) m3Switch.toggled(!m3Switch.checked); mouse.accepted = true }
+        }
+    }
+
+    // --- Month navigation header: M3 expressive (title-large month label,
+    // filled Today button + circular icon buttons at the trailing edge).
+    component CalHeader: RowLayout {
         id: calHeaderRoot
         required property var scope
         property bool showNav: true
 
         Layout.fillWidth: true
+        Layout.preferredHeight: 44
         spacing: 4
 
-        RowLayout {
-            visible: calHeaderRoot.showNav
+        Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 36
-            spacing: 4
-            opacity: calHeaderRoot.scope.showCalendar ? 1 : 0
+            Layout.preferredHeight: 44
 
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                Layout.preferredWidth: 32; Layout.preferredHeight: 32; radius: 0
-                color: prevMouse.containsMouse ? Theme.bgHover : "transparent"
-                Text {
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                    anchors.centerIn: parent
-                    text: "‹"
-                    color: prevMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
-                    font.family: calHeaderRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(18); font.bold: true
-                }
-                MouseArea { id: prevMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: calHeaderRoot.scope.moveMonth(-1) }
-            }
-            Item { Layout.fillWidth: true; Layout.preferredHeight: 32
-                Text {
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                    id: monthLabel
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-                    text: calHeaderRoot.scope.viewDate.toLocaleDateString(Qt.locale("en_US"), "MMMM yyyy")
-                    color: Theme.textPrimary; font.family: calHeaderRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(15); font.weight: Font.DemiBold
-                }
-                MouseArea {
-                    anchors.fill: parent; hoverEnabled: true; cursorShape: calHeaderRoot.scope.viewingCurrentMonth ? Qt.ArrowCursor : Qt.PointingHandCursor
-                    enabled: !calHeaderRoot.scope.viewingCurrentMonth
-                    onClicked: calHeaderRoot.scope.goToToday()
+            Text {
+                id: monthLabel
+                anchors.left: parent.left
+                anchors.leftMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                text: calHeaderRoot.scope.viewDate.toLocaleDateString(Qt.locale("en_US"), "MMMM yyyy")
+                color: monthTitleMouse.containsMouse && !calHeaderRoot.scope.viewingCurrentMonth ? Theme.primary : Theme.textPrimary
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fs(20)
+                font.weight: Font.DemiBold
+                antialiasing: Theme.textAa
+                renderType: Theme.textRenderType
+                Behavior on color {
+                    enabled: Theme.animationsEnabled
+                    ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
                 }
             }
-            // Today pill — only when drifted away from current month.
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                visible: !calHeaderRoot.scope.viewingCurrentMonth
-                Layout.preferredWidth: todayLabel.implicitWidth + 20; Layout.preferredHeight: 26; radius: 0
-                color: todayMouse.containsMouse ? Theme.bgHover : Theme.withAlpha(Theme.textPrimary, 0.08)
-                border.color: Theme.divider
-                border.width: 1
-                Text {
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                    id: todayLabel
-                    anchors.centerIn: parent
-                    text: "Today"
-                    color: Theme.textPrimary
-                    font.family: calHeaderRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium
-                }
-                MouseArea { id: todayMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: calHeaderRoot.scope.goToToday() }
+            StateLayer {
+                id: monthTitleMouse
+                disabled: calHeaderRoot.scope.viewingCurrentMonth
+                showHoverBackground: false
+                radius: 12
+                color: Theme.textPrimary
+                onClicked: calHeaderRoot.scope.goToToday()
             }
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                Layout.preferredWidth: 32; Layout.preferredHeight: 32; radius: 0
-                color: nextMouse.containsMouse ? Theme.bgHover : "transparent"
-                Text {
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                    anchors.centerIn: parent
-                    text: "›"
-                    color: nextMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
-                    font.family: calHeaderRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(18); font.bold: true
-                }
-                MouseArea { id: nextMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: calHeaderRoot.scope.moveMonth(1) }
-            }
+        }
+        // Today — only when drifted away from the current month.
+        M3Button {
+            visible: calHeaderRoot.showNav && !calHeaderRoot.scope.viewingCurrentMonth
+            label: "Today"
+            glyph: "󰃭"
+            onClicked: calHeaderRoot.scope.goToToday()
+        }
+        M3IconButton {
+            visible: calHeaderRoot.showNav
+            glyph: "‹"
+            glyphSize: 22
+            onClicked: calHeaderRoot.scope.moveMonth(-1)
+        }
+        M3IconButton {
+            visible: calHeaderRoot.showNav
+            glyph: "›"
+            glyphSize: 22
+            onClicked: calHeaderRoot.scope.moveMonth(1)
         }
     }
 
-    // --- Selected-day hero: big day number + weekday / meta. Click = back to today.
-    component CalHero: Item {
+    // --- Selected-day hero: M3 headline date on a primary-container card.
+    component CalHero: Rectangle {
         id: heroRoot
         required property var scope
         Layout.fillWidth: true
-        Layout.preferredHeight: 62
-        opacity: heroRoot.scope.showCalendar ? 1 : 0
+        Layout.preferredHeight: 84
+        radius: 24
+        color: Theme.primary_container
+        antialiasing: Theme.shapesAa
 
-        Row {
-            id: heroRow
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 18
+            anchors.rightMargin: 16
             spacing: 14
             Text {
+                id: heroDayNum
+                Layout.alignment: Qt.AlignVCenter
+                text: heroRoot.scope.selectedDate.getDate()
+                color: Theme.on_primary_container
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fs(40)
+                font.weight: Font.Bold
                 antialiasing: Theme.textAa
                 renderType: Theme.textRenderType
-                id: heroDayNum
-                anchors.verticalCenter: parent.verticalCenter
-                text: heroRoot.scope.selectedDate.getDate()
-                color: heroMouse.containsMouse ? Theme.accent : Theme.textPrimary
-                font.family: heroRoot.scope.contentFontFamily
-                font.pixelSize: Theme.fs(44); font.weight: Font.Bold
             }
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 2
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 0
                 Text {
+                    Layout.fillWidth: true
+                    text: heroRoot.scope.selectedDate.toLocaleDateString(Qt.locale("en_US"), "dddd")
+                    color: Theme.on_primary_container
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(15)
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: heroRoot.scope.selectedDate.toLocaleDateString(Qt.locale("en_US"), "dddd")
-                    color: Theme.textPrimary
-                    font.family: heroRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(14); font.weight: Font.DemiBold
                 }
                 Text {
+                    Layout.fillWidth: true
+                    text: heroRoot.scope.selectedDate.toLocaleDateString(Qt.locale("en_US"), "MMMM yyyy")
+                    color: Theme.withAlpha(Theme.on_primary_container, 0.72)
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fs(12)
+                    elide: Text.ElideRight
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    text: heroRoot.scope.selectedDate.toLocaleDateString(Qt.locale("en_US"), "MMMM yyyy")
-                    color: Theme.textSecondary
-                    font.family: heroRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(12)
                 }
             }
         }
-        MouseArea {
-            id: heroMouse
-            anchors.fill: parent
-            enabled: heroRoot.scope.selectedKey !== heroRoot.scope.todayKey || !heroRoot.scope.viewingCurrentMonth
-            hoverEnabled: enabled
-            cursorShape: Qt.PointingHandCursor
+        // Click = back to today (same contract as before, just a state layer
+        // instead of a hand-rolled hover tint).
+        StateLayer {
+            radius: 24
+            color: Theme.on_primary_container
+            disabled: heroRoot.scope.selectedKey === heroRoot.scope.todayKey && heroRoot.scope.viewingCurrentMonth
             onClicked: heroRoot.scope.goToToday()
         }
     }
 
-    // --- Month grid: pill day cells with today / selected / hover states.
+    // --- Month grid: circular M3 day cells (today filled primary, selected
+    // primary container), weekday header, shared-axis month change.
     component CalGrid: ColumnLayout {
         id: calGridRoot
         required property var scope
 
         Layout.fillWidth: true
-        spacing: 2
+        spacing: 4
         // Month changes are lateral navigation: the new grid slides 30dp in
         // from the direction of travel and fades in (M3 shared axis X).
         Motion {
@@ -172,7 +474,7 @@ Scope {
             pattern: Motion.SharedAxisX
             direction: calGridRoot.scope._monthDir
         }
-        opacity: calGridRoot.scope.showCalendar ? monthMotion.opacity : 0
+        opacity: monthMotion.opacity
         // Translate (not x) so the layout keeps owning the position.
         transform: Translate { x: monthMotion.x }
         Connections {
@@ -188,10 +490,11 @@ Scope {
                 model: calGridRoot.scope.weekdays
                 delegate: Text {
                     required property var modelData
-                    width: calGridRoot.scope.cellWidth; height: 18
+                    width: calGridRoot.scope.cellWidth; height: 22
                     horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
                     text: calGridRoot.scope.weekdayLabel(modelData)
-                    color: Theme.textMuted; font.family: calGridRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(10); font.bold: true
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium; font.letterSpacing: 0.5
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
@@ -206,40 +509,56 @@ Scope {
                 spacing: calGridRoot.scope.cellSpacing
                 Repeater {
                     model: modelData.days
-                    delegate: Rectangle {
+                    delegate: Item {
+                        id: dayCell
                         required property var modelData
                         readonly property bool isToday: modelData.key === calGridRoot.scope.todayKey
                         readonly property bool isSelected: modelData.key === calGridRoot.scope.selectedKey
-                        width: calGridRoot.scope.cellWidth; height: calGridRoot.scope.cellHeight; radius: 0
-                        color: {
-                            if (isToday) return Theme.accent
-                            if (isSelected) return Theme.withAlpha(Theme.accent, 0.22)
-                            if (dayMouse.containsMouse) return Theme.bgHover
-                            return "transparent"
-                        }
-                        border.width: (!isToday && isSelected) ? 1 : 0
-                        border.color: Theme.accent
-                        Text {
-                            antialiasing: Theme.textAa
-                            renderType: Theme.textRenderType
+                        readonly property bool filled: dayCell.isToday || dayCell.isSelected
+                        width: calGridRoot.scope.cellWidth
+                        height: calGridRoot.scope.cellHeight
+
+                        Rectangle {
+                            id: dayCircle
                             anchors.centerIn: parent
-                            text: String(modelData.day)
-                            color: {
-                                if (parent.isToday) return Theme.onAccent
-                                if (!modelData.inMonth) return Theme.withAlpha(Theme.textMuted, 0.55)
-                                if (parent.isSelected) return Theme.textPrimary
-                                if (modelData.weekend) return Theme.textSecondary
-                                return Theme.textPrimary
+                            width: parent.height
+                            height: parent.height
+                            radius: width / 2
+                            antialiasing: Theme.shapesAa
+                            color: dayCell.isToday ? Theme.primary
+                                : dayCell.isSelected ? Theme.primary_container
+                                : "transparent"
+                            scale: dayLayer.pressed ? Theme.pressScale : 1
+                            Behavior on color {
+                                enabled: Theme.animationsEnabled
+                                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
                             }
-                            font.family: calGridRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(12); font.bold: parent.isToday || parent.isSelected
-                            opacity: modelData.inMonth ? 1.0 : 0.55
-                        }
-                        MouseArea {
-                            id: dayMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: calGridRoot.scope.selectDay(modelData)
+                            Behavior on scale {
+                                enabled: Theme.animationsEnabled
+                                NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                text: String(dayCell.modelData.day)
+                                color: {
+                                    if (dayCell.isToday) return Theme.on_primary
+                                    if (dayCell.isSelected) return Theme.on_primary_container
+                                    if (!dayCell.modelData.inMonth) return Theme.withAlpha(Theme.textPrimary, 0.38)
+                                    if (dayCell.modelData.weekend) return Theme.textSecondary
+                                    return Theme.textPrimary
+                                }
+                                font.family: Theme.fontFamily
+                                font.pixelSize: Theme.fs(14)
+                                font.weight: dayCell.filled ? Font.DemiBold : Font.Medium
+                                antialiasing: Theme.textAa
+                                renderType: Theme.textRenderType
+                            }
+                            StateLayer {
+                                id: dayLayer
+                                radius: Math.round(dayCircle.width / 2)
+                                color: dayCell.isToday ? Theme.on_primary : dayCell.isSelected ? Theme.on_primary_container : Theme.textPrimary
+                                onClicked: calGridRoot.scope.selectDay(dayCell.modelData)
+                            }
                         }
                     }
                 }
@@ -247,48 +566,58 @@ Scope {
         }
     }
 
-    // --- Footer: slim year progress.
-    component CalFooter: ColumnLayout {
+    // --- Footer: M3 linear year progress with an expressive stop dot.
+    component CalFooter: RowLayout {
         id: calFooterRoot
         required property var scope
 
         Layout.fillWidth: true
-        opacity: calFooterRoot.scope.showCalendar ? 1 : 0
+        Layout.preferredHeight: 24
+        spacing: 10
 
-        RowLayout {
+        Text {
+            Layout.alignment: Qt.AlignVCenter
+            text: String(calFooterRoot.scope.today.getFullYear())
+            color: Theme.textSecondary
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
+        }
+        Rectangle {
+            id: yearTrack
             Layout.fillWidth: true
-            Layout.preferredHeight: 14
-            spacing: 10
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: String(calFooterRoot.scope.today.getFullYear())
-                font.family: calFooterRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(11)
-                color: Theme.textMuted
-                Layout.alignment: Qt.AlignVCenter
+            Layout.alignment: Qt.AlignVCenter
+            Layout.preferredHeight: 6
+            height: 6
+            radius: height / 2
+            color: Theme.surface_container_highest
+            antialiasing: Theme.shapesAa
+            Rectangle {
+                antialiasing: Theme.shapesAa
+                width: Math.round(parent.width * calFooterRoot.scope.yearDone)
+                height: parent.height
+                radius: parent.radius
+                color: Theme.primary
+                Behavior on width {
+                    enabled: Theme.animationsEnabled
+                    NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial }
+                }
             }
             Rectangle {
                 antialiasing: Theme.shapesAa
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                height: 4; radius: 0
-                color: Theme.withAlpha(Theme.textPrimary, 0.12)
-                Rectangle {
-                    antialiasing: Theme.shapesAa
-                    width: Math.round(parent.width * calFooterRoot.scope.yearDone)
-                    height: parent.height
-                    radius: 0
-                    color: Theme.accent
-                }
+                width: 4; height: 4; radius: 2
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                color: Theme.textMuted
             }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: calFooterRoot.scope.yearDonePercent + "%"
-                font.family: calFooterRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(11)
-                color: Theme.textSecondary
-                Layout.alignment: Qt.AlignVCenter
-            }
+        }
+        Text {
+            Layout.alignment: Qt.AlignVCenter
+            text: calFooterRoot.scope.yearDonePercent + "%"
+            color: Theme.textPrimary
+            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium
+            antialiasing: Theme.textAa
+            renderType: Theme.textRenderType
         }
     }
 
@@ -303,7 +632,7 @@ Scope {
         // instead of doing nothing (swipe still dismisses).
         property bool expandOnClick: false
         signal expandRequested()
-        implicitHeight: notifInner.implicitHeight + 20
+        implicitHeight: notifInner.implicitHeight + 24
         height: leaving ? 0 : implicitHeight
         // Caelestia dismiss morph: height collapses on the spatial curve,
         // fade on the effects curve (were hardcoded 180/160 InOutQuad).
@@ -312,10 +641,9 @@ Scope {
         Behavior on opacity { enabled: cardRoot.leaving && Theme.animationsEnabled; NumberAnimation { duration: Theme.durDefaultEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultEffects } }
         transform: Translate { x: swipeProxy.x }
         clip: true
-        radius: 0
-        color: (entry.urgency === 2) ? Theme.error_container : Theme.withAlpha(Theme.textPrimary, 0.05)
-        border.color: (entry.urgency === 2) ? Theme.errorColor : Theme.divider
-        border.width: 1
+        radius: 20
+        color: (entry.urgency === 2) ? Theme.error_container : Theme.panelCardHigh
+        antialiasing: Theme.shapesAa
         Item { id: swipeProxy; x: 0 }
         // Swipe snap-back / fly-out on the expressive curves.
         NumberAnimation { id: snapBack; target: swipeProxy; property: "x"; to: 0; duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveEmphasizedDecelerate }
@@ -354,316 +682,387 @@ Scope {
                 if (cardRoot.expandOnClick) cardRoot.expandRequested()
             }
         }
-        Column {
+        RowLayout {
             id: notifInner
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            anchors.topMargin: 10
-            anchors.bottomMargin: 10
-            spacing: 3
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                width: parent.width
-                horizontalAlignment: Text.AlignRight
-                text: cardRoot.scope.timeAgo(cardRoot.entry.time)
-                color: Theme.textMuted
-                font.family: cardRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(10)
+            anchors.margins: 12
+            spacing: 10
+            // Leading urgency badge (M3 avatar slot).
+            Rectangle {
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: 32
+                radius: width / 2
+                antialiasing: Theme.shapesAa
+                color: (cardRoot.entry.urgency === 2) ? Theme.error : Theme.surface_container_highest
+                Text {
+                    anchors.centerIn: parent
+                    text: (cardRoot.entry.urgency === 2) ? "󰅚" : "󰂚"
+                    color: (cardRoot.entry.urgency === 2) ? Theme.on_error : Theme.textSecondary
+                    font.family: Theme.iconFontFamily
+                    font.pixelSize: Theme.fs(15)
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                }
             }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                width: parent.width
-                visible: (entry.summary || "").length > 0
-                text: entry.summary || ""
-                color: (entry.urgency === 2) ? Theme.on_error_container : Theme.textPrimary
-                font.family: cardRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(12); font.weight: Font.DemiBold
-                wrapMode: Text.WordWrap
-                maximumLineCount: 2
-                elide: Text.ElideRight
-                textFormat: Text.PlainText
-            }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                width: parent.width
-                visible: (entry.body || "").length > 0
-                text: entry.body || ""
-                color: (entry.urgency === 2) ? Theme.withAlpha(Theme.on_error_container, 0.85) : Theme.textSecondary
-                font.family: cardRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(12)
-                wrapMode: Text.WordWrap
-                maximumLineCount: 3
-                elide: Text.ElideRight
-                textFormat: Text.PlainText
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Text {
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
+                        Layout.fillWidth: true
+                        visible: (cardRoot.entry.summary || "").length > 0
+                        text: cardRoot.entry.summary || ""
+                        color: (cardRoot.entry.urgency === 2) ? Theme.on_error_container : Theme.textPrimary
+                        font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.DemiBold
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                        textFormat: Text.PlainText
+                    }
+                    Text {
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
+                        Layout.alignment: Qt.AlignTop
+                        text: cardRoot.scope.timeAgo(cardRoot.entry.time)
+                        color: (cardRoot.entry.urgency === 2) ? Theme.withAlpha(Theme.on_error_container, 0.72) : Theme.textMuted
+                        font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Medium
+                    }
+                }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    Layout.fillWidth: true
+                    visible: (cardRoot.entry.body || "").length > 0
+                    text: cardRoot.entry.body || ""
+                    color: (cardRoot.entry.urgency === 2) ? Theme.withAlpha(Theme.on_error_container, 0.85) : Theme.textSecondary
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12)
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                }
             }
         }
-        Item {
+        M3IconButton {
+            glyph: "✕"
+            size: 26
+            glyphSize: 11
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.topMargin: 4
-            anchors.rightMargin: 4
-            width: 20; height: 20
-            visible: dismissMouse.containsMouse || parentHover.hovered
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                anchors.centerIn: parent
-                text: "✕"
-                color: Theme.textMuted
-                font.pixelSize: Theme.fs(10)
-            }
-            MouseArea { id: dismissMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: cardRoot.scope.dismissHistoryEntry(cardRoot.entry) }
+            anchors.margins: 6
+            visible: parentHover.hovered
+            onClicked: cardRoot.scope.dismissHistoryEntry(cardRoot.entry)
         }
         HoverHandler { id: parentHover }
     }
 
-    // --- GNOME-style notification center (left pane).
-    component NotifCenter: ColumnLayout {
+    // --- GNOME-style notification center (M3 surface card).
+    component NotifCenter: Rectangle {
         id: notifRoot
         required property var scope
-        Layout.fillWidth: true
-        Layout.fillHeight: true
-        spacing: 8
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 28
-            spacing: 8
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: "Notifications"
-                color: Theme.textPrimary
-                font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(14); font.weight: Font.DemiBold
+        radius: 24
+        color: Theme.panelCard
+        antialiasing: Theme.shapesAa
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 12
+            // Panes pin LTR back so a right-side notification pane only mirrors
+            // child order, never text (same contract as the old ColumnLayout).
+            layoutDirection: Qt.LeftToRight
+
+            RowLayout {
                 Layout.fillWidth: true
-                verticalAlignment: Text.AlignVCenter
-            }
-            Rectangle {
-                antialiasing: Theme.shapesAa
-                visible: notifRoot.scope.notifList.length > 0
-                Layout.preferredWidth: clearLabel.implicitWidth + 20; Layout.preferredHeight: 26; radius: 0
-                color: clearMouse.containsMouse ? Theme.bgHover : "transparent"
-                border.color: Theme.divider
-                border.width: 1
+                Layout.preferredHeight: 32
+                spacing: 8
                 Text {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    id: clearLabel
-                    anchors.centerIn: parent
-                    text: "Clear"
-                    color: Theme.textSecondary
-                    font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.Medium
+                    text: "Notifications"
+                    color: Theme.textPrimary
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fs(15); font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                    verticalAlignment: Text.AlignVCenter
                 }
-                MouseArea { id: clearMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: notifRoot.scope.clearAllNotifications() }
+                M3Button {
+                    visible: notifRoot.scope.notifList.length > 0
+                    label: "Clear"
+                    filled: false
+                    onClicked: notifRoot.scope.clearAllNotifications()
+                }
             }
-        }
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 26
-            spacing: 10
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: "󰂛"
-                color: Theme.textSecondary
-                font.family: notifRoot.scope.contentFontFamily
-                font.pixelSize: Theme.fs(15)
-                Layout.alignment: Qt.AlignVCenter
-            }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                text: "Do Not Disturb"
-                color: Theme.textSecondary
-                font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(12)
+            // DND as an M3 list item: tonal card, whole row toggles, switch is
+            // the trailing control.
+            Rectangle {
+                id: dndRow
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredHeight: 52
+                radius: 20
+                color: Theme.panelCardHigh
+                antialiasing: Theme.shapesAa
+
+                // Declared before the row content (settings ToggleRow pattern):
+                // the switch keeps its own press feedback, clicks on the label
+                // or empty space fall through here.
+                StateLayer {
+                    id: dndLayer
+                    radius: 20
+                    color: Theme.textPrimary
+                    onClicked: Theme.setDndEnabled(!Theme.dndEnabled)
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 10
+                    spacing: 10
+                    Rectangle {
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        radius: width / 2
+                        antialiasing: Theme.shapesAa
+                        color: Theme.dndEnabled ? Theme.primary : Theme.surface_container_highest
+                        Behavior on color {
+                            enabled: Theme.animationsEnabled
+                            ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                        }
+                        Text {
+                            antialiasing: Theme.textAa
+                            renderType: Theme.textRenderType
+                            anchors.centerIn: parent
+                            text: "󰂛"
+                            color: Theme.dndEnabled ? Theme.on_primary : Theme.textSecondary
+                            font.family: Theme.iconFontFamily
+                            font.pixelSize: Theme.fs(15)
+                            Behavior on color {
+                                enabled: Theme.animationsEnabled
+                                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                            }
+                        }
+                    }
+                    Text {
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
+                        text: "Do Not Disturb"
+                        color: Theme.textPrimary
+                        font.family: Theme.fontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.Medium
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+                    M3Switch {
+                        checked: Theme.dndEnabled
+                        onToggled: n => Theme.setDndEnabled(n)
+                    }
+                }
             }
-            Item {
-                Layout.preferredWidth: 42; Layout.preferredHeight: 22
+
+            // Empty state — same flexible height as the list, so the popup
+            // never resizes when notifications come and go.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: notifRoot.scope.notifList.length === 0
+                spacing: 6
+                Item { Layout.fillWidth: true; Layout.fillHeight: true }
                 Rectangle {
                     antialiasing: Theme.shapesAa
-                    anchors.centerIn: parent
-                    width: 42; height: 22
-                    radius: height / 2
-                    color: Theme.dndEnabled ? Theme.accent : Theme.withAlpha(Theme.textPrimary, 0.12)
-                    Rectangle {
-                        antialiasing: Theme.shapesAa
-                        width: 16; height: 16
-                        radius: width / 2
-                        x: Theme.dndEnabled ? parent.width - width - 3 : 3
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: Theme.dndEnabled ? Theme.onAccent : Theme.textSecondary
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 72
+                    Layout.preferredHeight: 72
+                    radius: width / 2
+                    color: Theme.panelCardHigh
+                    Text {
+                        antialiasing: Theme.textAa
+                        renderType: Theme.textRenderType
+                        anchors.centerIn: parent
+                        text: "󰂚"
+                        color: Theme.textMuted
+                        font.family: Theme.iconFontFamily
+                        font.pixelSize: Theme.fs(30)
                     }
                 }
-                MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Theme.setDndEnabled(!Theme.dndEnabled) }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "No Notifications"
+                    color: Theme.textPrimary
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fs(14); font.weight: Font.DemiBold
+                }
+                Text {
+                    antialiasing: Theme.textAa
+                    renderType: Theme.textRenderType
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "You're all caught up"
+                    color: Theme.textMuted
+                    font.family: Theme.fontFamily; font.pixelSize: Theme.fs(12)
+                }
+                Item { Layout.fillWidth: true; Layout.fillHeight: true }
             }
-        }
 
-        Rectangle {
-            antialiasing: Theme.shapesAa
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            color: Theme.divider
-            opacity: 0.7
-        }
-
-        // Empty state — same fixed height as the list (notifListHeight),
-        // so the popup never resizes when notifications come and go.
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.preferredHeight: notifRoot.scope.notifListHeight
-            visible: notifRoot.scope.notifList.length === 0
-            spacing: 6
-            Item { Layout.fillWidth: true; Layout.fillHeight: true }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                Layout.alignment: Qt.AlignHCenter
-                text: "󰂚"
-                color: Theme.textMuted
-                font.family: notifRoot.scope.contentFontFamily
-                font.pixelSize: Theme.fs(34)
-                opacity: 0.6
-            }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                Layout.alignment: Qt.AlignHCenter
-                text: "No Notifications"
-                color: Theme.textPrimary
-                font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(13); font.weight: Font.DemiBold
-            }
-            Text {
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-                Layout.alignment: Qt.AlignHCenter
-                text: "You're all caught up"
-                color: Theme.textMuted
-                font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(11)
-            }
-            Item { Layout.fillWidth: true; Layout.fillHeight: true }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: notifRoot.scope.notifListHeight
-            visible: notifRoot.scope.notifList.length > 0
-            Flickable {
-                id: notifFlick
-                anchors.fill: parent
-                contentWidth: width
-                contentHeight: notifListCol.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                Column {
-                id: notifListCol
-                width: notifFlick.width
-                spacing: 8
-                Repeater {
-                    model: notifRoot.scope.notifGroups
-                    delegate: Column {
-                        id: groupCol
-                        required property var modelData
-                        readonly property bool isCollapsed: notifRoot.scope.isGroupCollapsed(modelData.appName)
-                        width: notifListCol.width
-                        spacing: 6
-                        RowLayout {
-                            width: parent.width
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: notifRoot.scope.notifList.length > 0
+                Flickable {
+                    id: notifFlick
+                    anchors.fill: parent
+                    contentWidth: width
+                    contentHeight: notifListCol.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    Column {
+                    id: notifListCol
+                    width: notifFlick.width
+                    spacing: 8
+                    Repeater {
+                        model: notifRoot.scope.notifGroups
+                        delegate: Column {
+                            id: groupCol
+                            required property var modelData
+                            readonly property bool isCollapsed: notifRoot.scope.isGroupCollapsed(modelData.appName)
+                            width: notifListCol.width
                             spacing: 6
-                            Text {
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                                text: (notifRoot.scope.isGroupCollapsed(modelData.appName) ? "▸  " : "▾  ") + (modelData.appName || "Notification").toUpperCase()
-                                color: groupToggleMouse.containsMouse ? Theme.textPrimary : Theme.textMuted
-                                font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold; font.letterSpacing: 0.5
-                                MouseArea { id: groupToggleMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: notifRoot.scope.toggleGroupCollapsed(modelData.appName) }
+                            RowLayout {
+                                width: parent.width
+                                spacing: 6
+                                // Chevron + app label. The chevron rotates on an
+                                // M3 fast-spatial curve instead of swapping the
+                                // ▸/▾ glyphs (Google Sans Flex lacks them and
+                                // the fallback renders off-baseline).
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 22
+                                    Row {
+                                        id: groupToggleRow
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: 5
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: "󰅀"
+                                            color: groupToggleMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
+                                            font.family: Theme.iconFontFamily
+                                            font.pixelSize: Theme.fs(14)
+                                            rotation: groupCol.isCollapsed ? -90 : 0
+                                            antialiasing: Theme.textAa
+                                            renderType: Theme.textRenderType
+                                            Behavior on rotation {
+                                                enabled: Theme.animationsEnabled
+                                                NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
+                                            }
+                                            Behavior on color {
+                                                enabled: Theme.animationsEnabled
+                                                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                                            }
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: (modelData.appName || "Notification").toUpperCase()
+                                            color: groupToggleMouse.containsMouse ? Theme.textPrimary : Theme.textSecondary
+                                            font.family: Theme.fontFamily; font.pixelSize: Theme.fs(11); font.weight: Font.DemiBold; font.letterSpacing: 0.6
+                                            Behavior on color {
+                                                enabled: Theme.animationsEnabled
+                                                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
+                                            }
+                                        }
+                                    }
+                                    StateLayer { id: groupToggleMouse; showHoverBackground: false; radius: 8; color: Theme.textPrimary; onClicked: notifRoot.scope.toggleGroupCollapsed(modelData.appName) }
+                                }
+                                // Count badge (M3 secondary-container pill).
+                                Rectangle {
+                                    antialiasing: Theme.shapesAa
+                                    visible: (modelData.entries ? modelData.entries.length : 0) > 1
+                                    Layout.preferredWidth: groupCount.implicitWidth + 12
+                                    Layout.preferredHeight: 18
+                                    radius: height / 2
+                                    color: Theme.secondary_container
+                                    Text {
+                                        id: groupCount
+                                        antialiasing: Theme.textAa
+                                        renderType: Theme.textRenderType
+                                        anchors.centerIn: parent
+                                        text: "×" + modelData.entries.length
+                                        color: Theme.on_secondary_container
+                                        font.family: Theme.fontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.DemiBold
+                                    }
+                                }
+                                M3IconButton {
+                                    glyph: "✕"
+                                    size: 26
+                                    glyphSize: 11
+                                    onClicked: notifRoot.scope.clearGroupNotifications(groupCol.modelData)
+                                }
                             }
-                            Text {
-                                antialiasing: Theme.textAa
-                                renderType: Theme.textRenderType
-                                visible: (modelData.entries ? modelData.entries.length : 0) > 1
-                                text: "×" + modelData.entries.length
-                                color: Theme.textMuted
-                                font.family: notifRoot.scope.contentFontFamily; font.pixelSize: Theme.fs(10); font.weight: Font.Bold
+                            Column {
+                                id: flowStack
+                                width: parent.width
+                                spacing: 6
+                                visible: !groupCol.isCollapsed
+                                Repeater {
+                                    model: groupCol.isCollapsed ? [] : modelData.entries
+                                    delegate: NotifCard {
+                                        required property var modelData
+                                        scope: notifRoot.scope
+                                        entry: modelData
+                                        width: notifListCol.width
+                                    }
+                                }
                             }
+                            // Collapsed stack (minimized): the 2 latest notifications
+                            // as real cards in a deck — newest on top, second
+                            // peeking out beneath it. Opaque backing keeps the
+                            // translucent card fills from showing through.
                             Item {
-                                width: 20; height: 20
-                                Text {
-                                    antialiasing: Theme.textAa
-                                    renderType: Theme.textRenderType
-                                    anchors.centerIn: parent
-                                    text: "✕"
-                                    color: Theme.textMuted
-                                    font.pixelSize: Theme.fs(10)
-                                }
-                                MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: notifRoot.scope.clearGroupNotifications(modelData) }
-                            }
-                        }
-                        Column {
-                            id: flowStack
-                            width: parent.width
-                            spacing: 6
-                            visible: !groupCol.isCollapsed
-                            Repeater {
-                                model: groupCol.isCollapsed ? [] : modelData.entries
-                                delegate: NotifCard {
-                                    required property var modelData
+                                id: peekStack
+                                width: parent.width
+                                readonly property var firstEntry: (modelData.entries && modelData.entries.length > 0) ? modelData.entries[0] : null
+                                readonly property var secondEntry: (modelData.entries && modelData.entries.length > 1) ? modelData.entries[1] : null
+                                height: Math.max(topCard.height, secondCard.visible ? secondCard.y + secondCard.height : 0)
+                                clip: true
+                                visible: groupCol.isCollapsed && firstEntry !== null
+                                NotifCard {
+                                    id: secondCard
                                     scope: notifRoot.scope
-                                    entry: modelData
-                                    width: notifListCol.width
+                                    entry: peekStack.secondEntry ? peekStack.secondEntry : ({})
+                                    visible: peekStack.secondEntry !== null
+                                    expandOnClick: true
+                                    onExpandRequested: notifRoot.scope.toggleGroupCollapsed(modelData.appName)
+                                    x: 12
+                                    y: 12
+                                    width: parent.width - 24
                                 }
-                            }
-                        }
-                        // Collapsed stack (minimized): the 2 latest notifications
-                        // as real cards in a deck — newest on top, second
-                        // peeking out beneath it. Opaque backing keeps the
-                        // translucent card fills from showing through.
-                        Item {
-                            id: peekStack
-                            width: parent.width
-                            readonly property var firstEntry: (modelData.entries && modelData.entries.length > 0) ? modelData.entries[0] : null
-                            readonly property var secondEntry: (modelData.entries && modelData.entries.length > 1) ? modelData.entries[1] : null
-                            height: Math.max(topCard.height, secondCard.visible ? secondCard.y + secondCard.height : 0)
-                            clip: true
-                            visible: groupCol.isCollapsed && firstEntry !== null
-                            NotifCard {
-                                id: secondCard
-                                scope: notifRoot.scope
-                                entry: peekStack.secondEntry ? peekStack.secondEntry : ({})
-                                visible: peekStack.secondEntry !== null
-                                expandOnClick: true
-                                onExpandRequested: notifRoot.scope.toggleGroupCollapsed(modelData.appName)
-                                x: 12
-                                y: 12
-                                width: parent.width - 24
-                            }
-                            // Opaque backing for the top card.
-                            Rectangle {
-                                width: parent.width
-                                height: topCard.height
-                                color: Theme.bg
-                            }
-                            NotifCard {
-                                id: topCard
-                                scope: notifRoot.scope
-                                entry: peekStack.firstEntry ? peekStack.firstEntry : ({})
-                                width: parent.width
-                                expandOnClick: true
-                                onExpandRequested: notifRoot.scope.toggleGroupCollapsed(modelData.appName)
+                                // Opaque backing for the top card.
+                                Rectangle {
+                                    width: parent.width
+                                    height: topCard.height
+                                    color: Theme.panelCard
+                                }
+                                NotifCard {
+                                    id: topCard
+                                    scope: notifRoot.scope
+                                    entry: peekStack.firstEntry ? peekStack.firstEntry : ({})
+                                    width: parent.width
+                                    expandOnClick: true
+                                    onExpandRequested: notifRoot.scope.toggleGroupCollapsed(modelData.appName)
+                                }
                             }
                         }
                     }
+                    }
                 }
-                }
+                ScrollIndicator { flick: notifFlick }
             }
-            ScrollIndicator { flick: notifFlick }
         }
     }
 
@@ -794,17 +1193,18 @@ Scope {
         } catch (e) { }
     }
 
+    // M3 Expressive geometry: 44dp day cells carry 36dp circular targets,
+    // each pane is a 24dp-rounded surface card on the panel surface.
     readonly property int cellWidth: 54
-    readonly property int cellHeight: 32
-    readonly property int cellSpacing: 2
+    readonly property int cellHeight: 36
+    readonly property int cellSpacing: 4
     readonly property int minimalGridWidth: 7 * cellWidth + 6 * cellSpacing
-    readonly property int calPaneWidth: minimalGridWidth + 16
+    readonly property int calPanePadding: 12
+    readonly property int calPaneWidth: minimalGridWidth + calPanePadding * 2
     readonly property int notifPaneWidth: 330
-    // Fixed notification list height so the popup never resizes: left chrome
-    // is 28 (header) + 26 (dnd) + 1 (divider) + 3*8 (gaps) = 79, and
-    // 79 + 279 = 358 matches the calendar pane height (compact size).
-    readonly property int notifListHeight: 279
-    readonly property string contentFontFamily: Theme.iconFontFamily
+    readonly property int paneGap: 16
+    readonly property int contentMargin: 16
+    readonly property int panelWidth: contentMargin * 2 + notifPaneWidth + paneGap + calPaneWidth
 
     SystemClock {
         id: sysClock
@@ -843,9 +1243,11 @@ Scope {
     property int _monthDir: 0
     // Bumped whenever the displayed month/year changes so the grid can replay
     // its shared-axis enter (once per change, not once per changed property).
-    property int _monthRev: 0
-    onViewMonthChanged: _monthRev++
-    onViewYearChanged: _monthRev++
+    // Public name so the Connections handler resolves (on_monthRevChanged
+    // never matched).
+    property int monthRev: 0
+    onViewMonthChanged: monthRev++
+    onViewYearChanged: monthRev++
     function moveMonth(delta) {
         _monthDir = delta
         var nxt = Cal.stepMonth(viewYear, viewMonth, delta)
@@ -941,11 +1343,11 @@ Scope {
                 morphId: "clock"
                 morphActive: Theme.isPrimaryScreen(modelData)
                 barPos: root.barPos
-                // Open geometry: the loaded calendar card is 840 wide and
-                // reports its natural height through the loader's implicit
-                // size (reading the loader's own size would loop, since the
-                // loader is now sized by the popout).
-                fullWidth: 840
+                // Open geometry: the loaded calendar card spans panelWidth
+                // and reports its natural height through the loader's
+                // implicit size (reading the loader's own size would loop,
+                // since the loader is now sized by the popout).
+                fullWidth: root.panelWidth
                 fullHeight: calLoader.implicitHeight
                 anchorCenter: calAnchor.isVertical ? calAnchor.cy : calAnchor.cx
                 edge: root.barPos === "bottom" ? calAnchor.panelY + calPopout.fullHeight : root.barPos === "right" ? calAnchor.panelX + calPopout.fullWidth : root.barPos === "left" ? calAnchor.panelX : calAnchor.panelY
@@ -960,26 +1362,31 @@ Scope {
                     width: parent.width
                     height: parent.height
                     antialiasing: Theme.shapesAa
-                    color: Theme.bg
+                    // Fill comes from the popout's shadow layer (see
+                    // CaelestiaPopout shadowSource): it paints the same
+                    // rounded silhouette behind this card, so the shadow
+                    // silhouette is only composited once.
+                    color: "transparent"
                     border.color: Theme.panelBorderColor
                     border.width: 2
                     radius: calPopout.frameRadius
                     clip: false
                     // Square fused corners (tray-menu joint); plain children,
                     // so they emerge with the frame exactly like the box.
-                    PanelCorner { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
-                    PanelCorner { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    PanelCorner { fillColor: Theme.panelWindowBg; side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    PanelCorner { fillColor: Theme.panelWindowBg; side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
                     // Outward-curved shoulders on top of the fusion (Caelestia joint).
-                    PanelFillet { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
-                    PanelFillet { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    PanelFillet { fillColor: Theme.panelWindowBg; side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
+                    PanelFillet { fillColor: Theme.panelWindowBg; side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: calPopout.offsetScale < 1 }
                     // Seam strip: erases the collar outline along the fused edge.
                     Rectangle {
                         antialiasing: Theme.shapesAa
+                        visible: Theme.panelAccentBorder
                         x: 0
                         y: root.barPos === "bottom" ? calCard.height - 2 : 0
                         width: calCard.width
                         height: 2
-                        color: Theme.bg
+                        color: Theme.panelWindowBg
                     }
 
                     Loader {
@@ -1010,7 +1417,7 @@ Scope {
                         }
                     sourceComponent: Item {
                         id: popupRoot
-                        width: 840
+                        width: root.panelWidth
                         implicitHeight: outerRect.implicitHeight
                         height: outerRect.implicitHeight
                         focus: true
@@ -1051,7 +1458,7 @@ Scope {
                             antialiasing: Theme.shapesAa
                             id: outerRect
                             anchors.fill: parent
-                            implicitHeight: contentRow.implicitHeight + 36
+                            implicitHeight: contentRow.implicitHeight + root.contentMargin * 2
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -1068,46 +1475,51 @@ Scope {
                         RowLayout {
                             id: contentRow
                             anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-                            anchors.topMargin: 18; anchors.leftMargin: 20; anchors.rightMargin: 20; anchors.bottomMargin: 18
-                            spacing: 0
+                            anchors.margins: root.contentMargin
+                            spacing: root.paneGap
                             // Pane swap: RTL mirrors child order. Both panes pin
                             // LTR back so only the order flips, never the text.
                             layoutDirection: Theme.calendarNotifLeft ? Qt.LeftToRight : Qt.RightToLeft
 
-                            NotifCenter { scope: root; layoutDirection: Qt.LeftToRight; Layout.preferredWidth: root.notifPaneWidth; Layout.fillHeight: true }
-
-                            Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
-                            Rectangle {
-                                antialiasing: Theme.shapesAa
-                                Layout.preferredWidth: 1
+                            // Notification pane — M3 surface card (the gap
+                            // replaces the old divider + spacers).
+                            NotifCenter {
+                                scope: root
+                                Layout.preferredWidth: root.notifPaneWidth
                                 Layout.fillHeight: true
-                                Layout.topMargin: 4
-                                Layout.bottomMargin: 4
-                                color: Theme.divider
-                                opacity: 0.8
                             }
-                            Item { Layout.preferredWidth: 20; Layout.fillHeight: true }
 
-                            ColumnLayout {
-                                id: calCol
-                                layoutDirection: Qt.LeftToRight
+                            // Calendar pane — M3 surface card.
+                            Rectangle {
+                                id: calPane
+                                antialiasing: Theme.shapesAa
                                 Layout.preferredWidth: root.calPaneWidth
-                                Layout.fillHeight: true
-                                spacing: 8
-                                CalHeader { scope: root; showNav: true }
-                                CalHero { scope: root }
-                                CalGrid { scope: root }
-                                CalFooter { scope: root }
-                                WheelHandler {
-                                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                                    // PERF: fast scroll/key-repeat rebuilt the 42-cell
-                                    // grid per tick. Debounce to one nav per 100ms.
-                                    onWheel: event => {
-                                        if (event.angleDelta.y === 0) return
-                                        if (root._monthNavDebounce.running) { event.accepted = true; return }
-                                        root._monthNavDebounce.start()
-                                        root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
-                                        event.accepted = true
+                                Layout.preferredHeight: calCol.implicitHeight + root.calPanePadding * 2
+                                implicitHeight: calCol.implicitHeight + root.calPanePadding * 2
+                                radius: 24
+                                color: Theme.panelCard
+
+                                ColumnLayout {
+                                    id: calCol
+                                    anchors.fill: parent
+                                    anchors.margins: root.calPanePadding
+                                    layoutDirection: Qt.LeftToRight
+                                    spacing: 8
+                                    CalHeader { scope: root; showNav: true }
+                                    CalHero { scope: root }
+                                    CalGrid { scope: root }
+                                    CalFooter { scope: root }
+                                    WheelHandler {
+                                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                        // PERF: fast scroll/key-repeat rebuilt the 42-cell
+                                        // grid per tick. Debounce to one nav per 100ms.
+                                        onWheel: event => {
+                                            if (event.angleDelta.y === 0) return
+                                            if (root._monthNavDebounce.running) { event.accepted = true; return }
+                                            root._monthNavDebounce.start()
+                                            root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
+                                            event.accepted = true
+                                        }
                                     }
                                 }
                             }

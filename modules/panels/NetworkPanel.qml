@@ -80,158 +80,6 @@ Scope {
         return "󰤯"
     }
 
-    // ---------- Same design primitives as VolumePanel ----------
-    component SectionLabel: Text {
-        antialiasing: Theme.textAa
-        renderType: Theme.textRenderType
-        color: Theme.textSecondary
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fs(10)
-        font.weight: Font.Bold
-        font.letterSpacing: 1.2
-    }
-    component Card: Rectangle {
-        antialiasing: Theme.shapesAa
-        radius: Theme.cornerRadiusSmall
-        color: Theme.cardBg
-        border.color: Theme.divider
-        border.width: 1
-    }
-    component IconBtn: Rectangle {
-        id: iconBtnRoot
-        required property string glyph
-        signal pressed()
-        width: 28; height: 28
-        radius: Theme.cornerRadiusSmall
-        antialiasing: Theme.shapesAa
-        color: btnMouse.containsMouse ? Theme.bgHover : "transparent"
-        border.color: btnMouse.containsMouse ? Theme.divider : "transparent"
-        border.width: 1
-        Text {
-            anchors.centerIn: parent
-            text: iconBtnRoot.glyph
-            color: btnMouse.containsMouse ? Theme.accent : Theme.textSecondary
-            font.family: Theme.iconFontFamily
-            font.pixelSize: Theme.fs(13)
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-        }
-        MouseArea {
-            id: btnMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: iconBtnRoot.pressed()
-        }
-    }
-    component TogglePill: Rectangle {
-        id: pillRoot
-        required property bool on
-        property string onText: "󰖩  ON"
-        property string offText: "󰖪  OFF"
-        signal pressed()
-        implicitWidth: pillLabel.implicitWidth + 24
-        implicitHeight: 26
-        radius: height / 2
-        antialiasing: Theme.shapesAa
-        color: pillMouse.containsMouse
-            ? (on ? Theme.withAlpha(Theme.accent, 0.28) : Theme.withAlpha(Theme.errorColor, 0.28))
-            : (on ? Theme.withAlpha(Theme.accent, 0.16) : Theme.withAlpha(Theme.errorColor, 0.16))
-        border.color: on ? Theme.accent : Theme.errorColor
-        border.width: 1
-        Text {
-            id: pillLabel
-            anchors.centerIn: parent
-            text: pillRoot.on ? pillRoot.onText : pillRoot.offText
-            color: pillRoot.on ? Theme.textPrimary : Theme.errorColor
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fs(10)
-            font.weight: Font.Bold
-            font.letterSpacing: 0.6
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-        }
-        MouseArea {
-            id: pillMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: pillRoot.pressed()
-        }
-    }
-    component DeviceRow: Rectangle {
-        id: devRect
-        required property string glyph
-        required property string label
-        required property string sub
-        required property bool isActive
-        signal picked()
-        implicitHeight: 40
-        radius: Theme.cornerRadiusSmall
-        antialiasing: Theme.shapesAa
-        color: devRect.isActive ? Theme.withAlpha(Theme.accent, 0.14)
-            : devMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.07) : "transparent"
-        border.color: devRect.isActive ? Theme.withAlpha(Theme.accent, 0.55) : "transparent"
-        border.width: devRect.isActive ? 1 : 0
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10; anchors.rightMargin: 10
-            spacing: 10
-            Rectangle {
-                Layout.preferredWidth: 10; Layout.preferredHeight: 10
-                Layout.alignment: Qt.AlignVCenter
-                radius: 5
-                color: devRect.isActive ? Theme.accent : "transparent"
-                border.color: devRect.isActive ? Theme.accent : Theme.textMuted
-                border.width: devRect.isActive ? 0 : 1
-            }
-            Text {
-                text: devRect.glyph
-                color: devRect.isActive ? Theme.textPrimary : Theme.textSecondary
-                font.family: Theme.iconFontFamily
-                font.pixelSize: Theme.fs(16)
-                Layout.preferredWidth: 22
-                horizontalAlignment: Text.AlignHCenter
-                Layout.alignment: Qt.AlignVCenter
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 1
-                Text {
-                    Layout.fillWidth: true
-                    text: devRect.label
-                    color: devRect.isActive ? Theme.textPrimary : Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fs(12)
-                    font.weight: devRect.isActive ? Font.DemiBold : Font.Normal
-                    elide: Text.ElideRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                }
-                Text {
-                    visible: devRect.sub !== ""
-                    Layout.fillWidth: true
-                    text: devRect.sub
-                    color: Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fs(10)
-                    elide: Text.ElideRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                }
-            }
-        }
-        MouseArea {
-            id: devMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: devRect.picked()
-        }
-    }
     component DnsPill: Rectangle {
         id: dnsPill
         required property string label
@@ -270,10 +118,10 @@ Scope {
                 renderType: Theme.textRenderType
             }
         }
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: dnsPill.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        StateLayer {
+            disabled: NetworkService.dnsBusy
+            radius: Theme.cornerRadiusSmall
+            color: Theme.textPrimary
             onClicked: if (dnsPill.enabled) NetworkService.setDnsPreset(dnsPill.mode)
         }
     }
@@ -295,8 +143,7 @@ Scope {
             width: wifiCol.width
             implicitHeight: 40
             radius: Theme.cornerRadiusSmall
-            color: wifiCol.net.active ? Theme.withAlpha(Theme.accent, 0.14)
-                : wifiMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.07) : "transparent"
+            color: wifiCol.net.active ? Theme.withAlpha(Theme.accent, 0.14) : "transparent"
             border.color: wifiCol.net.active ? Theme.withAlpha(Theme.accent, 0.55) : "transparent"
             border.width: wifiCol.net.active ? 1 : 0
             RowLayout {
@@ -368,20 +215,19 @@ Scope {
                     Layout.alignment: Qt.AlignVCenter
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    MouseArea {
+                    StateLayer {
                         anchors.fill: parent
                         anchors.margins: -6
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        radius: Math.round(width / 2)
+                        color: Theme.errorColor
                         onClicked: mouse => { mouse.accepted = true; NetworkService.forgetWifi(wifiCol.net.ssid) }
                     }
                 }
             }
-            MouseArea {
+            StateLayer {
                 id: wifiMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
+                radius: Theme.cornerRadiusSmall
+                color: Theme.textPrimary
                 onClicked: {
                     let n = wifiCol.net
                     if (n.active) { NetworkService.disconnectWifi(); return }
@@ -452,12 +298,12 @@ Scope {
                     font.weight: Font.Bold
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
-                    MouseArea {
+                    StateLayer {
                         id: pwGoMouse
                         anchors.fill: parent
                         anchors.margins: -8
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        radius: 8
+                        color: Theme.accent
                         onClicked: pwField.accepted()
                     }
                 }
@@ -547,13 +393,13 @@ Scope {
                                     renderType: Theme.textRenderType
                                 }
                             }
-                            IconBtn {
+                            PanelKit.IconButton {
                                 glyph: "↻"
-                                onPressed: NetworkService.rescan()
+                                onClicked: NetworkService.rescan()
                             }
                         }
                         // Hero connection card.
-                        Card {
+                        PanelKit.Card {
                             width: parent.width
                             implicitHeight: heroCol.implicitHeight + 20
                             ColumnLayout {
@@ -585,7 +431,7 @@ Scope {
                                         Layout.fillWidth: true
                                         Layout.alignment: Qt.AlignVCenter
                                         spacing: 2
-                                        SectionLabel { text: "CONNECTION" }
+                                        PanelKit.SectionLabel { text: "CONNECTION" }
                                         Text {
                                             Layout.fillWidth: true
                                             text: scope.heroTitle
@@ -612,12 +458,14 @@ Scope {
                                             renderType: Theme.textRenderType
                                         }
                                     }
-                                    TogglePill {
+                                    PanelKit.TogglePill {
                                         Layout.alignment: Qt.AlignVCenter
                                         on: NetworkService.wifiEnabled
                                         onText: "󰖩  ON"
                                         offText: "󰖪  OFF"
-                                        onPressed: NetworkService.toggleWifi()
+                                        offColor: Theme.errorColor
+                                        offTextColor: Theme.errorColor
+                                        onClicked: NetworkService.toggleWifi()
                                     }
                                 }
                                 GridLayout {
@@ -672,7 +520,7 @@ Scope {
                             }
                         }
                         // DNS card.
-                        Card {
+                        PanelKit.Card {
                             visible: scope.dnsVisible
                             width: parent.width
                             implicitHeight: dnsCol.implicitHeight + 20
@@ -681,7 +529,7 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: 10
                                 spacing: 6
-                                SectionLabel { text: scope.dnsHeader }
+                                PanelKit.SectionLabel { text: scope.dnsHeader }
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 6
@@ -703,7 +551,7 @@ Scope {
                             }
                         }
                         // Ethernet card.
-                        Card {
+                        PanelKit.Card {
                             visible: NetworkService.ethernetConns.length > 0
                             width: parent.width
                             implicitHeight: ethCol.implicitHeight + 20
@@ -712,10 +560,10 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: 10
                                 spacing: 6
-                                SectionLabel { text: "ETHERNET  •  " + NetworkService.ethernetConns.length }
+                                PanelKit.SectionLabel { text: "ETHERNET  •  " + NetworkService.ethernetConns.length }
                                 Repeater {
                                     model: NetworkService.ethernetConns
-                                    delegate: DeviceRow {
+                                    delegate: PanelKit.DeviceRow {
                                         required property var modelData
                                         required property int index
                                         glyph: "󰈀"
@@ -732,7 +580,7 @@ Scope {
                             }
                         }
                         // Wi-Fi card.
-                        Card {
+                        PanelKit.Card {
                             visible: NetworkService.wifiEnabled
                             width: parent.width
                             implicitHeight: wifiCardCol.implicitHeight + 20
@@ -741,7 +589,7 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: 10
                                 spacing: 6
-                                SectionLabel { text: NetworkService.wifiNetworks.length > 0 ? "WI-FI  •  " + NetworkService.wifiNetworks.length : "WI-FI" }
+                                PanelKit.SectionLabel { text: NetworkService.wifiNetworks.length > 0 ? "WI-FI  •  " + NetworkService.wifiNetworks.length : "WI-FI" }
                                 Repeater {
                                     model: NetworkService.wifiNetworks
                                     delegate: WifiRow {

@@ -121,10 +121,6 @@ function remembered(row) {
     return !!row && (!!row.paired || !!row.bonded || !!row.trusted);
 }
 
-function remembered(row) {
-    return !!row && (!!row.paired || !!row.bonded || !!row.trusted);
-}
-
 function deviceLists(devices) {
     var values = toArray(devices);
     var connected = [];
@@ -172,27 +168,4 @@ function withPendingAction(actions, address, action) {
     else
         delete next[address];
     return next;
-}
-
-function visibleSections(lists, discovering) {
-    var sections = [];
-    if (lists && lists.connected && lists.connected.length > 0)
-        sections.push("connected");
-    if (lists && lists.known && lists.known.length > 0)
-        sections.push("known");
-    if (discovering && lists && lists.discovered && lists.discovered.length > 0)
-        sections.push("discovered");
-    return sections;
-}
-
-function sectionDevices(lists, section) {
-    if (!lists)
-        return [];
-    if (section === "connected")
-        return lists.connected || [];
-    if (section === "known")
-        return lists.known || [];
-    if (section === "discovered")
-        return lists.discovered || [];
-    return [];
 }

@@ -250,83 +250,6 @@ Scope {
         return s.length > 0 ? s.charAt(0).toUpperCase() : "♪"
     }
 
-    // ---------- New design primitives (vertical card layout) ----------
-    component SectionLabel: Text {
-        antialiasing: Theme.textAa
-        renderType: Theme.textRenderType
-        color: Theme.textSecondary
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fs(10)
-        font.weight: Font.Bold
-        font.letterSpacing: 1.2
-    }
-    component Card: Rectangle {
-        antialiasing: Theme.shapesAa
-        radius: Theme.cornerRadiusSmall
-        color: Theme.cardBg
-        border.color: Theme.divider
-        border.width: 1
-    }
-    component IconBtn: Rectangle {
-        id: iconBtnRoot
-        required property string glyph
-        signal pressed()
-        width: 28; height: 28
-        radius: Theme.cornerRadiusSmall
-        antialiasing: Theme.shapesAa
-        color: btnMouse.containsMouse ? Theme.bgHover : "transparent"
-        border.color: btnMouse.containsMouse ? Theme.divider : "transparent"
-        border.width: 1
-        Text {
-            anchors.centerIn: parent
-            text: iconBtnRoot.glyph
-            color: btnMouse.containsMouse ? Theme.accent : Theme.textSecondary
-            font.family: Theme.iconFontFamily
-            font.pixelSize: Theme.fs(13)
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-        }
-        MouseArea {
-            id: btnMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: iconBtnRoot.pressed()
-        }
-    }
-    component MutePill: Rectangle {
-        id: pillRoot
-        required property bool muted
-        signal pressed()
-        implicitWidth: pillLabel.implicitWidth + 24
-        implicitHeight: 26
-        radius: height / 2
-        antialiasing: Theme.shapesAa
-        color: pillMouse.containsMouse
-            ? (muted ? Theme.withAlpha(Theme.errorColor, 0.28) : Theme.withAlpha(Theme.accent, 0.28))
-            : (muted ? Theme.withAlpha(Theme.errorColor, 0.16) : Theme.withAlpha(Theme.accent, 0.16))
-        border.color: muted ? Theme.errorColor : Theme.accent
-        border.width: 1
-        Text {
-            id: pillLabel
-            anchors.centerIn: parent
-            text: pillRoot.muted ? "󰝟  UNMUTE" : "󰕾  MUTE"
-            color: pillRoot.muted ? Theme.errorColor : Theme.textPrimary
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fs(10)
-            font.weight: Font.Bold
-            font.letterSpacing: 0.6
-            antialiasing: Theme.textAa
-            renderType: Theme.textRenderType
-        }
-        MouseArea {
-            id: pillMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: pillRoot.pressed()
-        }
-    }
     component ModernSlider: Item {
         id: slRoot
         property real value: 0
@@ -424,90 +347,6 @@ Scope {
             }
         }
     }
-    component DeviceRow: Rectangle {
-        id: devRect
-        required property string glyph
-        required property string label
-        required property string sub
-        required property bool isActive
-        required property bool isMuted
-        signal picked()
-        implicitHeight: 40
-        radius: Theme.cornerRadiusSmall
-        antialiasing: Theme.shapesAa
-        color: devRect.isActive ? Theme.withAlpha(Theme.accent, 0.14)
-            : devMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.07) : "transparent"
-        border.color: devRect.isActive ? Theme.withAlpha(Theme.accent, 0.55) : "transparent"
-        border.width: devRect.isActive ? 1 : 0
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10; anchors.rightMargin: 10
-            spacing: 10
-            Rectangle {
-                Layout.preferredWidth: 10; Layout.preferredHeight: 10
-                Layout.alignment: Qt.AlignVCenter
-                radius: 5
-                color: devRect.isActive ? Theme.accent : "transparent"
-                border.color: devRect.isActive ? Theme.accent : Theme.textMuted
-                border.width: devRect.isActive ? 0 : 1
-            }
-            Text {
-                text: devRect.glyph
-                color: devRect.isActive ? Theme.textPrimary : Theme.textSecondary
-                font.family: Theme.iconFontFamily
-                font.pixelSize: Theme.fs(16)
-                Layout.preferredWidth: 22
-                horizontalAlignment: Text.AlignHCenter
-                Layout.alignment: Qt.AlignVCenter
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-            }
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 1
-                Text {
-                    Layout.fillWidth: true
-                    text: devRect.label
-                    color: devRect.isActive ? Theme.textPrimary : Theme.textSecondary
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fs(12)
-                    font.weight: devRect.isActive ? Font.DemiBold : Font.Normal
-                    elide: Text.ElideRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                }
-                Text {
-                    visible: devRect.sub !== ""
-                    Layout.fillWidth: true
-                    text: devRect.sub
-                    color: Theme.textMuted
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fs(10)
-                    elide: Text.ElideRight
-                    antialiasing: Theme.textAa
-                    renderType: Theme.textRenderType
-                }
-            }
-            Text {
-                visible: devRect.isMuted
-                text: "󰝟"
-                color: Theme.errorColor
-                font.family: Theme.iconFontFamily
-                font.pixelSize: Theme.fs(13)
-                Layout.alignment: Qt.AlignVCenter
-                antialiasing: Theme.textAa
-                renderType: Theme.textRenderType
-            }
-        }
-        MouseArea {
-            id: devMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: devRect.picked()
-        }
-    }
 
     Variants {
         model: Quickshell.screens
@@ -583,13 +422,13 @@ Scope {
                                     renderType: Theme.textRenderType
                                 }
                             }
-                            IconBtn {
+                            PanelKit.IconButton {
                                 glyph: "󰍹"
-                                onPressed: if (!mixerProc.running) mixerProc.running = true
+                                onClicked: if (!mixerProc.running) mixerProc.running = true
                             }
                         }
                         // Hero output card.
-                        Card {
+                        PanelKit.Card {
                             width: parent.width
                             implicitHeight: heroCol.implicitHeight + 20
                             ColumnLayout {
@@ -621,7 +460,7 @@ Scope {
                                         Layout.fillWidth: true
                                         Layout.alignment: Qt.AlignVCenter
                                         spacing: 2
-                                        SectionLabel { text: "OUTPUT" }
+                                        PanelKit.SectionLabel { text: "OUTPUT" }
                                         Row {
                                             spacing: 2
                                             Text {
@@ -658,10 +497,14 @@ Scope {
                                             renderType: Theme.textRenderType
                                         }
                                     }
-                                    MutePill {
+                                    PanelKit.TogglePill {
                                         Layout.alignment: Qt.AlignVCenter
-                                        muted: scope.outMuted
-                                        onPressed: VolumeService.toggleMute()
+                                        on: !scope.outMuted
+                                        onText: "󰕾  MUTE"
+                                        offText: "󰝟  UNMUTE"
+                                        offColor: Theme.errorColor
+                                        offTextColor: Theme.errorColor
+                                        onClicked: VolumeService.toggleMute()
                                     }
                                 }
                                 ModernSlider {
@@ -679,7 +522,7 @@ Scope {
                                 }
                         }
                         // Output devices card.
-                        Card {
+                        PanelKit.Card {
                             visible: scope.audioSinks.length > 0
                             width: parent.width
                             implicitHeight: sinkCol.implicitHeight + 20
@@ -690,11 +533,11 @@ Scope {
                                 spacing: 6
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    SectionLabel { text: "DEVICES  •  " + scope.audioSinks.length; Layout.fillWidth: true }
+                                    PanelKit.SectionLabel { text: "DEVICES  •  " + scope.audioSinks.length; Layout.fillWidth: true }
                                 }
                                 Repeater {
                                     model: scope.audioSinks
-                                    delegate: DeviceRow {
+                                    delegate: PanelKit.DeviceRow {
                                         required property var modelData
                                         required property int index
                                         glyph: scope.sinkGlyph(modelData.desc, modelData.name)
@@ -709,7 +552,7 @@ Scope {
                             }
                         }
                         // Input card.
-                        Card {
+                        PanelKit.Card {
                             visible: scope.audioSources.length > 0
                             width: parent.width
                             implicitHeight: micCol.implicitHeight + 20
@@ -721,7 +564,7 @@ Scope {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 6
-                                    SectionLabel { text: "INPUT"; Layout.fillWidth: true }
+                                    PanelKit.SectionLabel { text: "INPUT"; Layout.fillWidth: true }
                                     Text {
                                         text: Math.round(inSlider.liveValue * 100) + "%"
                                         color: scope.inMuted ? Theme.textMuted : Theme.textSecondary
@@ -732,9 +575,9 @@ Scope {
                                         antialiasing: Theme.textAa
                                         renderType: Theme.textRenderType
                                     }
-                                    IconBtn {
+                                    PanelKit.IconButton {
                                         glyph: scope.inMuted ? "󰝟" : "󰍬"
-                                        onPressed: scope.toggleInputMute()
+                                        onClicked: scope.toggleInputMute()
                                     }
                                 }
                                 ModernSlider {
@@ -750,7 +593,7 @@ Scope {
                                 }
                                 Repeater {
                                     model: scope.audioSources
-                                    delegate: DeviceRow {
+                                    delegate: PanelKit.DeviceRow {
                                         required property var modelData
                                         required property int index
                                         glyph: "󰍬"
@@ -766,7 +609,7 @@ Scope {
                             }
                         }
                         // Per-app mixer card.
-                        Card {
+                        PanelKit.Card {
                             visible: scope.audioStreams.length > 0
                             width: parent.width
                             implicitHeight: appCol.implicitHeight + 20
@@ -775,7 +618,7 @@ Scope {
                                 anchors.fill: parent
                                 anchors.margins: 10
                                 spacing: 6
-                                SectionLabel { text: "APPS  •  " + scope.audioStreams.length }
+                                PanelKit.SectionLabel { text: "APPS  •  " + scope.audioStreams.length }
                                 Repeater {
                                     model: scope.audioStreams
                                     delegate: ColumnLayout {
@@ -830,9 +673,9 @@ Scope {
                                                     renderType: Theme.textRenderType
                                                 }
                                             }
-                                            IconBtn {
+                                            PanelKit.IconButton {
                                                 glyph: modelData.muted ? "󰝟" : "󰕾"
-                                                onPressed: scope.toggleStreamMute(modelData.index)
+                                                onClicked: scope.toggleStreamMute(modelData.index)
                                             }
                                         }
                                         ModernSlider {

@@ -89,26 +89,9 @@ Scope {
         function debugCount(n: int): string { UpdateService.debugCount = n; UpdateService.debugForce = true; return "debugCount=" + n }
     }
 
-    // Fullscreen state comes from MangoService (mmsg all-clients); the bar
-    // stays mapped on fullscreen and only releases its reserved space, so it
-    // reliably reappears on exit / workspace switch instead of unmapping.
-    property var fullscreenByScreen: ({ })
-    function pullMangoFullscreen(): void {
-        try {
-            MangoService.refresh()
-            let m = MangoService.fullscreenByScreen
-            let copy = {}
-            for (let k in m) copy[k] = !!m[k]
-            fullscreenByScreen = copy
-        } catch (e) {}
-    }
-    Connections {
-        target: MangoService
-        ignoreUnknownSignals: true
-        function onFullscreenByScreenChanged() { topBarScope.pullMangoFullscreen() }
-    }
-    function refreshFullscreen() { pullMangoFullscreen() }
-    Component.onCompleted: refreshFullscreen()
+    // The bar always reserves its strip: Umbriel does not expose per-output
+    // fullscreen state through its CLI, and fullscreen windows cover the
+    // Top-layer bar anyway.
 
     IpcHandler {
         target: "bar"
@@ -117,8 +100,6 @@ Scope {
         function reset(): string { Theme.resetBarLayout(); return "reset: " + Theme.barLayoutString() }
         function hide(id: string): string { return Theme.hideBarModule(id) }
         function show(id: string): string { return Theme.showBarModule(id) }
-        function fullscreen(): string { try { return JSON.stringify(topBarScope.fullscreenByScreen) } catch (e) { return "{ }" } }
-        function refreshFullscreen(): string { topBarScope.refreshFullscreen(); return "refreshing" }
         function trayAnchor(): string { try { return "systemtray=" + JSON.stringify(Theme.barAnchor("systemtray")) + " bar=" + JSON.stringify(Theme.barWindowRect) } catch (e) { return "err " + e } }
     }
 
@@ -156,13 +137,6 @@ Scope {
             property bool isHorizontal: !isVertical
             property int edgeDist: Theme.barEdgeDistance
             property int topDist: Theme.barTopDistance
-            property bool screenFullscreen: {
-                try {
-                    let m = topBarScope.fullscreenByScreen
-                    if (m && m[modelData.name] === true) return true
-                } catch (e) { }
-                return false
-            }
             visible: Theme.isPrimaryScreen(modelData)
             WlrLayershell.namespace: "bar"
             // Top (not Overlay) so a fullscreen window covers the bar instead
@@ -170,10 +144,8 @@ Scope {
             // time, so the compositor uncovers it automatically on exit /
             // workspace switch — no unmap/remap state to get stuck.
             WlrLayershell.layer: WlrLayer.Top
-            // Fullscreen still gets the full screen area (zone 0); on normal
-            // workspaces the bar reserves its strip again so windows don't
-            // slide under it.
-            exclusiveZone: (Theme.isPrimaryScreen(modelData) && !screenFullscreen) ? (isVertical ? barWidth + topDist : barHeight + topDist) : 0
+            // Always reserve the strip so tiled windows don't slide under it.
+            exclusiveZone: Theme.isPrimaryScreen(modelData) ? (isVertical ? barWidth + topDist : barHeight + topDist) : 0
             anchors { top: barPos === "top" || isVertical; bottom: barPos === "bottom" || isVertical; left: barPos === "left" || isHorizontal; right: barPos === "right" || isHorizontal }
             margins {
                 top: topBarWindow.isVertical ? topBarWindow.edgeDist : (topBarWindow.barPos === "top" ? topBarWindow.topDist : 0)
@@ -187,7 +159,6 @@ Scope {
 
             Rectangle {
                 antialiasing: Theme.shapesAa
-                id: barBackground
                 anchors.fill: parent
                 radius: (topBarWindow.edgeDist > 0 || topBarWindow.topDist > 0) ? Theme.cornerRadius : 0
                 color: topBarWindow.barOpacity >= 0.999 ? Theme.panelBg : Theme.withAlpha(Theme.bg, Math.max(0, Math.min(1, topBarWindow.barOpacity * Theme.panelBgAlpha)))
@@ -404,7 +375,6 @@ Scope {
             function cancelSlotDrag(): void { clearDrag() }
 
             Item {
-                id: horizontalContainer
                 visible: topBarWindow.isHorizontal
                 anchors.fill: parent; anchors.leftMargin: Theme.barContentPadding; anchors.rightMargin: Theme.barContentPadding
                 opacity: 1
@@ -416,7 +386,6 @@ Scope {
                     height: Math.max(0, Math.min(leftZoneRow.implicitHeight + 8, parent.height - 4))
                     Rectangle {
                         antialiasing: Theme.shapesAa
-                        id: leftDropDot
                         width: 10; height: width; radius: width / 2
                         anchors.centerIn: parent
                         color: Theme.accent
@@ -478,7 +447,6 @@ Scope {
                     height: Math.max(0, Math.min(twoFifthsZoneRow.implicitHeight + 8, parent.height - 4))
                     Rectangle {
                         antialiasing: Theme.shapesAa
-                        id: twoFifthsDropDot
                         width: 10; height: width; radius: width / 2
                         anchors.centerIn: parent
                         color: Theme.accent
@@ -536,7 +504,6 @@ Scope {
                     height: Math.max(0, Math.min(centerZoneRow.implicitHeight + 8, parent.height - 4))
                     Rectangle {
                         antialiasing: Theme.shapesAa
-                        id: centerDropDot
                         width: 10; height: width; radius: width / 2
                         anchors.centerIn: parent
                         color: Theme.accent
@@ -596,7 +563,6 @@ Scope {
                     height: Math.max(0, Math.min(fourFifthsZoneRow.implicitHeight + 8, parent.height - 4))
                     Rectangle {
                         antialiasing: Theme.shapesAa
-                        id: fourFifthsDropDot
                         width: 10; height: width; radius: width / 2
                         anchors.centerIn: parent
                         color: Theme.accent
@@ -654,7 +620,6 @@ Scope {
                     height: Math.max(0, Math.min(rightZoneRow.implicitHeight + 8, parent.height - 4))
                     Rectangle {
                         antialiasing: Theme.shapesAa
-                        id: rightDropDot
                         width: 10; height: width; radius: width / 2
                         anchors.centerIn: parent
                         color: Theme.accent
@@ -707,7 +672,6 @@ Scope {
             }
 
             Item {
-                id: verticalContainer
                 visible: topBarWindow.isVertical
                 anchors.fill: parent; anchors.topMargin: Theme.barContentPadding; anchors.bottomMargin: Theme.barContentPadding; anchors.leftMargin: 4; anchors.rightMargin: 4
                 clip: true
@@ -722,7 +686,6 @@ Scope {
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.leftGapEmpty && topBarWindow.isVertical) ? 96 : 0
                         Rectangle {
                             antialiasing: Theme.shapesAa
-                            id: vTopDot
                             width: 10; height: width; radius: width / 2
                             anchors.centerIn: parent
                             color: Theme.accent
@@ -782,7 +745,6 @@ Scope {
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.twoFifthsGapEmpty && topBarWindow.isVertical) ? 110 : 0
                         Rectangle {
                             antialiasing: Theme.shapesAa
-                            id: vTwoFifthsDot
                             width: 10; height: width; radius: width / 2
                             anchors.centerIn: parent
                             color: Theme.accent
@@ -842,7 +804,6 @@ Scope {
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.middleGapEmpty && topBarWindow.isVertical) ? 110 : 0
                         Rectangle {
                             antialiasing: Theme.shapesAa
-                            id: vMidDot
                             width: 10; height: width; radius: width / 2
                             anchors.centerIn: parent
                             color: Theme.accent
@@ -902,7 +863,6 @@ Scope {
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.fourFifthsGapEmpty && topBarWindow.isVertical) ? 110 : 0
                         Rectangle {
                             antialiasing: Theme.shapesAa
-                            id: vFourFifthsDot
                             width: 10; height: width; radius: width / 2
                             anchors.centerIn: parent
                             color: Theme.accent
@@ -962,7 +922,6 @@ Scope {
                         Layout.minimumHeight: (topBarScope.dragActive && topBarScope.rightGapEmpty && topBarWindow.isVertical) ? 96 : 0
                         Rectangle {
                             antialiasing: Theme.shapesAa
-                            id: vBottomDot
                             width: 10; height: width; radius: width / 2
                             anchors.centerIn: parent
                             color: Theme.accent

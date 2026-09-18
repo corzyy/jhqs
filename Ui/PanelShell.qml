@@ -16,6 +16,10 @@ Item {
     id: root
 
     required property string moduleId
+    // Bar module whose anchor the panel settles under. Defaults to moduleId;
+    // drill-in panels whose own id has no bar widget (audio) share the
+    // anchor of the panel they morph out of.
+    property string anchorModuleId: root.moduleId
     property string barPos: "top"
     property real panelGap: 0
     // Theme.isPrimaryScreen(modelData): only that window runs the
@@ -36,7 +40,7 @@ Item {
 
     BarAnchor {
         id: shellAnchor
-        moduleId: root.moduleId
+        moduleId: root.anchorModuleId
         barPos: root.barPos
         panelWidth: root.boxWidth
         panelHeight: root.cardHeight
@@ -71,7 +75,10 @@ Item {
             width: parent.width
             height: parent.height
             antialiasing: Theme.shapesAa
-            color: Theme.bg
+            // Fill comes from the popout's shadow layer (see CaelestiaPopout
+            // shadowSource): it paints the same rounded silhouette behind
+            // this card so the shadow silhouette is only composited once.
+            color: "transparent"
             border.color: Theme.panelBorderColor
             border.width: 2
             radius: popout.frameRadius
@@ -95,20 +102,23 @@ Item {
             // Square fused corners (tray-menu joint): the patches melt the
             // box straight into the bar while the far corners keep their
             // rounding. Plain children: they emerge with the card.
-            PanelCorner { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
-            PanelCorner { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            PanelCorner { fillColor: Theme.panelWindowBg; side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            PanelCorner { fillColor: Theme.panelWindowBg; side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
             // Outward-curved shoulders on top of the fusion (Caelestia joint).
-            PanelFillet { side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
-            PanelFillet { side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            PanelFillet { fillColor: Theme.panelWindowBg; side: "left"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
+            PanelFillet { fillColor: Theme.panelWindowBg; side: "right"; edge: root.barPos === "bottom" ? "bottom" : "top"; visible: popout.offsetScale < 1 }
             // Seam strip: erases the collar outline along the fused edge so
             // the joint reads as one mass. Same background, below content.
+            // Only needed while the accent border draws that outline; with the
+            // transparent default it would just double-paint the card top.
             Rectangle {
                 antialiasing: Theme.shapesAa
+                visible: Theme.panelAccentBorder
                 x: 0
                 y: root.barPos === "bottom" ? root.cardHeight - 2 : 0
                 width: root.boxWidth
                 height: 2
-                color: Theme.bg
+                color: Theme.panelWindowBg
             }
 
             Flickable {
@@ -123,6 +133,11 @@ Item {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 interactive: contentHeight > height
+                // Cross-panel morph choreography: the outgoing content
+                // shifts/scales out, the incoming one shifts/scales in
+                // (direction-aware, see Ui/CaelestiaPopout).
+                scale: popout.contentScale
+                transform: Translate { x: popout.contentOffsetX; y: popout.contentOffsetY }
                 // Popout transition (Caelestia Content/Popout loader fades):
                 // slow effects in, default effects out. No scale/rise — the
                 // reference only folds the content. contentFade additionally

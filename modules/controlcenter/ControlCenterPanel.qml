@@ -17,9 +17,17 @@ Scope {
     signal dismissed()
     signal settingsRequested()
     signal powerRequested()
+    // Opens the audio drill-in panel (shell.qml panel.audio): the card morphs
+    // into the audio panel and back.
+    signal audioRequested()
+    // Opens the bluetooth drill-in panel (shell.qml panel.bluetoothMenu),
+    // same morph handoff.
+    signal bluetoothRequested()
+    // Opens the updates drill-in panel (shell.qml panel.updatesMenu), same
+    // morph handoff.
+    signal updatesRequested()
 
     property bool editing: false
-    property bool flashlightOn: false
 
     property bool _winVisible: showControlCenter
     Timer {
@@ -73,14 +81,14 @@ Scope {
     // config/controlcenter.json so a dragged layout survives restarts;
     // unknown/missing ids fall back to the default order.
     readonly property var ccBlockIds: ["tiles", "sliders", "media"]
-    readonly property var ccTileIds: ["wifi", "bluetooth", "dnd", "flashlight", "flight", "gamemode"]
+    readonly property var ccTileIds: ["wifi", "bluetooth", "dnd", "updates"]
     FileView {
         id: ccLayoutFile
         path: Quickshell.env("HOME") + "/.config/quickshell/jhqs/config/controlcenter.json"
         watchChanges: true; onFileChanged: ccReloadTimer.restart(); blockLoading: true; printErrors: false
         adapter: JsonAdapter {
             property var blocks: ["tiles", "sliders", "media"]
-            property var tiles: ["wifi", "bluetooth", "dnd", "flashlight", "flight", "gamemode"]
+            property var tiles: ["wifi", "bluetooth", "dnd", "updates"]
             property var tileCols: ({})
             property var hiddenTiles: []
         }
@@ -173,45 +181,39 @@ Scope {
         if (id === "wifi") return NetworkService.icon
         if (id === "bluetooth") return BluetoothService.icon
         if (id === "dnd") return "󰂛"
-        if (id === "flashlight") return "󰉄"
-        if (id === "flight") return "󰀝"
-        if (id === "gamemode") return "󰊗"
+        if (id === "updates") return "󰚰"
         return "󰝚"
     }
     function tileTitle(id: string): string {
         if (id === "wifi") return "WLAN"
         if (id === "bluetooth") return "Bluetooth"
         if (id === "dnd") return "Nicht stören"
-        if (id === "flashlight") return "Taschenlampe"
-        if (id === "flight") return "Flugmodus"
-        if (id === "gamemode") return "Gamemode"
+        if (id === "updates") return "Updates"
         return id
     }
     function tileStatus(id: string): string {
         if (id === "wifi") return wifiStatus()
         if (id === "bluetooth") return bluetoothStatus()
         if (id === "dnd") return Theme.dndEnabled ? "An" : "Aus"
-        if (id === "flashlight") return flashlightOn ? "An" : "Aus"
-        if (id === "flight") return flightModeOn ? "An" : "Aus"
-        if (id === "gamemode") return Theme.gamemodeEnabled ? "An" : "Aus"
+        if (id === "updates") return UpdateService.displayCount > 0 ? UpdateService.displayCount + " verfügbar" : "Aktuell"
         return ""
     }
     function tileActive(id: string): bool {
         if (id === "wifi") return NetworkService.wifiEnabled
         if (id === "bluetooth") return BluetoothService.btActive
         if (id === "dnd") return Theme.dndEnabled
-        if (id === "flashlight") return flashlightOn
-        if (id === "flight") return flightModeOn
-        if (id === "gamemode") return Theme.gamemodeEnabled
+        if (id === "updates") return UpdateService.hasUpdates
         return false
     }
     function tileAction(id: string): void {
         if (id === "wifi") NetworkService.toggleWifi()
-        else if (id === "bluetooth") BluetoothService.togglePower()
+        // Tile opens the bluetooth menu (Android QS style); power lives on
+        // the switch inside the drill-in and on bar middle/right-click.
+        else if (id === "bluetooth") scope.bluetoothRequested()
         else if (id === "dnd") Theme.toggleDnd()
-        else if (id === "flashlight") flashlightOn = !flashlightOn
-        else if (id === "flight") toggleFlightMode()
-        else if (id === "gamemode") Theme.toggleGamemode()
+        // Update tile opens the update center as its own drill-in panel
+        // (shell.qml panel.updatesMenu), same as bluetooth/audio.
+        else if (id === "updates") scope.updatesRequested()
     }
 
     // Drag state for edit mode. The dragged block follows the pointer via a
@@ -269,17 +271,6 @@ Scope {
         return "󰂃"
     }
 
-    readonly property bool flightModeOn: !NetworkService.wifiEnabled && !BluetoothService.btActive
-    function toggleFlightMode(): void {
-        if (flightModeOn) {
-            if (!NetworkService.wifiEnabled) NetworkService.setWifiEnabled(true)
-            if (!BluetoothService.btActive) BluetoothService.togglePower()
-        } else {
-            if (NetworkService.wifiEnabled) NetworkService.toggleWifi()
-            if (BluetoothService.btActive) BluetoothService.togglePower()
-        }
-    }
-
     readonly property int btConnected: BluetoothService.connectedDevs ? BluetoothService.connectedDevs.length : 0
 
     function wifiStatus(): string {
@@ -315,12 +306,7 @@ Scope {
             anchors.fill: parent
             radius: Theme.cornerRadiusSmall
             antialiasing: Theme.shapesAa
-            color: footerMouse.containsMouse ? Theme.withAlpha(Theme.on_surface, 0.1) : "transparent"
-
-            Behavior on color {
-                enabled: Theme.animationsEnabled
-                ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
-            }
+            color: "transparent"
 
             Text {
                 anchors.centerIn: parent
@@ -338,11 +324,10 @@ Scope {
             }
         }
 
-        MouseArea {
+        StateLayer {
             id: footerMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            radius: Theme.cornerRadiusSmall
+            color: footerButton.emphasized ? Theme.primary : Theme.textPrimary
             onClicked: footerButton.clicked()
         }
     }
@@ -596,6 +581,7 @@ Scope {
                         }
                     }
                 }
+
             }
         }
     }
@@ -613,7 +599,6 @@ Scope {
             columns: 4
             columnSpacing: 10
             rowSpacing: 10
-            readonly property int tileGap: 10
 
             // Drag state local to the tile area.
             property int dragIndex: -1
@@ -772,31 +757,25 @@ Scope {
                         anchors.bottom: parent.bottom
                         anchors.margins: 8
                         z: 60
-                        color: spanMouse.containsMouse ? Theme.primary : Theme.surface_container_highest
+                        color: Theme.surface_container_highest
                         border.width: 1
-                        border.color: spanMouse.containsMouse ? Theme.primary : Theme.outline_variant
+                        border.color: Theme.outline_variant
                         antialiasing: Theme.shapesAa
-
-                        Behavior on color {
-                            enabled: Theme.animationsEnabled
-                            ColorAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic }
-                        }
 
                         Text {
                             anchors.centerIn: parent
                             text: "󰩨"
                             font.family: Theme.iconFontFamily
                             font.pixelSize: Theme.fs(13)
-                            color: spanMouse.containsMouse ? Theme.on_primary : Theme.textPrimary
+                            color: Theme.textPrimary
                             antialiasing: Theme.textAa
                             renderType: Theme.textRenderType
                         }
 
-                        MouseArea {
+                        StateLayer {
                             id: spanMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
+                            radius: Math.round(width / 2)
+                            color: Theme.primary
                             onClicked: scope.toggleTileCols(tileItem.modelData)
                         }
                     }
@@ -812,8 +791,6 @@ Scope {
             width: parent.width
             spacing: 12
 
-            property bool audioMenuOpen: false
-
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
@@ -826,7 +803,9 @@ Scope {
                     onUserMoved: v => VolumeService.setVolumeFrac(v)
                 }
 
-                // Audio menu toggle: same height as the slider row.
+                // Audio drill-in: the chevron opens the audio panel, which
+                // morphs out of this card and back into it (shell.qml
+                // panel.audio). Same height as the slider row.
                 Rectangle {
                     id: audioMenuButton
                     Layout.alignment: Qt.AlignVCenter
@@ -834,22 +813,9 @@ Scope {
                     implicitHeight: 48
                     radius: height / 2
                     antialiasing: Theme.shapesAa
-                    readonly property bool active: slidersBlock.audioMenuOpen
-                    color: active ? Theme.primary
-                        : audioMenuButtonMouse.containsMouse ? Theme.bgHover
-                        : Theme.surface_container_highest
-                    border.width: active ? 0 : audioMenuButtonMouse.containsMouse ? 1 : 0
-                    border.color: Theme.outline
+                    color: Theme.surface_container_highest
                     scale: audioMenuButtonMouse.pressed ? Theme.pressScale : 1
 
-                    Behavior on color {
-                        enabled: Theme.animationsEnabled
-                        ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
-                    }
-                    Behavior on border.width {
-                        enabled: Theme.animationsEnabled
-                        NumberAnimation { duration: Theme.durFastEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastEffects }
-                    }
                     Behavior on scale {
                         enabled: Theme.animationsEnabled
                         NumberAnimation { duration: Theme.durFastSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveFastSpatial }
@@ -860,34 +826,18 @@ Scope {
                         text: "󰅀"
                         font.family: Theme.iconFontFamily
                         font.pixelSize: Theme.fs(22)
-                        color: audioMenuButton.active ? Theme.on_primary : Theme.textPrimary
-                        rotation: audioMenuButton.active ? 180 : 0
+                        color: Theme.textPrimary
                         antialiasing: Theme.textAa
                         renderType: Theme.textRenderType
-
-                        Behavior on color {
-                            enabled: Theme.animationsEnabled
-                            ColorAnimation { duration: Theme.durSlowEffects; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveSlowEffects }
-                        }
-                        Behavior on rotation {
-                            enabled: Theme.animationsEnabled
-                            NumberAnimation { duration: Theme.durDefaultSpatial; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.curveDefaultSpatial }
-                        }
                     }
 
-                    MouseArea {
+                    StateLayer {
                         id: audioMenuButtonMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: slidersBlock.audioMenuOpen = !slidersBlock.audioMenuOpen
+                        radius: Math.round(width / 2)
+                        color: Theme.textPrimary
+                        onClicked: scope.audioRequested()
                     }
                 }
-            }
-
-            AudioMenu {
-                Layout.fillWidth: true
-                open: slidersBlock.audioMenuOpen
             }
         }
     }

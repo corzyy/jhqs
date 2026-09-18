@@ -1,5 +1,6 @@
 import QtQuick
 import "../../themes"
+import "../../Ui"
 
 Item {
     id: root
@@ -15,7 +16,7 @@ Item {
     property int cornerRadius: 26
     property color activeColor: Theme.primary
     property color activeContentColor: Theme.on_primary
-    property color inactiveColor: Theme.surface_container_high
+    property color inactiveColor: Theme.panelCardHigh
     property color inactiveContentColor: Theme.on_surface
 
     signal toggled()
@@ -99,7 +100,6 @@ Item {
         }
 
         Column {
-            id: labelColumn
             visible: !root.compact
             anchors.left: iconCircle.right
             anchors.leftMargin: 12
@@ -146,7 +146,6 @@ Item {
         }
 
         Rectangle {
-            id: editBadge
             // Edit chrome: M3 fade in/out (enter decelerate, exit accelerate).
             opacity: root.editing ? 1 : 0
             visible: opacity > 0.01
@@ -187,11 +186,10 @@ Item {
         }
     }
 
-    MouseArea {
+    StateLayer {
         id: pressArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        radius: root.cornerRadius
+        color: root.active ? root.activeContentColor : root.inactiveContentColor
         onClicked: {
             root.forceActiveFocus()
             root.activate()

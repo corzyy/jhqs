@@ -17,9 +17,6 @@ Scope {
     property string wallpaperPath: ""
     readonly property string wallpaperSource: wallpaperPath !== "" ? "file://" + wallpaperPath : ""
 
-    signal unlocked()
-    signal lockRequested()
-
     // Einziger Reset-Pfad für den PIN-Zustand (war 3x kopiert).
     function resetPinState(): void {
         pinInput = ""
@@ -35,7 +32,6 @@ Scope {
     function unlock(): void {
         locked = false
         resetPinState()
-        unlocked()
     }
     function refreshWallpaper(): void {
         if (!wallpaperResolveProc.running) wallpaperResolveProc.running = true

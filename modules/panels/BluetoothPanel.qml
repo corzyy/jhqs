@@ -12,6 +12,14 @@ Scope {
     id: scope
     property bool showBluetooth: false
     signal dismissed()
+    // CC drill-in mode: the hero row is replaced by a back header (title,
+    // status, power switch) and the card settles under the control-center
+    // anchor, so it morphs out of / back into the CC card (shell.qml
+    // bluetoothmenu panel). The standalone bar panel keeps the hero.
+    property bool showBack: false
+    signal backRequested()
+    property string panelModuleId: "bluetooth"
+    property string anchorModuleId: "bluetooth"
     property bool _winVisible: showBluetooth
     Timer { id: hideTimer; interval: Theme.panelHideDelay; repeat: false; onTriggered: if (!scope.showBluetooth) scope._winVisible = false }
     onShowBluetoothChanged: {
@@ -38,14 +46,6 @@ Scope {
     // Native backend is live (2s projection sync in service) — no polling
     // timer needed while open.
 
-    component SectionHeader: Text {
-        antialiasing: Theme.textAa
-        renderType: Theme.textRenderType
-        color: Theme.textSecondary
-        font.family: Theme.iconFontFamily
-        font.pixelSize: Theme.fs(10)
-        font.weight: Font.Bold
-    }
     component Hairline: Rectangle {
         antialiasing: Theme.shapesAa
         color: Theme.withAlpha(Theme.textPrimary, 0.12)
@@ -72,10 +72,9 @@ Scope {
                 color: swRoot.checked ? Theme.textPrimary : Theme.textSecondary
             }
         }
-        MouseArea {
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+        StateLayer {
+            radius: Math.round(height / 2)
+            color: Theme.textPrimary
             onClicked: swRoot.toggled()
         }
     }
@@ -85,10 +84,9 @@ Scope {
         required property string section
         required property int rowIndex
         antialiasing: Theme.shapesAa
-        // Keyboard cursor: accent tint; hover: subtle fill.
+        // Keyboard cursor: accent tint; hover: StateLayer wash.
         readonly property bool rowSelected: scope.cursorActive && scope.focusSection === rowRect.section && scope.selectedIndex === rowRect.rowIndex
-        color: rowRect.rowSelected ? Theme.withAlpha(Theme.accent, 0.16)
-            : rowMouse.containsMouse ? Theme.withAlpha(Theme.textPrimary, 0.08) : "transparent"
+        color: rowRect.rowSelected ? Theme.withAlpha(Theme.accent, 0.16) : "transparent"
         readonly property bool isConnected: dev && dev.connected
         readonly property bool isDiscovered: rowRect.section === "available"
         readonly property bool isRemembered: dev && (!!dev.paired || !!dev.bonded || !!dev.trusted)
@@ -111,12 +109,9 @@ Scope {
         }
         // Behind the buttons: unhandled clicks fall through to this, while
         // pin/forget areas (later siblings, on top) get first refusal.
-        MouseArea {
+        StateLayer {
             id: rowMouse
-            anchors.fill: parent
-            hoverEnabled: true
             acceptedButtons: Qt.LeftButton | Qt.RightButton
-            cursorShape: Qt.PointingHandCursor
             onContainsMouseChanged: if (containsMouse) {
                 scope.cursorActive = true
                 scope.focusSection = rowRect.section
@@ -172,10 +167,9 @@ Scope {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
+                StateLayer {
+                    radius: Math.round(width / 2)
+                    color: (rowRect.rowSelected && scope.actionFocused) ? Theme.accent : Theme.errorColor
                     onEntered: {
                         scope.cursorActive = true
                         scope.focusSection = rowRect.section
@@ -202,10 +196,9 @@ Scope {
                     antialiasing: Theme.textAa
                     renderType: Theme.textRenderType
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
+                StateLayer {
+                    radius: Math.round(width / 2)
+                    color: rowRect.pinned ? Theme.accent : Theme.textSecondary
                     onClicked: mouse => {
                         mouse.accepted = true
                         if (rowRect.dev && rowRect.dev.address) BluetoothService.togglePin(rowRect.dev.address)
@@ -364,7 +357,9 @@ Scope {
     function clampCursor(): void {
         if (focusSection === "header") return
         let sections = scope.visibleSections
-        if (sections.length === 0) { selectedIndex = 0; return }
+        // Binding teardown can deliver undefined here while the panel is
+        // destroyed; treat it as "no sections".
+        if (!sections || sections.length === 0) { selectedIndex = 0; return }
         if (sections.indexOf(focusSection) < 0) { focusSection = sections[0]; selectedIndex = 0; return }
         let count = sectionCount(focusSection)
         if (count === 0) {
@@ -420,16 +415,72 @@ Scope {
                 onClicked: scope.dismissed()
             }
             PanelShell {
-                moduleId: "bluetooth"
+                moduleId: scope.panelModuleId
+                anchorModuleId: scope.anchorModuleId
                 screenActive: Theme.isPrimaryScreen(modelData)
                 barPos: scope.barPos
                 panelGap: scope.panelGap
                 shown: scope.showBluetooth
-                boxWidth: 380
-                contentMargins: 18
-                contentSpacing: 14
-                heightPadding: 36
+                boxWidth: scope.showBack ? 360 : 380
+                contentMargins: scope.showBack ? 10 : 18
+                contentSpacing: scope.showBack ? 12 : 14
+                heightPadding: scope.showBack ? 20 : 36
+                    // Drill-in header: back into the CC + power switch. The
+                    // hero stays for the standalone bar panel.
                     Item {
+                        visible: scope.showBack
+                        width: parent.width
+                        implicitHeight: backHeader.implicitHeight
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: -6
+                            visible: scope.headerHasCursor
+                            color: Theme.withAlpha(Theme.accent, 0.12)
+                        }
+                        RowLayout {
+                            id: backHeader
+                            anchors.fill: parent
+                            spacing: 6
+                            PanelKit.BackButton {
+                                onClicked: scope.backRequested()
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 1
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Bluetooth"
+                                    color: Theme.textPrimary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fs(13)
+                                    font.weight: Font.Bold
+                                    elide: Text.ElideRight
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: scope.heroStatus
+                                    color: Theme.textSecondary
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: Theme.fs(10)
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.2
+                                    elide: Text.ElideRight
+                                    antialiasing: Theme.textAa
+                                    renderType: Theme.textRenderType
+                                }
+                            }
+                            OmSwitch {
+                                checked: BluetoothService.btActive
+                                Layout.alignment: Qt.AlignVCenter
+                                onToggled: BluetoothService.togglePower()
+                            }
+                        }
+                    }
+                    Item {
+                        visible: !scope.showBack
                         width: parent.width
                         implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, powerSwitch.implicitHeight)
                         Rectangle {
@@ -522,7 +573,7 @@ Scope {
                         visible: scope.connectedDevs.length > 0
                         width: parent.width
                         spacing: 10
-                        SectionHeader { text: "CONNECTED" }
+                        PanelKit.SectionLabel { iconFont: true; text: "CONNECTED" }
                         Repeater {
                             model: scope.connectedDevs
                             delegate: DeviceRow {
@@ -547,7 +598,7 @@ Scope {
                             id: listCol
                             width: parent.width
                             spacing: 10
-                            SectionHeader { visible: scope.pairedDevs.length > 0; text: "PAIRED" }
+                            PanelKit.SectionLabel { iconFont: true; visible: scope.pairedDevs.length > 0; text: "PAIRED" }
                             Repeater {
                                 model: scope.pairedDevs
                                 delegate: DeviceRow {
@@ -560,7 +611,7 @@ Scope {
                                     implicitHeight: 48
                                 }
                             }
-                            SectionHeader { visible: scope.availVisible; text: "AVAILABLE" }
+                            PanelKit.SectionLabel { iconFont: true; visible: scope.availVisible; text: "AVAILABLE" }
                             Repeater {
                                 model: scope.availVisible ? scope.availDevs : []
                                 delegate: DeviceRow {

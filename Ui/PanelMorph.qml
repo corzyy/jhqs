@@ -1,11 +1,14 @@
 // PanelMorph — handoff state for cross-panel morphs (Ui/CaelestiaPopout).
 //
-// shell.qml calls begin(from, to) just before it flips activePanel. Every
-// bar popout publishes its settled card rect under its morphId while open;
-// the incoming popout claims the outgoing rect when it maps, starts its
-// card at that pose and glides to its own (container transform). The
-// outgoing card holds until the incoming one has rendered its first frame
-// (markReady), then fades out underneath it.
+// shell.qml calls begin(from, to, direction) just before it flips
+// activePanel. Every bar popout publishes its settled card rect under its
+// morphId while open; the incoming popout claims the outgoing rect when it
+// maps, starts its card at that pose and glides to its own (container
+// transform). The outgoing content fades/shifts out first, the incoming
+// card is swapped in at the same pose, then the incoming content follows;
+// the outgoing card holds until the incoming one has rendered its first frame
+// (markReady), then fades out underneath it. `direction` drives the
+// content travel of that choreography.
 pragma Singleton
 import QtQuick
 
@@ -18,12 +21,17 @@ QtObject {
     property bool ready: false
     property string fromId: ""
     property string toId: ""
+    // Depth of the switch for the content choreography (CaelestiaPopout):
+    // +1 deeper into a drill-in (control center -> audio/bluetooth/updates),
+    // -1 back out, 0 lateral (bar panel <-> bar panel).
+    property int direction: 0
     // morphId -> { x, y, width, height } in window/screen coordinates.
     property var rects: ({})
 
-    function begin(from: string, to: string): void {
+    function begin(from: string, to: string, direction: int): void {
         root.fromId = from
         root.toId = to
+        root.direction = direction === undefined ? 0 : direction
         root.ready = false
         root.active = from !== "" && to !== "" && from !== to
     }

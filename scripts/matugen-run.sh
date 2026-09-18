@@ -6,7 +6,7 @@
 # Speed design (wallpaper path is latency-critical, ~0.2s core vs ~3s papirus):
 #   1. builds a filtered copy of ~/.config/matugen/config.toml with mktemp
 #      (drops disabled template blocks; drops unknown user blocks when
-#      runUserTemplates=false; never drops quickshell/mango core blocks)
+#      runUserTemplates=false; never drops quickshell/umbriel core blocks)
 #   2. runs ONE synchronous `matugen -c <filtered> "$@"` WITHOUT the papirus
 #      block (papirus icon regeneration is ~90% of the runtime) so the shell
 #      recolors in ~0.3-0.5s.
@@ -79,7 +79,7 @@ if off("templateOpencode"): drop.add("opencode")
 if off("templatePapirus"): drop.add("papirus")
 if off("templatePrismlauncher"): drop.add("prismlauncher")
 
-known = {"quickshell", "mango", "gtk3", "gtk4", "qt5ct", "qt6ct",
+known = {"quickshell", "umbriel", "gtk3", "gtk4", "qt5ct", "qt6ct",
          "qt-colorscheme", "kitty", "ghostty", "fcitx5", "firefox",
          "vscode-raw", "vscode-json", "neovim", "btop", "vesktop-midnight",
          "vesktop-system24", "obs", "obs-native", "opencode", "papirus",

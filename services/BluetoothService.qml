@@ -22,7 +22,6 @@ Singleton {
     // ---- Compat state (read by widget/bar/panel) ----
     readonly property bool btAvailable: adapter !== null
     readonly property bool btActive: !!adapter && adapter.enabled
-    readonly property string btStatus: btActive ? "On" : "Off"
     readonly property bool btScanning: !!adapter && adapter.discovering
     property var btDevices: []
     // Cold start: BlueZ enumeration takes ~2-3s after shell start, during
@@ -157,16 +156,11 @@ Singleton {
     // (connected/battery/paired) even when the model itself doesn't re-emit.
     Timer { interval: 2000; running: true; repeat: true; triggeredOnStart: true; onTriggered: syncDevices() }
 
-    // Compat no-ops: state is live now, but panel/bar still call these.
-    function refreshPower(): void { syncDevices(); }
-    function refreshDevices(): void { syncDevices(); }
-
     // ---- Discovery (driven by panel open/close via setScanning) ----
     property bool scanWanted: false
     // Keep nudging discovery on while the panel is open: BlueZ rejects
     // StartDiscovery while powering up and sessions can time out alone.
     Timer {
-        id: discoveryRetry
         interval: 1000; repeat: true; triggeredOnStart: true
         running: root.scanWanted && root.adapter !== null && root.btActive && !root.btScanning
         onTriggered: { root.adapter.discovering = true; }
@@ -176,7 +170,6 @@ Singleton {
     // session another client holds can't draw stops forever.
     property int _stopAttempts: 0
     Timer {
-        id: discoveryStop
         interval: 1000; repeat: true
         running: !root.scanWanted && root.adapter !== null && root.btScanning
         onRunningChanged: if (running) root._stopAttempts = 0
@@ -417,19 +410,6 @@ Singleton {
             return "";
         return m;
     }
-    // Compat wrappers (old bluetoothctl-era API used by bar/panel).
-    // Ein Validierungspfad statt 4x kopiertem escMac-Guard.
-    // HINWEIS: btPair ist bewusst ein Alias auf connectDevice —
-    // connectDevice wählt selbst Pair-Pipeline vs. Direkt-Connect.
-    function withValidMac(mac: string, fn: var): void {
-        const m = escMac(mac)
-        if (m.length !== 0) fn(m)
-    }
-    function btConnect(mac: string): void { withValidMac(mac, connectDevice) }
-    function btDisconnect(mac: string): void { withValidMac(mac, disconnectDevice) }
-    function btPair(mac: string): void { withValidMac(mac, connectDevice) }
-    function btRemove(mac: string): void { withValidMac(mac, forgetDevice) }
-
     // ---- Pin for auto-reconnect (shared pin store) ----
     PersistentProperties {
         id: autoReconnectPins

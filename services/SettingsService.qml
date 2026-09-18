@@ -5,7 +5,7 @@ import Quickshell.Io
 import "../themes"
 
 // SettingsService — compositor-agnostic app settings (kitty, fish prompt,
-// brightness). Window-manager look lives in MangoService.
+// brightness). Window-manager look lives in UmbrielService.
 Singleton {
     id: root
 
@@ -100,7 +100,6 @@ Singleton {
     }
     property var _backendPending: null
     function persist(): void { persistDebounce.restart() }
-    function persistNow(): void { try { settingsFile.writeAdapter() } catch (e) { } }
 
     Process {
         id: backendProc
